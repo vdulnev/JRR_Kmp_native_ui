@@ -20,8 +20,9 @@ class AudioPlayerFacadeTest {
         override val volume = MutableStateFlow(1.0f)
         override val shuffleMode = MutableStateFlow(ShuffleMode.OFF)
         override val repeatMode = MutableStateFlow(RepeatMode.OFF)
+        override val queue = MutableStateFlow<List<TrackInfo>>(emptyList())
 
-        private val queue = mutableListOf<TrackInfo>()
+        private val queueList = mutableListOf<TrackInfo>()
         var playCalled = false
         var pauseCalled = false
         var stopCalled = false
@@ -35,8 +36,9 @@ class AudioPlayerFacadeTest {
         override fun getDuration(): Long = 200000L
 
         override fun setQueue(tracks: List<TrackInfo>, startIndex: Int) {
-            queue.clear()
-            queue.addAll(tracks)
+            queueList.clear()
+            queueList.addAll(tracks)
+            queue.value = tracks
             currentIndex.value = startIndex
             currentTrack.value = if (startIndex in tracks.indices) tracks[startIndex] else null
         }
@@ -82,26 +84,29 @@ class AudioPlayerFacadeTest {
         }
 
         override fun removeTrack(index: Int) {
-            if (index in queue.indices) {
-                queue.removeAt(index)
+            if (index in queueList.indices) {
+                queueList.removeAt(index)
+                queue.value = queueList.toList()
             }
         }
 
         override fun moveTrack(from: Int, to: Int) {
-            if (from in queue.indices && to in queue.indices) {
-                val item = queue.removeAt(from)
-                queue.add(to, item)
+            if (from in queueList.indices && to in queueList.indices) {
+                val item = queueList.removeAt(from)
+                queueList.add(to, item)
+                queue.value = queueList.toList()
             }
         }
 
         override fun clearQueue() {
-            queue.clear()
+            queueList.clear()
+            queue.value = emptyList()
             currentIndex.value = -1
             currentTrack.value = null
         }
 
-        override fun getQueue(): List<TrackInfo> = queue
-        override fun getQueueSize(): Int = queue.size
+        override fun getQueue(): List<TrackInfo> = queueList
+        override fun getQueueSize(): Int = queueList.size
 
         override fun playByIndex(index: Int) {
             playByIndexVal = index
