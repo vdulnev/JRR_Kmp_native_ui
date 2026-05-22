@@ -12,12 +12,31 @@ kotlin {
     }
 }
 dependencies {
-    implementation(projects.sharedUI)
+    implementation(projects.sharedLogic)
 
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.compose)
 
+    // Compose
+    implementation(libs.compose.ui)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
+
+    // Media3
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.session)
+    implementation(libs.media3.datasource.okhttp)
+
+    // Coil & WorkManager
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.work.runtime.ktx)
+
+    // Room Multiplatform Runtime
+    implementation(libs.androidx.room.runtime)
 }
 
 android {

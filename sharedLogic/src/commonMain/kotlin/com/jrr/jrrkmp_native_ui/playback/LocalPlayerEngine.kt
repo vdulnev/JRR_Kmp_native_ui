@@ -13,6 +13,7 @@ interface LocalPlayerEngine {
     val volume: StateFlow<Float>
     val shuffleMode: StateFlow<ShuffleMode>
     val repeatMode: StateFlow<RepeatMode>
+    val queue: StateFlow<List<TrackInfo>>
 
     fun getCurrentPosition(): Long
     fun getDuration(): Long

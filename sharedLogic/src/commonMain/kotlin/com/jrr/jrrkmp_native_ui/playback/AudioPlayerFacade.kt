@@ -40,6 +40,18 @@ class AudioPlayerFacade(
 ) {
     private val coroutineScope = CoroutineScope(mainDispatcher + SupervisorJob())
 
+    val currentServerHost: String?
+        get() = McwsClient.currentHost
+
+    val currentServerPort: Int
+        get() = McwsClient.currentPort
+
+    val currentServerUseSsl: Boolean
+        get() = McwsClient.currentUseSsl
+
+    val currentServerSslPort: Int
+        get() = McwsClient.currentSslPort
+
     // Remote Playback Handler
     private val remoteHandler = McwsRemotePlayerHandler()
 
@@ -49,6 +61,8 @@ class AudioPlayerFacade(
 
     private val _playerStatus = MutableStateFlow<PlayerStatus?>(null)
     val playerStatus: StateFlow<PlayerStatus?> = _playerStatus
+
+    val localQueue: StateFlow<List<TrackInfo>> = localPlayerEngine.queue
 
     private var isPollingEnabled = true
     private var pollingJob: Job? = null
