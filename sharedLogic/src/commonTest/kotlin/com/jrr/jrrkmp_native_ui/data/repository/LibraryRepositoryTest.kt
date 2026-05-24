@@ -1,5 +1,6 @@
 package com.jrr.jrrkmp_native_ui.data.repository
 
+import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -41,8 +42,7 @@ class LibraryRepositoryTest {
         ]
         """.trimIndent()
 
-        val repo = LibraryRepository(database = null, isOfflineProvider = { false })
-        val tracks = repo.parseTracksJson(json)
+        val tracks = McwsClient.parseTracksJson(json)
 
         assertEquals(2, tracks.size)
 
@@ -69,11 +69,10 @@ class LibraryRepositoryTest {
 
     @Test
     fun testParseTracksJson_emptyOrInvalid() {
-        val repo = LibraryRepository(database = null, isOfflineProvider = { false })
-        
-        assertTrue(repo.parseTracksJson(null).isEmpty())
-        assertTrue(repo.parseTracksJson("").isEmpty())
-        assertTrue(repo.parseTracksJson("[]").isEmpty())
-        assertTrue(repo.parseTracksJson("invalid-json").isEmpty())
+        assertTrue(McwsClient.parseTracksJson(null).isEmpty())
+        assertTrue(McwsClient.parseTracksJson("").isEmpty())
+        assertTrue(McwsClient.parseTracksJson("[]").isEmpty())
+        assertTrue(McwsClient.parseTracksJson("invalid-json").isEmpty())
     }
 }
+

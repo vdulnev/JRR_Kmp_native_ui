@@ -268,13 +268,13 @@ class AudioPlayerFacade(
             coroutineScope.launch(ioDispatcher) {
                 val keys = tracks.joinToString(",") { it.fileKey }
                 remoteHandler.seekTo(zone.id, 0L)
-                val xml = McwsClient.getMcwsXml("Playback/PlayByKey", mapOf(
+                val success = McwsClient.executeCommand("Playback/PlayByKey", mapOf(
                     "Key" to keys,
                     "Zone" to zone.id,
                     "ZoneType" to "ID",
                     "Location" to "Next"
                 ))
-                if (xml != null) {
+                if (success) {
                     remoteHandler.play(zone.id)
                 }
             }
@@ -386,7 +386,7 @@ class AudioPlayerFacade(
             localPlayerEngine.playByIndex(index)
         } else {
             coroutineScope.launch(ioDispatcher) {
-                McwsClient.getMcwsXml("Playback/PlayByIndex", mapOf(
+                McwsClient.executeCommand("Playback/PlayByIndex", mapOf(
                     "Index" to index.toString(),
                     "Zone" to zone.id,
                     "ZoneType" to "ID"
@@ -402,7 +402,7 @@ class AudioPlayerFacade(
             saveQueueState(zone.id)
         } else {
             coroutineScope.launch(ioDispatcher) {
-                McwsClient.getMcwsXml("Playback/EditPlaylist", mapOf(
+                McwsClient.executeCommand("Playback/EditPlaylist", mapOf(
                     "Action" to "Remove",
                     "Source" to index.toString(),
                     "Zone" to zone.id
@@ -418,7 +418,7 @@ class AudioPlayerFacade(
             saveQueueState(zone.id)
         } else {
             coroutineScope.launch(ioDispatcher) {
-                McwsClient.getMcwsXml("Playback/EditPlaylist", mapOf(
+                McwsClient.executeCommand("Playback/EditPlaylist", mapOf(
                     "Action" to "Move",
                     "Source" to from.toString(),
                     "Target" to to.toString(),
@@ -435,7 +435,7 @@ class AudioPlayerFacade(
             saveQueueState(zone.id)
         } else {
             coroutineScope.launch(ioDispatcher) {
-                McwsClient.getMcwsXml("Playback/ClearPlaylist", mapOf(
+                McwsClient.executeCommand("Playback/ClearPlaylist", mapOf(
                     "Zone" to zone.id,
                     "ZoneType" to "ID"
                 ))
