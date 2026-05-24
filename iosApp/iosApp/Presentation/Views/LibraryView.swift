@@ -7,7 +7,7 @@ struct LibraryView: View {
     
     @State private var searchQuery = ""
     @State private var isSearching = false
-    @State private var searchResults: [TrackInfo] = []
+    @State private var searchResults: [Track] = []
     @State private var isSearchingLoading = false
     
     @State private var currentTab = 0 // 0 = Artists, 1 = Random, 2 = Browse, 3 = Favorites
@@ -25,7 +25,7 @@ struct LibraryView: View {
     // Browse tree stack: list of (Label, ID)
     @State private var browseStack = [("Library", "-1")]
     @State private var browseChildren: [String: String] = [:] // Name -> ID
-    @State private var browseTracks: [TrackInfo] = []
+    @State private var browseTracks: [Track] = []
     @State private var isLoadingBrowse = false
     
     var body: some View {
@@ -244,9 +244,8 @@ struct LibraryView: View {
         Task {
             do {
                 let list = try await JrrDependencies.shared.libraryRepository.searchFiles(query: trimmed)
-                let mapped = list.map { $0.toTrackInfo() }
                 await MainActor.run {
-                    self.searchResults = mapped
+                    self.searchResults = list
                     self.isSearchingLoading = false
                 }
             } catch {
@@ -288,7 +287,7 @@ struct LibraryView: View {
                         LazyVStack(spacing: 8) {
                             ForEach(artistAlbums, id: \.name) { album in
                                 albumRowItem(album: album) {
-                                    onAlbumClick(album.name, album.artist)
+                                    onAlbumClick(album.name, album.albumArtist)
                                 }
                             }
                         }
@@ -408,10 +407,11 @@ struct LibraryView: View {
                     
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(randomAlbums, id: \.name) { album in
-                            Button(action: { onAlbumClick(album.name, album.artist) }) {
+                            let imageUrl = McwsClient.shared.buildImageUrl(fileKey: album.artworkFileKey)
+                            Button(action: { onAlbumClick(album.name, album.albumArtist) }) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     ZStack {
-                                        if !album.imageUrl.isEmpty, let url = URL(string: album.imageUrl) {
+                                        if !imageUrl.isEmpty, let url = URL(string: imageUrl) {
                                             JrrAsyncImage(url: url) { image in
                                                 image
                                                     .resizable()
@@ -446,7 +446,7 @@ struct LibraryView: View {
                                         .foregroundColor(.textPrimary)
                                         .lineLimit(1)
                                     
-                                    Text(album.artist)
+                                    Text(album.albumArtist)
                                         .font(AppFont.inter(size: 11.5, weight: .regular))
                                         .foregroundColor(.textSecondary)
                                         .lineLimit(1)
@@ -569,10 +569,9 @@ struct LibraryView: View {
                     }
                 } else {
                     let tracks = try await JrrDependencies.shared.libraryRepository.getBrowseFiles(nodeId: current.1)
-                    let mapped = tracks.map { $0.toTrackInfo() }
                     await MainActor.run {
                         self.browseChildren = [:]
-                        self.browseTracks = mapped
+                        self.browseTracks = tracks
                         self.isLoadingBrowse = false
                     }
                 }
@@ -670,7 +669,7 @@ struct LibraryView: View {
     }
     
     // MARK: - List Item Row Templates
-    private func trackRowItem(track: TrackInfo, action: @escaping () -> Void) -> some View {
+    private func trackRowItem(track: Track, action: @escaping () -> Void) -> some View {
         HStack {
             ZStack {
                 if !track.imageUrl.isEmpty, let url = URL(string: track.imageUrl) {
@@ -730,9 +729,10 @@ struct LibraryView: View {
     }
     
     private func albumRowItem(album: Album, action: @escaping () -> Void) -> some View {
-        HStack {
+        let imageUrl = McwsClient.shared.buildImageUrl(fileKey: album.artworkFileKey)
+        return HStack {
             ZStack {
-                if !album.imageUrl.isEmpty, let url = URL(string: album.imageUrl) {
+                if !imageUrl.isEmpty, let url = URL(string: imageUrl) {
                     JrrAsyncImage(url: url) { image in
                         image
                             .resizable()
@@ -766,7 +766,7 @@ struct LibraryView: View {
                     .styleItemTitle()
                     .lineLimit(1)
                 
-                Text(album.year.isEmpty ? "Unknown Year" : album.year)
+                Text(album.date.isEmpty ? "Unknown Year" : album.date)
                     .styleItemSubtitle()
             }
             .padding(.leading, 8)

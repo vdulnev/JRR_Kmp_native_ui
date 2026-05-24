@@ -11,7 +11,6 @@ struct NowPlayingView: View {
     
     var body: some View {
         let status = audioHandler.playerStatus
-        let track = status?.trackInfo
         
         let isPlaying = status?.state == .playing
         let currentPosition = status?.positionMs ?? 0
@@ -47,11 +46,12 @@ struct NowPlayingView: View {
             
             // Vinyl Sleeve Hero
             VinylSleeve(
-                albumTitle: track?.album ?? "No Track Selected",
-                artistName: track?.artist ?? "Unknown Artist",
-                year: track != nil ? "2026" : "—", // Fallback decorative year
+                albumTitle: status?.trackAlbum ?? "No Track Selected",
+                artistName: status?.trackArtist ?? "Unknown Artist",
+                year: status != nil ? "2026" : "—", // Fallback decorative year
                 side: "SIDE A",
-                imageUrl: track?.imageUrl.isEmpty == false ? track?.imageUrl : nil,
+                //TODO: implenent later
+                imageUrl: nil,
                 isPlaying: isPlaying
             )
             .padding(.vertical, 20)
@@ -60,31 +60,32 @@ struct NowPlayingView: View {
             
             // Metadata & details
             VStack(spacing: 8) {
-                Text(track?.name ?? "Not Playing")
+                Text(status?.trackName ?? "Not Playing")
                     .styleNowPlayingTitle()
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
                 
-                Text((track?.artist ?? "Unknown Artist") + " — " + (track?.album ?? "Unknown Album"))
+                Text((status?.trackArtist ?? "Unknown Artist") + " — " + (status?.trackAlbum ?? "Unknown Album"))
                     .styleItemSubtitle()
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
                 
                 // Format Badge
-                if let track = track, track.sampleRate > 0 {
-                    let formatString = buildFormatString(track: track)
-                    Text(formatString)
-                        .font(AppFont.ibmPlexMono(size: 9, weight: .medium))
-                        .tracking(1.6)
-                        .foregroundColor(.textTertiary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.bg2)
-                        .cornerRadius(4)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.line2, lineWidth: 1)
-                        )
+                if let status = status, status.sampleRate > 0 {
+                    //TODO: implement later
+                    //let formatString = buildFormatString(track: track)
+//                    Text(formatString)
+//                        .font(AppFont.ibmPlexMono(size: 9, weight: .medium))
+//                        .tracking(1.6)
+//                        .foregroundColor(.textTertiary)
+//                        .padding(.horizontal, 8)
+//                        .padding(.vertical, 4)
+//                        .background(Color.bg2)
+//                        .cornerRadius(4)
+//                        .overlay(
+//                            RoundedRectangle(cornerRadius: 4)
+//                                .stroke(Color.line2, lineWidth: 1)
+//                        )
                 }
             }
             .padding(.horizontal, AppSpacing.nowPlayingHorizontalMargin)
@@ -261,7 +262,7 @@ struct NowPlayingView: View {
         return String(format: "%d:%02d", m, s)
     }
     
-    private func buildFormatString(track: TrackInfo) -> String {
+    private func buildFormatString(track: Track) -> String {
         var parts: [String] = []
         // Try to guess from imageUrl query parameter or just use default
         if let url = URL(string: track.imageUrl),

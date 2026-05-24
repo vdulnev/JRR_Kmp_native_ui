@@ -27,7 +27,7 @@ import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
-import com.jrr.jrrkmp_native_ui.domain.model.TrackInfo
+import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.presentation.components.VuMeter
 import kotlinx.coroutines.launch
 
@@ -48,7 +48,7 @@ fun QueueScreen(
     val localQueue by facade.localQueue.collectAsState()
 
     // Remote queue state
-    var remoteQueue by remember { mutableStateOf<List<TrackInfo>>(emptyList()) }
+    var remoteQueue by remember { mutableStateOf<List<Track>>(emptyList()) }
     var isLoadingRemote by remember { mutableStateOf(false) }
 
     // Fetch remote queue when zone, active playing track count, or current index changes
@@ -62,7 +62,7 @@ fun QueueScreen(
             scope.launch {
                 try {
                     val tracks = libraryRepository.getRemoteQueue()
-                    remoteQueue = tracks.map { it.toTrackInfo() }
+                    remoteQueue = tracks
                 } catch (e: Exception) {
                     e.printStackTrace()
                 } finally {

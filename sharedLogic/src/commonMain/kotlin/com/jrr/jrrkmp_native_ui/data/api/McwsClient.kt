@@ -1,6 +1,5 @@
 package com.jrr.jrrkmp_native_ui.data.api
 
-import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -106,6 +105,7 @@ object McwsClient {
                 val albumArtist = obj["Album Artist (auto)"]?.jsonPrimitive?.content 
                     ?: obj["Artist"]?.jsonPrimitive?.content 
                     ?: "Unknown"
+                val date = obj["Date (readable)"]?.jsonPrimitive?.content ?: ""
                 val genre = obj["Genre"]?.jsonPrimitive?.content ?: "Unknown"
                 val durationSec = obj["Duration"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: 0.0
                 val durationMs = (durationSec * 1000).toLong()
@@ -119,6 +119,7 @@ object McwsClient {
                 val channels = obj["Channels"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 2
                 val fileType = obj["File Type"]?.jsonPrimitive?.content ?: "Unknown"
                 val filePath = obj["Filename"]?.jsonPrimitive?.content ?: ""
+                val folderPath = obj["Filename (path)"]?.jsonPrimitive?.content ?: ""
 
                 Track(
                     fileKey = key,
@@ -126,19 +127,20 @@ object McwsClient {
                     artist = artist,
                     album = album,
                     albumArtist = albumArtist,
+                    date = date,
                     genre = genre,
                     durationMs = durationMs,
                     trackNumber = trackNum,
                     discNumber = discNum,
                     totalDiscs = totalDiscs,
                     totalTracks = totalTracks,
-                    imageUrl = buildImageUrl(key),
                     bitrate = bitrate,
                     bitDepth = bitDepth,
                     sampleRate = sampleRate,
                     channels = channels,
                     fileType = fileType,
-                    filePath = filePath
+                    filePath = filePath,
+                    folderPath = folderPath
                 )
             }
         } catch (e: Exception) {
@@ -148,12 +150,12 @@ object McwsClient {
     }
 
     suspend fun searchTracks(query: String): List<Track> {
-        val json = getMcwsJson("Files/Search", mapOf("Query" to query))
+        val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated"))
         return parseTracksJson(json)
     }
 
     suspend fun searchArtists(query: String): List<String> {
-        val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Artist"))
+        val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated"))
         if (json.isNullOrEmpty()) return emptyList()
         val artistsSet = mutableSetOf<String>()
         try {
@@ -172,40 +174,21 @@ object McwsClient {
     }
 
     suspend fun searchAlbums(query: String): List<Album> {
-        val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Key;Album;Artist;Filename;Date (readable)"))
+        val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated"))
         if (json.isNullOrEmpty()) return emptyList()
-        val albums = mutableListOf<Album>()
-        try {
-            val jsonArray = jsonConfiguration.parseToJsonElement(json).jsonArray
-            for (element in jsonArray) {
-                val obj = element.jsonObject
-                val albumName = obj["Album"]?.jsonPrimitive?.content?.trim() ?: ""
-                val key = obj["Key"]?.jsonPrimitive?.content ?: ""
-                if (albumName.isNotEmpty()) {
-                    albums.add(
-                        Album(
-                          name = albumName,
-                          artist = obj["Artist"]?.jsonPrimitive?.content ?: "Unknown",
-                          folderPath = obj["Filename"]?.jsonPrimitive?.content ?: "",
-                          year = obj["Date (readable)"]?.jsonPrimitive?.content ?: "",
-                          imageUrl = if (key.isNotEmpty()) buildImageUrl(key) else ""
-                        )
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        val tracks = parseTracksJson(json)
+        return tracks.map {
+            track -> Album(track)
         }
-        return albums
     }
 
     suspend fun getBrowseFiles(nodeId: String): List<Track> {
-        val json = getMcwsJson("Browse/Files", mapOf("ID" to nodeId))
+        val json = getMcwsJson("Browse/Files", mapOf("Fields" to "Calculated", "ID" to nodeId))
         return parseTracksJson(json)
     }
 
     suspend fun getRemoteQueue(): List<Track> {
-        val json = getMcwsJson("Playback/Playlist")
+        val json = getMcwsJson("Playback/Playlist", mapOf("Fields" to "Calculated"))
         return parseTracksJson(json)
     }
 
@@ -257,36 +240,6 @@ object McwsClient {
         val playbackState = PlaybackState.fromMcws(stateVal)
 
         val fileKey = items["FileKey"]
-        val trackInfo = if (!fileKey.isNullOrEmpty()) {
-            val serverUrl = getBaseUrl() ?: ""
-            val imageRelUrl = items["ImageURL"] ?: ""
-            var imageUrl = if (imageRelUrl.isNotEmpty()) {
-                val base = serverUrl.removeSuffix("/MCWS/v1").removeSuffix("/MCWS/v1/")
-                if (imageRelUrl.startsWith("http")) imageRelUrl else "${base}/${imageRelUrl.removePrefix("/")}"
-            } else ""
-
-            val token = currentToken
-            if (!token.isNullOrEmpty() && imageUrl.isNotEmpty() && !imageUrl.contains("Token=")) {
-                imageUrl = if (imageUrl.contains("?")) {
-                    "$imageUrl&Token=$token"
-                } else {
-                    "$imageUrl?Token=$token"
-                }
-            }
-
-            TrackInfo(
-                fileKey = fileKey,
-                name = items["Name"] ?: "Unknown",
-                artist = items["Artist"] ?: "Unknown",
-                album = items["Album"] ?: "Unknown",
-                imageUrl = imageUrl,
-                bitrate = items["Bitrate"]?.toIntOrNull() ?: 0,
-                bitDepth = items["Bitdepth"]?.toIntOrNull() ?: 0,
-                sampleRate = items["SampleRate"]?.toIntOrNull() ?: 0,
-                channels = items["Channels"]?.toIntOrNull() ?: 0,
-                durationMs = items["DurationMS"]?.toLongOrNull() ?: 0L
-            )
-        } else null
 
         val durationMs = items["DurationMS"]?.toLongOrNull() ?: 0L
         val positionMs = items["PositionMS"]?.toLongOrNull() ?: 0L
@@ -300,11 +253,15 @@ object McwsClient {
         val repeatModeStr = items["Repeat"]
         val repeatMode = RepeatMode.fromMcws(repeatModeStr)
 
+        val trackAlbum = items["Album"]
+        val trackArtist = items["Artist"]
+        val trackName = items["Name"]
+        val sampleRate = items["SampleRate"]?.toIntOrNull() ?: -1
+
         return PlayerStatus(
             zoneId = zoneId,
             zoneName = items["ZoneName"] ?: "Unknown Zone",
             state = playbackState,
-            trackInfo = trackInfo,
             positionMs = positionMs,
             durationMs = durationMs,
             volume = volumeVal,
@@ -312,7 +269,11 @@ object McwsClient {
             shuffleMode = shuffleMode,
             repeatMode = repeatMode,
             playingNowPosition = items["PlayingNowPosition"]?.toIntOrNull() ?: -1,
-            playingNowTracks = items["PlayingNowTracks"]?.toIntOrNull() ?: 0
+            playingNowTracks = items["PlayingNowTracks"]?.toIntOrNull() ?: 0,
+            trackAlbum = trackAlbum ?: "",
+            trackArtist = trackArtist ?: "",
+            trackName = trackName ?: "",
+            sampleRate = sampleRate
         )
     }
 

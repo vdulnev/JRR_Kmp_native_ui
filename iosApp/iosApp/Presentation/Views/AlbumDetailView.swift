@@ -108,8 +108,7 @@ struct AlbumDetailView: View {
                             HStack(spacing: 12) {
                                 Button(action: {
                                     if !tracks.isEmpty {
-                                        let trackInfos = tracks.map { $0.toTrackInfo() }
-                                        JrrDependencies.shared.facade.setQueue(tracks: trackInfos, startIndex: 0)
+                                        JrrDependencies.shared.facade.setQueue(tracks: tracks, startIndex: 0)
                                     }
                                 }) {
                                     HStack(spacing: 8) {
@@ -129,8 +128,7 @@ struct AlbumDetailView: View {
                                 Button(action: {
                                     if !tracks.isEmpty {
                                         let shuffled = tracks.shuffled()
-                                        let trackInfos = shuffled.map { $0.toTrackInfo() }
-                                        JrrDependencies.shared.facade.setQueue(tracks: trackInfos, startIndex: 0)
+                                        JrrDependencies.shared.facade.setQueue(tracks: tracks, startIndex: 0)
                                     }
                                 }) {
                                     HStack(spacing: 8) {
@@ -156,98 +154,13 @@ struct AlbumDetailView: View {
                         
                         // Tracks listing
                         VStack(alignment: .leading, spacing: 0) {
-                            let sortedTracks = tracks.sorted { ($0.discNumber, $0.trackNumber) < ($1.discNumber, $1.trackNumber) }
-                            let discGroups = Dictionary(grouping: sortedTracks, by: { $0.discNumber })
-                            let sortedDiscKeys = discGroups.keys.sorted()
-                            
                             ForEach(sortedDiscKeys, id: \.self) { discNum in
-                                let discTracks = discGroups[discNum] ?? []
-                                
-                                // Header
-                                HStack {
-                                    if sortedDiscKeys.count > 1 {
-                                        Text("DISC \(discNum)".uppercased())
-                                            .styleSectionLabel()
-                                    } else {
-                                        Text("SIDE A".uppercased())
-                                            .styleSectionLabel()
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.top, 16)
-                                .padding(.bottom, 8)
-                                
-                                ForEach(discTracks, id: \.fileKey) { track in
-                                    let trackIdx = sortedTracks.firstIndex(of: track) ?? 0
-                                    let displayIdx = track.trackNumber != 0 ? track.trackNumber : Int32(trackIdx + 1)
-                                    
-                                    HStack {
-                                        Text(String(format: "%02d", displayIdx))
-                                            .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
-                                            .foregroundColor(.accentColor)
-                                            .frame(width: 36, alignment: .leading)
-                                        
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(track.name)
-                                                .styleItemTitle()
-                                                .lineLimit(1)
-                                            
-                                            if track.artist != artistName {
-                                                Text(track.artist)
-                                                    .styleItemSubtitle()
-                                                    .lineLimit(1)
-                                            }
-                                        }
-                                        
-                                        Spacer()
-                                        
-                                        // Download status / action button
-                                        if !stateObserver.activeZone.isOffline {
-                                            if stateObserver.downloadedTracks.contains(where: { $0.fileKey == track.fileKey }) {
-                                                Image(systemName: "checkmark")
-                                                    .font(.system(size: 11, weight: .bold))
-                                                    .foregroundColor(.accentColor)
-                                                    .padding(.trailing, 8)
-                                            } else if let job = stateObserver.downloadJobs.first(where: { $0.fileKey == track.fileKey }) {
-                                                if job.state == "downloading" || job.state == "DOWNLOADING" {
-                                                    ProgressView()
-                                                        .controlSize(.small)
-                                                        .tint(.accentColor)
-                                                        .padding(.trailing, 8)
-                                                } else {
-                                                    Image(systemName: "ellipsis.circle")
-                                                        .font(.system(size: 12))
-                                                        .foregroundColor(.textTertiary)
-                                                        .padding(.trailing, 8)
-                                                }
-                                            } else {
-                                                Button(action: {
-                                                    triggerDownload(track: track)
-                                                }) {
-                                                    Image(systemName: "arrow.down.circle")
-                                                        .font(.system(size: 14))
-                                                        .foregroundColor(.textSecondary)
-                                                }
-                                                .buttonStyle(PlainButtonStyle())
-                                                .padding(.trailing, 8)
-                                            }
-                                        }
-                                        
-                                        let durationSec = track.durationMs / 1000
-                                        Text(String(format: "%d:%02d", durationSec / 60, durationSec % 60))
-                                            .styleMonoLabel()
-                                    }
-                                    .contentShape(Rectangle())
-                                    .padding(.vertical, 12)
-                                    .onTapGesture {
-                                        let index = sortedTracks.firstIndex(of: track) ?? 0
-                                        let trackInfos = sortedTracks.map { $0.toTrackInfo() }
-                                        JrrDependencies.shared.facade.setQueue(tracks: trackInfos, startIndex: Int32(index))
-                                    }
-                                    
-                                    Divider()
-                                        .background(Color.line)
-                                }
+                                discSection(
+                                    discNum: discNum,
+                                    discTracks: discGroups[discNum] ?? [],
+                                    sortedTracks: sortedTracks,
+                                    sortedDiscKeys: sortedDiscKeys
+                                )
                             }
                         }
                         .padding(.horizontal, AppSpacing.screenHorizontalMargin)
@@ -259,6 +172,111 @@ struct AlbumDetailView: View {
         .background(Color.bg1.ignoresSafeArea())
         .task {
             await loadTracks()
+        }
+    }
+    
+    private var sortedTracks: [Track] {
+        tracks.sorted { ($0.discNumber, $0.trackNumber) < ($1.discNumber, $1.trackNumber) }
+    }
+    
+    private var discGroups: [Int32: [Track]] {
+        Dictionary(grouping: sortedTracks, by: { $0.discNumber })
+    }
+    
+    private var sortedDiscKeys: [Int32] {
+        discGroups.keys.sorted()
+    }
+    
+    private func trackRow(track: Track, displayIdx: Int32, sortedTracks: [Track]) -> some View {
+        HStack {
+            Text(String(format: "%02d", displayIdx))
+                .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
+                .foregroundColor(.accentColor)
+                .frame(width: 36, alignment: .leading)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(track.name)
+                    .styleItemTitle()
+                    .lineLimit(1)
+                
+                if track.artist != artistName {
+                    Text(track.artist)
+                        .styleItemSubtitle()
+                        .lineLimit(1)
+                }
+            }
+            
+            Spacer()
+            
+            // Download status / action button
+            if !stateObserver.activeZone.isOffline {
+                if stateObserver.downloadedTracks.contains(where: { $0.fileKey == track.fileKey }) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.accentColor)
+                        .padding(.trailing, 8)
+                } else if let job = stateObserver.downloadJobs.first(where: { $0.fileKey == track.fileKey }) {
+                    if job.state == "downloading" || job.state == "DOWNLOADING" {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.accentColor)
+                            .padding(.trailing, 8)
+                    } else {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 12))
+                            .foregroundColor(.textTertiary)
+                            .padding(.trailing, 8)
+                    }
+                } else {
+                    Button(action: {
+                        triggerDownload(track: track)
+                    }) {
+                        Image(systemName: "arrow.down.circle")
+                            .font(.system(size: 14))
+                            .foregroundColor(.textSecondary)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .padding(.trailing, 8)
+                }
+            }
+            
+            let durationSec = track.durationMs / 1000
+            Text(String(format: "%d:%02d", durationSec / 60, durationSec % 60))
+                .styleMonoLabel()
+        }
+        .contentShape(Rectangle())
+        .padding(.vertical, 12)
+        .onTapGesture {
+            let index = sortedTracks.firstIndex(of: track) ?? 0
+            JrrDependencies.shared.facade.setQueue(tracks: sortedTracks, startIndex: Int32(index))
+        }
+    }
+    
+    private func discSection(discNum: Int32, discTracks: [Track], sortedTracks: [Track], sortedDiscKeys: [Int32]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack {
+                if sortedDiscKeys.count > 1 {
+                    Text("DISC \(discNum)".uppercased())
+                        .styleSectionLabel()
+                } else {
+                    Text("SIDE A".uppercased())
+                        .styleSectionLabel()
+                }
+                Spacer()
+            }
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+            
+            ForEach(discTracks, id: \.fileKey) { track in
+                let trackIdx = sortedTracks.firstIndex(of: track) ?? 0
+                let displayIdx = track.trackNumber != 0 ? track.trackNumber : Int32(trackIdx + 1)
+                
+                trackRow(track: track, displayIdx: displayIdx, sortedTracks: sortedTracks)
+                
+                Divider()
+                    .background(Color.line)
+            }
         }
     }
     

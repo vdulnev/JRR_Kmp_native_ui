@@ -155,13 +155,24 @@ class DownloadWorker(
                 // 3. Add to downloaded_tracks
                 val downloadedTrack = DownloadedTrackEntity(
                     fileKey = fileKey,
-                    filePath = finalFile.absolutePath,
                     title = job.title,
                     artist = job.artist,
                     album = job.album,
+                    date = "",
                     durationMs = job.durationMs,
                     trackNumber = job.trackNumber,
-                    genre = job.genre
+                    genre = job.genre,
+                    discNumber = 1,
+                    totalDiscs = 1,
+                    totalTracks = 1,
+                    bitrate = 0,
+                    bitDepth = 0,
+                    sampleRate = 0,
+                    channels = 2,
+                    fileType = job.fileType,
+                    filePath = finalFile.absolutePath,
+                    folderPath = "",
+                    lastPlayedAt = null
                 )
                 trackDao.insert(downloadedTrack)
 

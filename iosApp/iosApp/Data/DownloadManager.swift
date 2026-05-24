@@ -92,10 +92,20 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                         title: job.title,
                         artist: job.artist,
                         album: job.album,
+                        date: job.date,
                         durationMs: job.durationMs,
                         trackNumber: job.trackNumber,
                         genre: job.genre,
-                        fileType: job.fileType
+                        discNumber: job.discNumber,
+                        totalDiscs: job.totalDiscs,
+                        totalTracks: job.totalTracks,
+                        bitrate: job.bitrate,
+                        bitDepth: job.bitDepth,
+                        sampleRate: job.sampleRate,
+                        channels: job.channels,
+                        fileType: job.fileType,
+                        filePath: job.filePath,
+                        folderPath: job.folderPath
                     )
                     try await database.downloadJobDao().update(job: updatedJob)
                 }
@@ -143,14 +153,23 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                 // Save to DownloadedTrackEntity
                 let track = DownloadedTrackEntity(
                     fileKey: fileKey,
-                    filePath: destinationURL.path,
-                    title: job.title,
-                    artist: job.artist,
-                    album: job.album,
+                    title: destinationURL.path,
+                    artist: job.title,
+                    album: job.artist,
+                    date: job.album,
                     durationMs: job.durationMs,
-                    trackNumber: KotlinInt(value: job.trackNumber),
+                    trackNumber: job.trackNumber,
                     genre: job.genre,
-                    lastPlayedAt: nil
+                    discNumber: job.discNumber,
+                    totalDiscs: job.totalDiscs,
+                    totalTracks: job.totalTracks,
+                    bitrate: job.bitrate,
+                    bitDepth: job.bitDepth,
+                    sampleRate: job.sampleRate,
+                    channels: job.channels,
+                    fileType: job.fileType,
+                    filePath: job.filePath,
+                    folderPath: job.folderPath
                 )
                 try await database.downloadedTrackDao().insert(track: track)
                 try await database.downloadJobDao().delete(job: job)
@@ -170,10 +189,20 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                             title: job.title,
                             artist: job.artist,
                             album: job.album,
+                            date: job.date,
                             durationMs: job.durationMs,
                             trackNumber: job.trackNumber,
                             genre: job.genre,
-                            fileType: job.fileType
+                            discNumber: job.discNumber,
+                            totalDiscs: job.totalDiscs,
+                            totalTracks: job.totalTracks,
+                            bitrate: job.bitrate,
+                            bitDepth: job.bitDepth,
+                            sampleRate: job.sampleRate,
+                            channels: job.channels,
+                            fileType: job.fileType,
+                            filePath: job.filePath,
+                            folderPath: job.folderPath
                         )
                         try await database.downloadJobDao().update(job: failedJob)
                     }
@@ -207,10 +236,20 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                         title: job.title,
                         artist: job.artist,
                         album: job.album,
+                        date: job.date,
                         durationMs: job.durationMs,
                         trackNumber: job.trackNumber,
                         genre: job.genre,
-                        fileType: job.fileType
+                        discNumber: job.discNumber,
+                        totalDiscs: job.totalDiscs,
+                        totalTracks: job.totalTracks,
+                        bitrate: job.bitrate,
+                        bitDepth: job.bitDepth,
+                        sampleRate: job.sampleRate,
+                        channels: job.channels,
+                        fileType: job.fileType,
+                        filePath: job.filePath,
+                        folderPath: job.folderPath
                     )
                     try await database.downloadJobDao().update(job: updatedJob)
                 }
@@ -245,10 +284,20 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                             title: job.title,
                             artist: job.artist,
                             album: job.album,
+                            date: job.date,
                             durationMs: job.durationMs,
                             trackNumber: job.trackNumber,
                             genre: job.genre,
-                            fileType: job.fileType
+                            discNumber: job.discNumber,
+                            totalDiscs: job.totalDiscs,
+                            totalTracks: job.totalTracks,
+                            bitrate: job.bitrate,
+                            bitDepth: job.bitDepth,
+                            sampleRate: job.sampleRate,
+                            channels: job.channels,
+                            fileType: job.fileType,
+                            filePath: job.filePath,
+                            folderPath: job.folderPath
                         )
                         try await database.downloadJobDao().update(job: failedJob)
                     }

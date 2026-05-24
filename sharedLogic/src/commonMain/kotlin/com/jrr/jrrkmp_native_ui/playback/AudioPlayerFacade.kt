@@ -8,7 +8,7 @@ import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.PlayerStatus
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
-import com.jrr.jrrkmp_native_ui.domain.model.TrackInfo
+import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.CoroutineDispatcher
@@ -62,7 +62,7 @@ class AudioPlayerFacade(
     private val _playerStatus = MutableStateFlow<PlayerStatus?>(null)
     val playerStatus: StateFlow<PlayerStatus?> = _playerStatus
 
-    val localQueue: StateFlow<List<TrackInfo>> = localPlayerEngine.queue
+    val localQueue: StateFlow<List<Track>> = localPlayerEngine.queue
 
     private var isPollingEnabled = true
     private var pollingJob: Job? = null
@@ -78,13 +78,14 @@ class AudioPlayerFacade(
         // Collect local state and merge with facade status
         coroutineScope.launch {
             combine(
+                localPlayerEngine.queue,
                 localPlayerEngine.playbackState,
-                localPlayerEngine.currentTrack,
                 localPlayerEngine.currentIndex,
                 localPlayerEngine.volume,
                 combine(localPlayerEngine.shuffleMode, localPlayerEngine.repeatMode) { s, r -> Pair(s, r) }
-            ) { state, track, index, vol, shuffleRepeat ->
+            ) { queue, state, index, vol, shuffleRepeat ->
                 val zone = _activeZone.value
+                val track = if (queue.isNotEmpty()) queue[index] else null
                 if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
                     val position = localPlayerEngine.getCurrentPosition()
                     val duration = localPlayerEngine.getDuration()
@@ -92,7 +93,6 @@ class AudioPlayerFacade(
                         zoneId = zone.id,
                         zoneName = zone.name,
                         state = state,
-                        trackInfo = track,
                         positionMs = position,
                         durationMs = duration,
                         volume = vol,
@@ -100,7 +100,11 @@ class AudioPlayerFacade(
                         shuffleMode = shuffleRepeat.first,
                         repeatMode = shuffleRepeat.second,
                         playingNowPosition = index,
-                        playingNowTracks = localPlayerEngine.getQueueSize()
+                        playingNowTracks = localPlayerEngine.getQueueSize(),
+                        trackAlbum = track?.album ?: "",
+                        trackArtist = track?.artist ?: "",
+                        trackName = track?.name ?: "",
+                        sampleRate = track?.sampleRate ?: -1
                     )
                 }
             }.collect()
@@ -108,25 +112,6 @@ class AudioPlayerFacade(
 
         // Start local progress tick
         startLocalProgressPolling()
-
-        // Observe currentTrack transitions to update lastPlayedAt in the database
-        coroutineScope.launch {
-            localPlayerEngine.currentTrack
-                .filterNotNull()
-                .distinctUntilChangedBy { it.fileKey }
-                .collect { track ->
-                    val zone = _activeZone.value
-                    if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
-                        withContext(ioDispatcher) {
-                            try {
-                                database?.downloadedTrackDao()?.updateLastPlayedAt(track.fileKey, getTimeMillis())
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
-                    }
-                }
-        }
 
         // Track index changes to update queue state in the database
         coroutineScope.launch {
@@ -258,7 +243,7 @@ class AudioPlayerFacade(
         }
     }
 
-    fun setQueue(tracks: List<TrackInfo>, startIndex: Int) {
+    fun setQueue(tracks: List<Track>, startIndex: Int) {
         val zone = _activeZone.value
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.setQueue(tracks, startIndex)
@@ -482,7 +467,7 @@ class AudioPlayerFacade(
 
                 val tracks = dbTracks.mapNotNull {
                     try {
-                        json.decodeFromString<TrackInfo>(it.trackJson)
+                        json.decodeFromString<Track>(it.trackJson)
                     } catch (e: Exception) {
                         null
                     }

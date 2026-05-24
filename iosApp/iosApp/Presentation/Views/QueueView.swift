@@ -6,7 +6,7 @@ struct QueueView: View {
     
     let onBackClick: () -> Void
     
-    @State private var remoteQueue: [TrackInfo] = []
+    @State private var remoteQueue: [Track] = []
     @State private var isLoadingRemote = false
     @State private var editMode: EditMode = .inactive
     
@@ -14,7 +14,7 @@ struct QueueView: View {
         audioHandler.activeZone.isLocal || audioHandler.activeZone.isOffline || audioHandler.activeZone.isAndroidAuto
     }
     
-    var currentQueue: [TrackInfo] {
+    var currentQueue: [Track] {
         isLocal ? audioHandler.localQueue : remoteQueue
     }
     
@@ -164,9 +164,8 @@ struct QueueView: View {
         isLoadingRemote = true
         do {
             let tracks = try await JrrDependencies.shared.libraryRepository.getRemoteQueue()
-            let mapped = tracks.map { $0.toTrackInfo() }
             await MainActor.run {
-                self.remoteQueue = mapped
+                self.remoteQueue = tracks
                 self.isLoadingRemote = false
             }
         } catch {

@@ -18,29 +18,6 @@ class LibraryRepository(
 ) {
     var onDownloadQueued: ((track: Track, jobId: Int) -> Unit)? = null
 
-    private fun DownloadedTrackEntity.toTrack(): Track {
-        return Track(
-            fileKey = fileKey,
-            name = title,
-            artist = artist,
-            album = album,
-            albumArtist = artist,
-            genre = genre ?: "Unknown",
-            durationMs = durationMs,
-            trackNumber = trackNumber ?: 0,
-            discNumber = 1,
-            totalDiscs = 1,
-            totalTracks = 1,
-            imageUrl = "",
-            bitrate = 0,
-            bitDepth = 0,
-            sampleRate = 0,
-            channels = 2,
-            fileType = "",
-            filePath = filePath
-        )
-    }
-
     suspend fun searchFiles(query: String): List<Track> = withContext(Dispatchers.IO) {
         if (isOfflineProvider()) {
             val db = database ?: return@withContext emptyList()
@@ -85,14 +62,8 @@ class LibraryRepository(
                 }
             }
             return@withContext albumsMap.values.map {
-                Album(
-                    name = it.album,
-                    artist = it.artist,
-                    folderPath = "",
-                    year = "",
-                    imageUrl = ""
-                )
-            }.sortedWith(compareBy { it.name.lowercase() })
+                Album(it.toTrack())
+            }.distinct().sortedWith(compareBy { it.name.lowercase() })
         }
         val mcwsQuery = "[Media Type]=Audio [Artist]=\"$artistName\" ~limit=-1,1,[Album] ~sort=[Album]"
         McwsClient.searchAlbums(mcwsQuery)
@@ -151,7 +122,17 @@ class LibraryRepository(
             durationMs = track.durationMs,
             trackNumber = track.trackNumber,
             genre = track.genre,
-            fileType = track.fileType
+            fileType = track.fileType,
+            date = track.date,
+            discNumber = track.discNumber,
+            totalDiscs = track.totalDiscs,
+            totalTracks = track.totalTracks,
+            folderPath = track.folderPath,
+            bitrate = track.bitrate,
+            bitDepth = track.bitDepth,
+            sampleRate = track.sampleRate,
+            channels = track.channels,
+            filePath = track.filePath
         )
         val jobId = jobDao.insert(job).toInt()
         onDownloadQueued?.invoke(track, jobId)

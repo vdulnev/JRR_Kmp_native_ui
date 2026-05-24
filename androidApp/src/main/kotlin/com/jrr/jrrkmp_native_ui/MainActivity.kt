@@ -173,7 +173,8 @@ fun MainShell(
         }
     }
 
-    val track = playerStatus?.trackInfo
+    val trackName = playerStatus?.trackName
+    val trackArtist = playerStatus?.trackArtist
     val isPlaying = playerStatus?.state == PlaybackState.PLAYING
     val duration = playerStatus?.durationMs ?: 0L
     val position = playerStatus?.positionMs ?: 0L
@@ -192,16 +193,16 @@ fun MainShell(
                 Column {
                     // Mini Player: sits above the tab bar, shown on all tabs except Now Playing (2),
                     // and only if a track is active/loaded
-                    if (activeTab != 2 && track != null) {
+                    if (activeTab != 2 && !trackName.isNullOrEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(start = 8.dp, end = 8.dp, bottom = 4.dp)
                         ) {
                             MiniPlayer(
-                                title = track.name,
-                                artist = track.artist,
-                                imageUrl = track.imageUrl.ifEmpty { null },
+                                title = trackName,
+                                artist = trackArtist ?: "",
+                                imageUrl = null,
                                 isPlaying = isPlaying,
                                 progress = progress,
                                 onPlayPauseClick = {

@@ -10,7 +10,7 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
     private var queuePlayer: AVQueuePlayer?
     private var playerItems: [AVPlayerItem] = []
     
-    private var localQueue: [TrackInfo] = []
+    private var localQueue: [Track] = []
     private var localCurrentIndex: Int32 = -1
     
     private var timeObserver: Any?
@@ -109,7 +109,6 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
     
     private func handleCurrentItemChanged(item: AVPlayerItem?) {
         guard let item = item else {
-            engine.updateCurrentTrack(track: nil)
             engine.updateCurrentIndex(index: -1)
             localCurrentIndex = -1
             return
@@ -120,7 +119,6 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
             localCurrentIndex = index32
             engine.updateCurrentIndex(index: index32)
             let track = localQueue[idx]
-            engine.updateCurrentTrack(track: track)
         }
     }
     
@@ -152,7 +150,6 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         engine.updatePlaybackState(state: .stopped)
         engine.updateCurrentIndex(index: -1)
         localCurrentIndex = -1
-        engine.updateCurrentTrack(track: nil)
     }
     
     func seekTo(positionMs: Int64) {
@@ -165,7 +162,7 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         engine.updateVolume(vol: level)
     }
     
-    func setQueue(tracks: [TrackInfo], startIndex: Int32) {
+    func setQueue(tracks: [Track], startIndex: Int32) {
         if queuePlayer == nil {
             setupPlayer()
         }
@@ -208,7 +205,6 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         
         self.localCurrentIndex = startIndex
         engine.updateCurrentIndex(index: startIndex)
-        engine.updateCurrentTrack(track: tracks[start])
     }
     
     func playByIndex(index: Int32) {
@@ -264,7 +260,8 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
               
         let wasPlaying = queuePlayer?.rate ?? 0 > 0
         let activePos = getCurrentPosition()
-        let activeTrackKey = (engine.currentTrack.value as? TrackInfo)?.fileKey
+        let currentIdx = Int(localCurrentIndex)
+        let activeTrackKey: String? = (!localQueue.isEmpty && currentIdx >= 0 && currentIdx < localQueue.count) ? localQueue[currentIdx].fileKey : nil
         
         let track = localQueue.remove(at: fromIdx)
         localQueue.insert(track, at: toIdx)
@@ -365,3 +362,4 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         }
     }
 }
+

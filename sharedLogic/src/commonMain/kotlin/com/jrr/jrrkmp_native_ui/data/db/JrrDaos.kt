@@ -91,12 +91,6 @@ interface DownloadedTrackDao {
 
     @Query("SELECT * FROM downloaded_tracks")
     fun getAllTracksFlow(): Flow<List<DownloadedTrackEntity>>
-
-    @Query("UPDATE downloaded_tracks SET last_played_at = :timestamp WHERE file_key = :fileKey")
-    suspend fun updateLastPlayedAt(fileKey: String, timestamp: Long)
-
-    @Query("SELECT * FROM downloaded_tracks WHERE last_played_at IS NOT NULL ORDER BY last_played_at DESC LIMIT 50")
-    suspend fun getRecentlyPlayedTracks(): List<DownloadedTrackEntity>
 }
 
 @Dao

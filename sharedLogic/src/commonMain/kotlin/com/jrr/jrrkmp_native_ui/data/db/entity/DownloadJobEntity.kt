@@ -22,11 +22,21 @@ data class DownloadJobEntity(
     val title: String,
     val artist: String,
     val album: String,
+    val date: String,
     @ColumnInfo(name = "duration_ms")
     val durationMs: Long,
     @ColumnInfo(name = "track_number")
     val trackNumber: Int,
     val genre: String,
+    val discNumber: Int,
+    val totalDiscs: Int,
+    val totalTracks: Int,
+    val bitrate: Int,
+    val bitDepth: Int,
+    val sampleRate: Int,
+    val channels: Int,
     @ColumnInfo(name = "file_type")
-    val fileType: String
+    val fileType: String,
+    val filePath: String,
+    val folderPath: String
 )

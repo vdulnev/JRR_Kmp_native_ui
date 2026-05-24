@@ -44,25 +44,10 @@ enum class RepeatMode(val mcwsMode: String) {
 }
 
 @Serializable
-data class TrackInfo(
-    val fileKey: String,
-    val name: String,
-    val artist: String,
-    val album: String,
-    val imageUrl: String,
-    val bitrate: Int = 0,
-    val bitDepth: Int = 0,
-    val sampleRate: Int = 0,
-    val channels: Int = 0,
-    val durationMs: Long = 0
-)
-
-@Serializable
 data class PlayerStatus(
     val zoneId: String,
     val zoneName: String,
     val state: PlaybackState,
-    val trackInfo: TrackInfo?,
     val positionMs: Long,
     val durationMs: Long,
     val volume: Float,
@@ -70,7 +55,11 @@ data class PlayerStatus(
     val shuffleMode: ShuffleMode,
     val repeatMode: RepeatMode,
     val playingNowPosition: Int,
-    val playingNowTracks: Int
+    val playingNowTracks: Int,
+    val trackAlbum: String,
+    val trackArtist: String,
+    val trackName: String,
+    val sampleRate: Int
 )
 
 @Serializable
@@ -115,41 +104,77 @@ data class Track(
     val artist: String,
     val album: String,
     val albumArtist: String,
+    val date: String,
     val genre: String,
     val durationMs: Long,
     val trackNumber: Int,
     val discNumber: Int,
     val totalDiscs: Int,
     val totalTracks: Int,
-    val imageUrl: String,
     val bitrate: Int,
     val bitDepth: Int,
     val sampleRate: Int,
     val channels: Int,
     val fileType: String,
-    val filePath: String
+    val filePath: String,
+    val folderPath: String
 ) {
-    fun toTrackInfo(): TrackInfo {
-        return TrackInfo(
-            fileKey = fileKey,
-            name = name,
-            artist = artist,
-            album = album,
-            imageUrl = imageUrl,
-            bitrate = bitrate,
-            bitDepth = bitDepth,
-            sampleRate = sampleRate,
-            channels = channels,
-            durationMs = durationMs
-        )
+    val parentFolderPath: String
+        get() = parentPath(folderPath)
+
+    companion object {
+        fun parentPath(path: String): String {
+            if (path.isEmpty()) return ""
+
+            // Strip trailing separator if present
+            val trimmed = if (path.endsWith('\\') || path.endsWith('/')) {
+                path.substring(0, path.length - 1)
+            } else {
+                path
+            }
+
+            if (trimmed.isEmpty()) return path
+            if (trimmed.endsWith(':')) return path
+
+            val lastBackslash = trimmed.lastIndexOf('\\')
+            val lastSlash = trimmed.lastIndexOf('/')
+            val sep = if (lastBackslash > lastSlash) lastBackslash else lastSlash
+
+            return if (sep >= 0) trimmed.substring(0, sep + 1) else ""
+        }
+
     }
+
+    val albumGroupId: String
+        get() = if (totalDiscs > 1 && discNumber > 0) {
+            "${album.lowercase()}|${parentFolderPath.lowercase()}"
+        } else {
+            "${album.lowercase()}|${folderPath.lowercase()}"
+        }
+
+    //TODO: implement later
+    val imageUrl = ""
 }
 
 @Serializable
 data class Album(
     val name: String,
-    val artist: String,
-    val folderPath: String = "",
-    val year: String = "",
-    val imageUrl: String = ""
-)
+    val albumArtist: String,
+    val folderPath: String,
+    val parentFolderPath: String,
+    val date: String,
+    val artworkFileKey: String,
+    val totalDiscs: Int,
+    val discNumber: Int,
+) {
+    constructor(track: Track) : this(
+        name = track.album,
+        albumArtist = track.albumArtist,
+        folderPath = track.folderPath,
+        parentFolderPath = track.parentFolderPath,
+        date = track.date,
+        artworkFileKey = track.fileKey,
+        totalDiscs = track.totalDiscs,
+        discNumber = track.discNumber
+    )
+}

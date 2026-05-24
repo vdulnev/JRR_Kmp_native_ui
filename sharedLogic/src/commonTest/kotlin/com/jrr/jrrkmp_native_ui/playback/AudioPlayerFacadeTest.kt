@@ -3,7 +3,7 @@ package com.jrr.jrrkmp_native_ui.playback
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
-import com.jrr.jrrkmp_native_ui.domain.model.TrackInfo
+import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,16 +13,44 @@ import kotlin.test.assertTrue
 
 class AudioPlayerFacadeTest {
 
-    private class MockLocalPlayerEngine : LocalPlayerEngine {
+    private fun createMockTrack(
+        fileKey: String,
+        name: String,
+        artist: String,
+        album: String,
+        durationMs: Long
+    ) = Track(
+        fileKey = fileKey,
+        name = name,
+        artist = artist,
+        album = album,
+        albumArtist = artist,
+        date = "2026",
+        genre = "Rock",
+        durationMs = durationMs,
+        trackNumber = 1,
+        discNumber = 1,
+        totalDiscs = 1,
+        totalTracks = 1,
+        bitrate = 320,
+        bitDepth = 16,
+        sampleRate = 44100,
+        channels = 2,
+        fileType = "mp3",
+        filePath = "/path/to/$fileKey.mp3",
+        folderPath = "/path/to"
+    )
+
+    private class MockLocalPlayerEngine(private val testClass: AudioPlayerFacadeTest) : LocalPlayerEngine {
         override val playbackState = MutableStateFlow(PlaybackState.STOPPED)
-        override val currentTrack = MutableStateFlow<TrackInfo?>(null)
+        val currentTrack = MutableStateFlow<Track?>(null)
         override val currentIndex = MutableStateFlow(-1)
         override val volume = MutableStateFlow(1.0f)
         override val shuffleMode = MutableStateFlow(ShuffleMode.OFF)
         override val repeatMode = MutableStateFlow(RepeatMode.OFF)
-        override val queue = MutableStateFlow<List<TrackInfo>>(emptyList())
+        override val queue = MutableStateFlow<List<Track>>(emptyList())
 
-        private val queueList = mutableListOf<TrackInfo>()
+        private val queueList = mutableListOf<Track>()
         var playCalled = false
         var pauseCalled = false
         var stopCalled = false
@@ -35,7 +63,7 @@ class AudioPlayerFacadeTest {
         override fun getCurrentPosition(): Long = 1000L
         override fun getDuration(): Long = 200000L
 
-        override fun setQueue(tracks: List<TrackInfo>, startIndex: Int) {
+        override fun setQueue(tracks: List<Track>, startIndex: Int) {
             queueList.clear()
             queueList.addAll(tracks)
             queue.value = tracks
@@ -105,7 +133,7 @@ class AudioPlayerFacadeTest {
             currentTrack.value = null
         }
 
-        override fun getQueue(): List<TrackInfo> = queueList
+        override fun getQueue(): List<Track> = queueList
         override fun getQueueSize(): Int = queueList.size
 
         override fun playByIndex(index: Int) {
@@ -115,7 +143,7 @@ class AudioPlayerFacadeTest {
 
     @Test
     fun testAudioPlayerFacade_localPlaybackControl() {
-        val mockEngine = MockLocalPlayerEngine()
+        val mockEngine = MockLocalPlayerEngine(this)
         var savedZoneId: String? = null
         val facade = AudioPlayerFacade(
             database = null,
@@ -131,8 +159,8 @@ class AudioPlayerFacadeTest {
 
         // Set queue and play
         val tracks = listOf(
-            TrackInfo("key1", "Track 1", "Artist 1", "Album 1", "img1", durationMs = 120000L),
-            TrackInfo("key2", "Track 2", "Artist 2", "Album 2", "img2", durationMs = 180000L)
+            createMockTrack("key1", "Track 1", "Artist 1", "Album 1", 120000L),
+            createMockTrack("key2", "Track 2", "Artist 2", "Album 2", 180000L)
         )
         facade.setQueue(tracks, 0)
         assertTrue(mockEngine.playCalled)

@@ -7,7 +7,7 @@ class PlaybackStateObserver: ObservableObject {
     
     @Published var activeZone: Zone = Zone.companion.Offline
     @Published var playerStatus: PlayerStatus? = nil
-    @Published var localQueue: [TrackInfo] = []
+    @Published var localQueue: [Track] = []
     
     @Published var downloadedTracks: [DownloadedTrackEntity] = []
     @Published var downloadJobs: [DownloadJobEntity] = []
@@ -38,20 +38,19 @@ class PlaybackStateObserver: ObservableObject {
                 let isActiveZoneLocalOrOffline = self?.activeZone.isLocal == true || self?.activeZone.isOffline == true
                 if isActiveZoneLocalOrOffline {
                     NowPlayingCoordinator.shared.updateNowPlaying(
-                        title: status.trackInfo?.name,
-                        artist: status.trackInfo?.artist,
-                        album: status.trackInfo?.album,
+                        title: status.trackName,
+                        artist: status.trackArtist,
+                        album: status.trackAlbum,
                         positionMs: status.positionMs,
                         durationMs: status.durationMs,
-                        isPlaying: status.state == .playing,
-                        artworkUrl: status.trackInfo?.imageUrl
+                        isPlaying: status.state == .playing
                     )
                 }
             }
         }
         
         localQueueDisposable = FlowObserver<NSArray>(flow: facade.localQueue).start { [weak self] queue in
-            self?.localQueue = queue as? [TrackInfo] ?? []
+            self?.localQueue = queue as? [Track] ?? []
         }
         
         downloadedTracksDisposable = FlowObserver<NSArray>(flow: db.downloadedTrackDao().getAllTracksFlow()).start { [weak self] list in

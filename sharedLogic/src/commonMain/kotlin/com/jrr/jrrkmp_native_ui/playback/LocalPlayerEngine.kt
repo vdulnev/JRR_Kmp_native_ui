@@ -3,21 +3,20 @@ package com.jrr.jrrkmp_native_ui.playback
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
-import com.jrr.jrrkmp_native_ui.domain.model.TrackInfo
+import com.jrr.jrrkmp_native_ui.domain.model.Track
 import kotlinx.coroutines.flow.StateFlow
 
 interface LocalPlayerEngine {
     val playbackState: StateFlow<PlaybackState>
-    val currentTrack: StateFlow<TrackInfo?>
     val currentIndex: StateFlow<Int>
     val volume: StateFlow<Float>
     val shuffleMode: StateFlow<ShuffleMode>
     val repeatMode: StateFlow<RepeatMode>
-    val queue: StateFlow<List<TrackInfo>>
+    val queue: StateFlow<List<Track>>
 
     fun getCurrentPosition(): Long
     fun getDuration(): Long
-    fun setQueue(tracks: List<TrackInfo>, startIndex: Int)
+    fun setQueue(tracks: List<Track>, startIndex: Int)
     fun play()
     fun pause()
     fun stop()
@@ -30,7 +29,7 @@ interface LocalPlayerEngine {
     fun removeTrack(index: Int)
     fun moveTrack(from: Int, to: Int)
     fun clearQueue()
-    fun getQueue(): List<TrackInfo>
+    fun getQueue(): List<Track>
     fun getQueueSize(): Int
     fun playByIndex(index: Int)
 }

@@ -1,6 +1,5 @@
 package com.jrr.jrrkmp_native_ui.presentation.screens
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +28,7 @@ import coil.compose.AsyncImage
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.outlinedTextFieldColors
+import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
@@ -191,7 +191,7 @@ fun LibraryScreen(
                         TrackRowItem(
                             track = track,
                             onClick = {
-                                facade.setQueue(listOf(track.toTrackInfo()), 0)
+                                facade.setQueue(listOf(track), 0)
                             }
                         )
                     }
@@ -279,7 +279,7 @@ fun LibraryScreen(
                         },
                         onTrackClick = { clickedTrack, allTracks ->
                             val startIndex = allTracks.indexOf(clickedTrack).coerceAtLeast(0)
-                            facade.setQueue(allTracks.map { it.toTrackInfo() }, startIndex)
+                            facade.setQueue(allTracks, startIndex)
                         },
                         onBackClick = {
                             if (browseStack.size > 1) {
@@ -343,7 +343,7 @@ fun ArtistsTab(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(artistAlbums) { album ->
-                        AlbumRowItem(album = album, onClick = { onAlbumClick(album.name, album.artist) })
+                        AlbumRowItem(album = album, onClick = { onAlbumClick(album.name, album.albumArtist) })
                     }
                 }
             }
@@ -421,7 +421,7 @@ fun RandomTab(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onAlbumClick(album.name, album.artist) }
+                            .clickable { onAlbumClick(album.name, album.albumArtist) }
                     ) {
                         Box(
                             modifier = Modifier
@@ -431,9 +431,10 @@ fun RandomTab(
                                 .background(AppColors.bg2)
                                 .border(1.dp, AppColors.line2, RoundedCornerShape(4.dp))
                         ) {
-                            if (album.imageUrl.isNotEmpty()) {
+                            val imageUrl = McwsClient.buildImageUrl(album.artworkFileKey)
+                            if (imageUrl.isNotEmpty()) {
                                 AsyncImage(
-                                    model = album.imageUrl,
+                                    model = imageUrl,
                                     contentDescription = album.name,
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
@@ -442,7 +443,7 @@ fun RandomTab(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(album.name, style = AppTypography.itemTitle, maxLines = 1)
-                        Text(album.artist, style = AppTypography.itemSubtitle, maxLines = 1)
+                        Text(album.albumArtist, style = AppTypography.itemSubtitle, maxLines = 1)
                     }
                 }
             }
@@ -601,9 +602,10 @@ fun AlbumRowItem(album: Album, onClick: () -> Unit) {
                 .clip(RoundedCornerShape(4.dp))
                 .background(AppColors.bg3)
         ) {
-            if (album.imageUrl.isNotEmpty()) {
+            val imageUrl = McwsClient.buildImageUrl(album.artworkFileKey)
+            if (imageUrl.isNotEmpty()) {
                 AsyncImage(
-                    model = album.imageUrl,
+                    model = imageUrl,
                     contentDescription = album.name,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -615,7 +617,7 @@ fun AlbumRowItem(album: Album, onClick: () -> Unit) {
 
         Column(modifier = Modifier.weight(1f)) {
             Text(album.name, style = AppTypography.itemTitle, maxLines = 1)
-            Text(album.year.ifEmpty { "Unknown Year" }, style = AppTypography.itemSubtitle, color = AppColors.text2)
+            Text(album.date.ifEmpty { "Unknown Year" }, style = AppTypography.itemSubtitle, color = AppColors.text2)
         }
     }
 }

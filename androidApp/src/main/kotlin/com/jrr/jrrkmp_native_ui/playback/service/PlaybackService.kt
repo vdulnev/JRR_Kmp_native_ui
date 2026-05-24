@@ -340,7 +340,7 @@ class PlaybackService : MediaLibraryService() {
                             withContext(Dispatchers.Main) {
                                 val facade = JrrDependencies.getAudioPlayerFacade(this@PlaybackService)
                                 facade.setZone(Zone.AndroidAuto)
-                                val trackInfos = matchedTracks.map { mapTrackToTrackInfo(it) }
+                                val trackInfos = matchedTracks.map { it.toTrack() }
                                 facade.setQueue(trackInfos, 0)
                                 if (searchResult.forceShuffle) {
                                     facade.setShuffleMode(com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode.ON)
@@ -375,7 +375,7 @@ class PlaybackService : MediaLibraryService() {
                             facade.setZone(Zone.AndroidAuto)
                             val trackInfos = itemsToPlay.mapNotNull { item ->
                                 val track = db.downloadedTrackDao().getTrack(item.mediaId)
-                                track?.let { mapTrackToTrackInfo(it) }
+                                track?.toTrack()
                             }
                             facade.setQueue(trackInfos, 0)
                             facade.play()
@@ -409,16 +409,5 @@ class PlaybackService : MediaLibraryService() {
                     .build()
             )
             .build()
-    }
-
-    private fun mapTrackToTrackInfo(track: com.jrr.jrrkmp_native_ui.data.db.entity.DownloadedTrackEntity): com.jrr.jrrkmp_native_ui.domain.model.TrackInfo {
-        return com.jrr.jrrkmp_native_ui.domain.model.TrackInfo(
-            fileKey = track.fileKey,
-            name = track.title,
-            artist = track.artist,
-            album = track.album,
-            imageUrl = "content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_${track.fileKey}.jpg",
-            durationMs = track.durationMs
-        )
     }
 }

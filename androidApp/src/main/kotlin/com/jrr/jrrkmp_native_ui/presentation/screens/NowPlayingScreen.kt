@@ -45,7 +45,6 @@ fun NowPlayingScreen(
     val activeZone by facade.activeZone.collectAsState()
 
     val status = playerStatus
-    val track = status?.trackInfo
 
     // Local state for scrubbing
     var isScrubbing by remember { mutableStateOf(false) }
@@ -107,11 +106,11 @@ fun NowPlayingScreen(
             contentAlignment = Alignment.Center
         ) {
             VinylSleeve(
-                albumTitle = track?.album ?: "No Track",
-                artistName = track?.artist ?: "Unknown Artist",
+                albumTitle = status?.trackAlbum?.ifEmpty { "No Track" } ?: "No Track",
+                artistName = status?.trackArtist?.ifEmpty { "Unknown Artist" } ?: "Unknown Artist",
                 year = "2026", // Fallback decorative year
                 side = "SIDE A",
-                imageUrl = track?.imageUrl,
+                imageUrl = null,
                 isPlaying = isPlaying
             )
         }
@@ -122,28 +121,26 @@ fun NowPlayingScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = track?.name ?: "Idle",
+                text = status?.trackName?.ifEmpty { "Idle" } ?: "Idle",
                 style = AppTypography.screenTitle.copy(fontSize = 20.sp),
                 maxLines = 1,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
 
             Text(
-                text = (track?.artist ?: "Unknown Artist") + " — " + (track?.album ?: "Unknown Album"),
+                text = (status?.trackArtist?.ifEmpty { "Unknown Artist" } ?: "Unknown Artist") + " — " + (status?.trackAlbum?.ifEmpty { "Unknown Album" } ?: "Unknown Album"),
                 style = AppTypography.itemSubtitle.copy(color = AppColors.text2),
                 maxLines = 1,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
             // Technical details badge
-            if (track != null && track.sampleRate > 0) {
+            if (status != null && status.sampleRate > 0) {
                 val formatString = buildString {
-                    append(track.imageUrl.substringAfterLast("Format=", "").substringBefore("&").uppercase(Locale.ROOT).ifEmpty { "AUDIO" })
+                    append("AUDIO")
                     append(" | ")
-                    if (track.bitDepth > 0) append("${track.bitDepth}-bit | ")
-                    if (track.sampleRate > 0) append("${track.sampleRate / 1000}kHz | ")
-                    if (track.bitrate > 0) append("${track.bitrate}kbps")
-                }.trimEnd(' ', '|')
+                    append("${status.sampleRate / 1000}kHz")
+                }
 
                 Box(
                     modifier = Modifier

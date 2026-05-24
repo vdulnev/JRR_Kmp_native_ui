@@ -9,7 +9,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
-import com.jrr.jrrkmp_native_ui.domain.model.TrackInfo
+import com.jrr.jrrkmp_native_ui.domain.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
@@ -25,8 +25,8 @@ class LocalPlayerHandler(
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying
 
-    private val _currentTrack = MutableStateFlow<TrackInfo?>(null)
-    override val currentTrack: StateFlow<TrackInfo?> = _currentTrack
+    private val _currentTrack = MutableStateFlow<Track?>(null)
+    val currentTrack: StateFlow<Track?> = _currentTrack
 
     private val _currentIndex = MutableStateFlow(-1)
     override val currentIndex: StateFlow<Int> = _currentIndex
@@ -43,8 +43,8 @@ class LocalPlayerHandler(
     private val _volume = MutableStateFlow(1.0f)
     override val volume: StateFlow<Float> = _volume
 
-    private val _queue = MutableStateFlow<List<TrackInfo>>(emptyList())
-    override val queue: StateFlow<List<TrackInfo>> = _queue
+    private val _queue = MutableStateFlow<List<Track>>(emptyList())
+    override val queue: StateFlow<List<Track>> = _queue
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
@@ -99,7 +99,7 @@ class LocalPlayerHandler(
         return exoPlayer!!
     }
 
-    override fun setQueue(tracks: List<TrackInfo>, startIndex: Int) {
+    override fun setQueue(tracks: List<Track>, startIndex: Int) {
         ensurePlayer()
         _queue.value = tracks
         val player = exoPlayer ?: return
@@ -124,7 +124,7 @@ class LocalPlayerHandler(
                         .setTitle(track.name)
                         .setArtist(track.artist)
                         .setAlbumTitle(track.album)
-                        .setArtworkUri(Uri.parse(track.imageUrl))
+                        .setArtworkUri(Uri.parse("content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_${track.fileKey}.jpg"))
                         .build()
                 )
                 .build()
@@ -205,7 +205,7 @@ class LocalPlayerHandler(
         exoPlayer = null
     }
 
-    override fun getQueue(): List<TrackInfo> = _queue.value
+    override fun getQueue(): List<Track> = _queue.value
 
     override fun getQueueSize(): Int = _queue.value.size
 

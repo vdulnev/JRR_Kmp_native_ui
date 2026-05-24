@@ -55,7 +55,6 @@ struct ContentView: View {
     
     var body: some View {
         let status = stateObserver.playerStatus
-        let track = status?.trackInfo
         let isPlaying = status?.state == .playing
         let duration = status?.durationMs ?? 0
         let position = status?.positionMs ?? 0
@@ -154,14 +153,15 @@ struct ContentView: View {
             }
             
             // Floating MiniPlayer overlay
-            if activeTab != 2 && activeTab != 1 && track != nil {
+            if activeTab != 2 && activeTab != 1 && status != nil {
                 VStack {
                     Spacer()
                     
                     MiniPlayer(
-                        title: track?.name ?? "",
-                        artist: track?.artist ?? "",
-                        imageUrl: (track?.imageUrl.isEmpty == false) ? track?.imageUrl : nil,
+                        title: status?.trackName ?? "",
+                        artist: status?.trackArtist ?? "",
+                        //TODO: implement later
+                        imageUrl: nil,
                         isPlaying: isPlaying,
                         progress: progress,
                         onPlayPauseClick: {
@@ -257,7 +257,7 @@ struct ContentView: View {
                                 .stroke(Color.line2, lineWidth: 1)
                         )
                         .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
-                        .padding(.bottom, activeTab != 2 && track != nil ? 140 : 80) // Position above tab bar/miniplayer
+                        .padding(.bottom, activeTab != 2 && status != nil ? 140 : 80) // Position above tab bar/miniplayer
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 .ignoresSafeArea(.keyboard)

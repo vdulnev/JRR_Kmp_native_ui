@@ -3,7 +3,7 @@ package com.jrr.jrrkmp_native_ui.playback
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
-import com.jrr.jrrkmp_native_ui.domain.model.TrackInfo
+import com.jrr.jrrkmp_native_ui.domain.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -13,7 +13,7 @@ interface NativePlayerController {
     fun stop()
     fun seekTo(positionMs: Long)
     fun setVolume(level: Float)
-    fun setQueue(tracks: List<TrackInfo>, startIndex: Int)
+    fun setQueue(tracks: List<Track>, startIndex: Int)
     fun playByIndex(index: Int)
     fun removeTrack(index: Int)
     fun moveTrack(from: Int, to: Int)
@@ -32,9 +32,6 @@ class IosLocalPlayerEngine : LocalPlayerEngine {
     private val _playbackState = MutableStateFlow(PlaybackState.STOPPED)
     override val playbackState: StateFlow<PlaybackState> = _playbackState
 
-    private val _currentTrack = MutableStateFlow<TrackInfo?>(null)
-    override val currentTrack: StateFlow<TrackInfo?> = _currentTrack
-
     private val _currentIndex = MutableStateFlow(-1)
     override val currentIndex: StateFlow<Int> = _currentIndex
 
@@ -47,16 +44,12 @@ class IosLocalPlayerEngine : LocalPlayerEngine {
     private val _repeatMode = MutableStateFlow(RepeatMode.OFF)
     override val repeatMode: StateFlow<RepeatMode> = _repeatMode
 
-    private val _queue = MutableStateFlow<List<TrackInfo>>(emptyList())
-    override val queue: StateFlow<List<TrackInfo>> = _queue
+    private val _queue = MutableStateFlow<List<Track>>(emptyList())
+    override val queue: StateFlow<List<Track>> = _queue
 
     // Callbacks for Swift to update the state of the flows
     fun updatePlaybackState(state: PlaybackState) {
         _playbackState.value = state
-    }
-
-    fun updateCurrentTrack(track: TrackInfo?) {
-        _currentTrack.value = track
     }
 
     fun updateCurrentIndex(index: Int) {
@@ -75,7 +68,7 @@ class IosLocalPlayerEngine : LocalPlayerEngine {
         _repeatMode.value = mode
     }
 
-    fun updateQueue(tracks: List<TrackInfo>) {
+    fun updateQueue(tracks: List<Track>) {
         _queue.value = tracks
     }
 
@@ -88,14 +81,9 @@ class IosLocalPlayerEngine : LocalPlayerEngine {
         return controller?.getDuration() ?: 0L
     }
 
-    override fun setQueue(tracks: List<TrackInfo>, startIndex: Int) {
+    override fun setQueue(tracks: List<Track>, startIndex: Int) {
         _queue.value = tracks
         _currentIndex.value = startIndex
-        if (startIndex >= 0 && startIndex < tracks.size) {
-            _currentTrack.value = tracks[startIndex]
-        } else {
-            _currentTrack.value = null
-        }
         controller?.setQueue(tracks, startIndex)
     }
 
@@ -163,13 +151,12 @@ class IosLocalPlayerEngine : LocalPlayerEngine {
 
     override fun clearQueue() {
         _queue.value = emptyList()
-        _currentTrack.value = null
         _currentIndex.value = -1
         _playbackState.value = PlaybackState.STOPPED
         controller?.clearQueue()
     }
 
-    override fun getQueue(): List<TrackInfo> {
+    override fun getQueue(): List<Track> {
         return _queue.value
     }
 
@@ -179,11 +166,6 @@ class IosLocalPlayerEngine : LocalPlayerEngine {
 
     override fun playByIndex(index: Int) {
         _currentIndex.value = index
-        if (index >= 0 && index < _queue.value.size) {
-            _currentTrack.value = _queue.value[index]
-        } else {
-            _currentTrack.value = null
-        }
         controller?.playByIndex(index)
     }
 }

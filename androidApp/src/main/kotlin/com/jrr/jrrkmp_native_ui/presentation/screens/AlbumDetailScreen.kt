@@ -180,7 +180,7 @@ fun AlbumDetailScreen(
                             Button(
                                 onClick = {
                                     if (tracks.isNotEmpty()) {
-                                        facade.setQueue(tracks.map { it.toTrackInfo() }, 0)
+                                        facade.setQueue(tracks, 0)
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.accent),
@@ -195,7 +195,7 @@ fun AlbumDetailScreen(
                                 onClick = {
                                     if (tracks.isNotEmpty()) {
                                         val shuffled = tracks.shuffled()
-                                        facade.setQueue(shuffled.map { it.toTrackInfo() }, 0)
+                                        facade.setQueue(shuffled, 0)
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.bg2),
@@ -241,7 +241,7 @@ fun AlbumDetailScreen(
                                 .fillMaxWidth()
                                 .clickable {
                                     val startIndex = tracks.indexOf(track).coerceAtLeast(0)
-                                    facade.setQueue(tracks.map { it.toTrackInfo() }, startIndex)
+                                    facade.setQueue(tracks, startIndex)
                                 }
                                 .padding(vertical = 12.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically

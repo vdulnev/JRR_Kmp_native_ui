@@ -48,7 +48,6 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         self.tabBarTemplate = tabBar
         
         refreshDownloads()
-        refreshRecentlyPlayed()
         refreshArtists()
         refreshAlbums()
         
@@ -65,8 +64,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                     let item = CPListItem(text: track.title, detailText: "\(track.artist) — \(track.album)")
                     item.handler = { [weak self] _, completion in
                         guard let self = self else { completion(); return }
-                        let trackInfos = sortedTracks.map { self.toTrackInfo($0) }
-                        JrrDependencies.shared.facade.setQueue(tracks: trackInfos, startIndex: Int32(index))
+                        let tracks = sortedTracks.map { ($0).toTrack() }
+                        JrrDependencies.shared.facade.setQueue(tracks: tracks, startIndex: Int32(index))
                         completion()
                     }
                     return item
@@ -77,31 +76,6 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 }
             } catch {
                 print("[CarPlay] Error refreshing downloads: \(error)")
-            }
-        }
-    }
-    
-    private func refreshRecentlyPlayed() {
-        Task {
-            do {
-                let tracks = try await database.downloadedTrackDao().getRecentlyPlayedTracks()
-                
-                let items = tracks.enumerated().map { index, track in
-                    let item = CPListItem(text: track.title, detailText: track.artist)
-                    item.handler = { [weak self] _, completion in
-                        guard let self = self else { completion(); return }
-                        let trackInfos = tracks.map { self.toTrackInfo($0) }
-                        JrrDependencies.shared.facade.setQueue(tracks: trackInfos, startIndex: Int32(index))
-                        completion()
-                    }
-                    return item
-                }
-                
-                await MainActor.run {
-                    recentlyPlayedTemplate.updateSections([CPListSection(items: items)])
-                }
-            } catch {
-                print("[CarPlay] Error refreshing recently played: \(error)")
             }
         }
     }
@@ -206,18 +180,18 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 }
                 
                 let sortedTracks = tracks.sorted {
-                    if let t1 = $0.trackNumber?.intValue, let t2 = $1.trackNumber?.intValue {
-                        return t1 < t2
+                    if $0.trackNumber == $1.trackNumber {
+                        return $0.title < $1.title
                     }
-                    return $0.title < $1.title
+                    return $0.trackNumber < $1.trackNumber
                 }
                 
                 let items = sortedTracks.enumerated().map { index, track in
                     let item = CPListItem(text: track.title, detailText: track.artist)
                     item.handler = { [weak self] _, completion in
                         guard let self = self else { completion(); return }
-                        let trackInfos = sortedTracks.map { self.toTrackInfo($0) }
-                        JrrDependencies.shared.facade.setQueue(tracks: trackInfos, startIndex: Int32(index))
+                        let tracks = sortedTracks.map { ($0).toTrack() }
+                        JrrDependencies.shared.facade.setQueue(tracks: tracks, startIndex: Int32(index))
                         completion()
                     }
                     return item
@@ -232,29 +206,12 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             }
         }
     }
-    
-    private func toTrackInfo(_ track: DownloadedTrackEntity) -> TrackInfo {
-        return TrackInfo(
-            fileKey: track.fileKey,
-            name: track.title,
-            artist: track.artist,
-            album: track.album,
-            imageUrl: "",
-            bitrate: 0,
-            bitDepth: 0,
-            sampleRate: 0,
-            channels: 0,
-            durationMs: track.durationMs
-        )
-    }
 }
 
 extension CarPlaySceneDelegate: CPTabBarTemplateDelegate {
     func tabBarTemplate(_ tabBarTemplate: CPTabBarTemplate, didSelect selectedTemplate: CPTemplate) {
         if selectedTemplate == downloadsTemplate {
             refreshDownloads()
-        } else if selectedTemplate == recentlyPlayedTemplate {
-            refreshRecentlyPlayed()
         } else if selectedTemplate == artistsTemplate {
             refreshArtists()
         } else if selectedTemplate == albumsTemplate {
