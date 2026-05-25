@@ -62,6 +62,9 @@ class AudioPlayerFacade(
     private val _playerStatus = MutableStateFlow<PlayerStatus?>(null)
     val playerStatus: StateFlow<PlayerStatus?> = _playerStatus
 
+    private val _connectionToken = MutableStateFlow<String?>(McwsClient.currentToken)
+    val connectionToken: StateFlow<String?> = _connectionToken
+
     val localQueue: StateFlow<List<Track>> = localPlayerEngine.queue
 
     private var isPollingEnabled = true
@@ -162,6 +165,7 @@ class AudioPlayerFacade(
         McwsClient.currentUseSsl = useSsl
         McwsClient.currentSslPort = sslPort
         McwsClient.currentToken = authToken
+        _connectionToken.value = authToken
     }
 
     fun setZone(zone: Zone, skipLoadQueue: Boolean = false) {

@@ -245,6 +245,11 @@ struct LibraryView: View {
             }
         }
         .background(Color.bg1.ignoresSafeArea())
+        .onAppear {
+            if observable.artists.isEmpty {
+                observable.retry()
+            }
+        }
     }
     
     // Tab Button Helper
