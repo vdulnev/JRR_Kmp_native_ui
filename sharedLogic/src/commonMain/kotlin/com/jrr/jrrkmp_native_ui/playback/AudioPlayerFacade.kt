@@ -251,13 +251,18 @@ class AudioPlayerFacade(
             saveQueueState(zone.id)
         } else {
             coroutineScope.launch(ioDispatcher) {
+                // Clear the remote queue first to ensure a clean queue
+                McwsClient.executeCommand("Playback/ClearPlaylist", mapOf(
+                    "Zone" to zone.id,
+                    "ZoneType" to "ID"
+                ))
                 val keys = tracks.joinToString(",") { it.fileKey }
                 remoteHandler.seekTo(zone.id, 0L)
                 val success = McwsClient.executeCommand("Playback/PlayByKey", mapOf(
                     "Key" to keys,
                     "Zone" to zone.id,
                     "ZoneType" to "ID",
-                    "Location" to "Replace"
+                    "Location" to "0"
                 ))
                 if (success) {
                     if (startIndex > 0) {
@@ -280,7 +285,11 @@ class AudioPlayerFacade(
             localPlayerEngine.play()
         } else {
             coroutineScope.launch(ioDispatcher) {
-                remoteHandler.play(zone.id)
+                if (_playerStatus.value?.state == PlaybackState.PAUSED) {
+                    remoteHandler.resume(zone.id)
+                } else {
+                    remoteHandler.play(zone.id)
+                }
             }
         }
     }
