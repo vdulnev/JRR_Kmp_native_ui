@@ -4,6 +4,9 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.*
 import io.ktor.http.URLBuilder
 import io.ktor.http.appendPathSegments
@@ -93,56 +96,8 @@ object McwsClient {
     internal fun parseTracksJson(jsonStr: String?): List<Track> {
         if (jsonStr.isNullOrEmpty()) return emptyList()
         return try {
-            val jsonArray = jsonConfiguration.parseToJsonElement(jsonStr).jsonArray
-            jsonArray.mapNotNull { element ->
-                val obj = element.jsonObject
-                val key = obj["Key"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                if (key.isEmpty()) return@mapNotNull null
-                
-                val name = obj["Name"]?.jsonPrimitive?.content ?: "Unknown"
-                val artist = obj["Artist"]?.jsonPrimitive?.content ?: "Unknown"
-                val album = obj["Album"]?.jsonPrimitive?.content ?: "Unknown"
-                val albumArtist = obj["Album Artist (auto)"]?.jsonPrimitive?.content 
-                    ?: obj["Artist"]?.jsonPrimitive?.content 
-                    ?: "Unknown"
-                val date = obj["Date (readable)"]?.jsonPrimitive?.content ?: ""
-                val genre = obj["Genre"]?.jsonPrimitive?.content ?: "Unknown"
-                val durationSec = obj["Duration"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: 0.0
-                val durationMs = (durationSec * 1000).toLong()
-                val trackNum = obj["Track #"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
-                val discNum = obj["Disc #"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 1
-                val totalDiscs = obj["Total Discs"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 1
-                val totalTracks = obj["Total Tracks"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 1
-                val bitrate = obj["Bitrate"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
-                val bitDepth = obj["Bit depth"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
-                val sampleRate = obj["Sample Rate"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
-                val channels = obj["Channels"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 2
-                val fileType = obj["File Type"]?.jsonPrimitive?.content ?: "Unknown"
-                val filePath = obj["Filename"]?.jsonPrimitive?.content ?: ""
-                val folderPath = obj["Filename (path)"]?.jsonPrimitive?.content ?: ""
-
-                Track(
-                    fileKey = key,
-                    name = name,
-                    artist = artist,
-                    album = album,
-                    albumArtist = albumArtist,
-                    date = date,
-                    genre = genre,
-                    durationMs = durationMs,
-                    trackNumber = trackNum,
-                    discNumber = discNum,
-                    totalDiscs = totalDiscs,
-                    totalTracks = totalTracks,
-                    bitrate = bitrate,
-                    bitDepth = bitDepth,
-                    sampleRate = sampleRate,
-                    channels = channels,
-                    fileType = fileType,
-                    filePath = filePath,
-                    folderPath = folderPath
-                )
-            }
+            val dtos = jsonConfiguration.decodeFromString<List<McwsTrackDto>>(jsonStr)
+            dtos.mapNotNull { it.toDomainTrack() }
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
@@ -288,4 +243,5 @@ object McwsClient {
         }
     }
 }
+
 
