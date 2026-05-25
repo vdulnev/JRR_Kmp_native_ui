@@ -40,6 +40,10 @@ fun ZonesScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.refreshZones()
+    }
+
     val serverZones = state.serverZones
     val deviceZones = state.deviceZones
     val activeZoneId = state.activeZoneId
