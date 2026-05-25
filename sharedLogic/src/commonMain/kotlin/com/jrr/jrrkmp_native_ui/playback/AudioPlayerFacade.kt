@@ -257,10 +257,18 @@ class AudioPlayerFacade(
                     "Key" to keys,
                     "Zone" to zone.id,
                     "ZoneType" to "ID",
-                    "Location" to "Next"
+                    "Location" to "Replace"
                 ))
                 if (success) {
-                    remoteHandler.play(zone.id)
+                    if (startIndex > 0) {
+                        McwsClient.executeCommand("Playback/PlayByIndex", mapOf(
+                            "Index" to startIndex.toString(),
+                            "Zone" to zone.id,
+                            "ZoneType" to "ID"
+                        ))
+                    } else {
+                        remoteHandler.play(zone.id)
+                    }
                 }
             }
         }
