@@ -257,7 +257,7 @@ class AudioPlayerFacade(
                     "Key" to keys,
                     "Zone" to zone.id,
                     "ZoneType" to "ID",
-                    "Location" to "Replace"
+                    "Location" to "0"
                 ))
                 if (success) {
                     if (startIndex > 0) {
