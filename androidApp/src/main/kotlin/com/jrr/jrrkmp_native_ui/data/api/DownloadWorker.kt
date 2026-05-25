@@ -157,6 +157,7 @@ class DownloadWorker(
                     name = job.name,
                     artist = job.artist,
                     album = job.album,
+                    albumArtist = job.albumArtist,
                     date = "",
                     durationMs = job.durationMs,
                     trackNumber = job.trackNumber,

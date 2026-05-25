@@ -129,7 +129,7 @@ fun AlbumDetailScreen(
                                 if (!artworkUrl.isNullOrEmpty()) {
                                     AsyncImage(
                                         model = artworkUrl,
-                                        contentDescription = viewModel.albumName,
+                                        contentDescription = viewModel.album.name,
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
                                     )
@@ -139,14 +139,14 @@ fun AlbumDetailScreen(
                             Spacer(modifier = Modifier.height(16.dp))
 
                             Text(
-                                text = viewModel.albumName,
+                                text = viewModel.album.name,
                                 style = AppTypography.screenTitle.copy(fontSize = 20.sp),
                                 maxLines = 2,
                                 modifier = Modifier.padding(horizontal = 8.dp)
                             )
 
                             Text(
-                                text = viewModel.artistName,
+                                text = viewModel.album.albumArtist,
                                 style = AppTypography.itemSubtitle.copy(color = AppColors.text2),
                                 maxLines = 1,
                                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
@@ -224,7 +224,7 @@ fun AlbumDetailScreen(
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(track.name, style = AppTypography.itemTitle, maxLines = 1)
-                                    if (track.artist != viewModel.artistName) {
+                                    if (track.artist != viewModel.album.albumArtist) {
                                         Text(track.artist, style = AppTypography.itemSubtitle, maxLines = 1)
                                     }
                                 }

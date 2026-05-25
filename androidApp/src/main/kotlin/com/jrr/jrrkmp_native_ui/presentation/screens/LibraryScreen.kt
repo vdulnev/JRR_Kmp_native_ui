@@ -40,7 +40,7 @@ import com.jrr.jrrkmp_native_ui.presentation.viewmodel.LibraryViewModel
 @Composable
 fun LibraryScreen(
     viewModel: LibraryViewModel,
-    onAlbumClick: (String, String) -> Unit, // Album Name, Artist Name
+    onAlbumClick: (Album) -> Unit, // Album Name, Artist Name
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -210,7 +210,7 @@ fun ArtistsTab(
     isLoadingArtists: Boolean,
     isLoadingAlbums: Boolean,
     onArtistClick: (String) -> Unit,
-    onAlbumClick: (String, String) -> Unit,
+    onAlbumClick: (Album) -> Unit,
     onBackClick: () -> Unit
 ) {
     if (selectedArtist != null) {
@@ -238,7 +238,7 @@ fun ArtistsTab(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(artistAlbums) { album ->
-                        AlbumRowItem(album = album, onClick = { onAlbumClick(album.name, album.albumArtist) })
+                        AlbumRowItem(album = album, onClick = { onAlbumClick(album) })
                     }
                 }
             }
@@ -289,7 +289,7 @@ fun ArtistsTab(
 fun RandomTab(
     albums: List<Album>,
     isLoading: Boolean,
-    onAlbumClick: (String, String) -> Unit,
+    onAlbumClick: (Album) -> Unit,
     onRefresh: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -327,7 +327,7 @@ fun RandomTab(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onAlbumClick(album.name, album.albumArtist) }
+                            .clickable { onAlbumClick(album) }
                     ) {
                         Box(
                             modifier = Modifier
@@ -432,7 +432,7 @@ fun BrowseTab(
 
 @Composable
 fun FavoritesTab(
-    onAlbumClick: (String, String) -> Unit
+    onAlbumClick: (Album) -> Unit
 ) {
     // Basic mock / display for favorites node
     Box(

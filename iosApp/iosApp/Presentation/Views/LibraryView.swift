@@ -111,11 +111,11 @@ class LibraryObservable {
 
 struct LibraryView: View {
     @State private var observable: LibraryObservable
-    let onAlbumClick: (String, String) -> Void // AlbumName, ArtistName
+    let onAlbumClick: (Album) -> Void // AlbumName, ArtistName
     @State private var isSearching = false
     @State private var searchQueryText = ""
     
-    init(viewModel: LibraryViewModel, onAlbumClick: @escaping (String, String) -> Void) {
+    init(viewModel: LibraryViewModel, onAlbumClick: @escaping (Album) -> Void) {
         self._observable = State(initialValue: LibraryObservable(viewModel: viewModel))
         self.onAlbumClick = onAlbumClick
     }
@@ -303,7 +303,7 @@ struct LibraryView: View {
                         LazyVStack(spacing: 8) {
                             ForEach(observable.artistAlbums, id: \.name) { album in
                                 albumRowItem(album: album) {
-                                    onAlbumClick(album.name, album.albumArtist)
+                                    onAlbumClick(album)
                                 }
                             }
                         }
@@ -405,7 +405,7 @@ struct LibraryView: View {
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(observable.randomAlbums, id: \.name) { album in
                             let imageUrl = McwsClient.shared.buildImageUrl(fileKey: album.artworkFileKey)
-                            Button(action: { onAlbumClick(album.name, album.albumArtist) }) {
+                            Button(action: { onAlbumClick(album) }) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     ZStack {
                                         if !imageUrl.isEmpty, let url = URL(string: imageUrl) {
@@ -610,7 +610,7 @@ struct LibraryView: View {
                                 .stroke(Color.line, lineWidth: 1)
                         )
                         .onTapGesture {
-                            onAlbumClick(albumName, artist)
+                            onAlbumClick(Album(name: albumName, albumArtist: artist, folderPath: "", parentFolderPath: "", date: "", artworkFileKey: "", totalDiscs: 1, discNumber: 1))
                         }
                     }
                 }

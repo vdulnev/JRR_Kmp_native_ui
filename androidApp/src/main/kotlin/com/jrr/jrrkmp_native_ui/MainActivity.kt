@@ -46,6 +46,7 @@ import android.widget.Toast
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.BorderStroke
+import com.jrr.jrrkmp_native_ui.domain.model.Album
 
 class MainActivity : ComponentActivity() {
 
@@ -109,7 +110,7 @@ fun MainShell(
     }
 
     // Navigation sub-states
-    var selectedAlbum by remember { mutableStateOf<Pair<String, String>?>(null) } // AlbumName to ArtistName
+    var selectedAlbum by remember { mutableStateOf<Album?>(null) } // AlbumName to ArtistName
     var showQueue by remember { mutableStateOf(false) }
 
     // Auto-login states
@@ -348,10 +349,9 @@ fun MainShell(
                     // Library Tab with nested AlbumDetailScreen
                     val album = selectedAlbum
                     if (album != null) {
-                        val albumDetailViewModel = remember(album.first, album.second) {
+                        val albumDetailViewModel = remember(album) {
                             AlbumDetailViewModel(
-                                albumName = album.first,
-                                artistName = album.second,
+                                album = album,
                                 libraryRepository = libraryRepository,
                                 facade = facade,
                                 database = com.jrr.jrrkmp_native_ui.JrrDependencies.getDatabase(context)
@@ -364,8 +364,8 @@ fun MainShell(
                     } else {
                         LibraryScreen(
                             viewModel = libraryViewModel,
-                            onAlbumClick = { albumName, artistName ->
-                                selectedAlbum = Pair(albumName, artistName)
+                            onAlbumClick = { album ->
+                                selectedAlbum = album
                             }
                         )
                     }

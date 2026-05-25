@@ -10,7 +10,7 @@ struct ContentView: View {
     @State private var activeTab: Int = 1 // Start on Server Manager tab (1)
     
     // Nested navigation states
-    @State private var selectedAlbum: (name: String, artist: String)? = nil
+    @State private var selectedAlbum: Album? = nil
     @State private var showQueue: Bool = false
     
     // Auto-connect states
@@ -427,21 +427,12 @@ struct PlayerTabContainerView: View {
 }
 
 struct LibraryTabContainerView: View {
-    @Binding var selectedAlbum: (name: String, artist: String)?
+    @Binding var selectedAlbum: Album?
     let libraryViewModel: LibraryViewModel
     
     var body: some View {
         if let album = selectedAlbum {
-            let kmpAlbum = Album(
-                name: album.name,
-                albumArtist: album.artist,
-                folderPath: "",
-                parentFolderPath: "",
-                date: "",
-                artworkFileKey: "",
-                totalDiscs: 1,
-                discNumber: 1
-            )
+            let kmpAlbum = album
             let albumDetailViewModel = AlbumDetailViewModel(
                 album: kmpAlbum,
                 libraryRepository: JrrDependencies.shared.libraryRepository,
@@ -455,8 +446,8 @@ struct LibraryTabContainerView: View {
         } else {
             LibraryView(
                 viewModel: libraryViewModel,
-                onAlbumClick: { albumName, artistName in
-                    selectedAlbum = (name: albumName, artist: artistName)
+                onAlbumClick: { album in
+                    selectedAlbum = album
                 }
             )
         }
