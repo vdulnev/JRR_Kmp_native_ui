@@ -1,29 +1,74 @@
 import SwiftUI
 import SharedLogic
 
-struct QueueView: View {
-    @ObservedObject var audioHandler = PlaybackStateObserver.shared
+@Observable
+@MainActor
+class QueueObservable {
+    let viewModel: QueueViewModel
     
+    var queueTracks: [Track] = []
+    var activeIndex: Int = -1
+    var isPlaying: Bool = false
+    var isLoading: Bool = false
+    var isLocal: Bool = true
+    var transientError: String? = nil
+    
+    private let subscription = FlowSubscription()
+    
+    init(viewModel: QueueViewModel) {
+        self.viewModel = viewModel
+        
+        let initial = viewModel.state.value as! QueueViewState
+        sync(state: initial)
+        
+        self.subscription.disposable = FlowObserver<QueueViewState>(flow: viewModel.state).start { [weak self] state in
+            if let state = state {
+                Task { @MainActor in
+                    self?.sync(state: state)
+                }
+            }
+        }
+    }
+    
+    private func sync(state: QueueViewState) {
+        self.queueTracks = state.queueTracks
+        self.activeIndex = Int(state.activeIndex)
+        self.isPlaying = state.isPlaying
+        self.isLoading = state.isLoading
+        self.isLocal = state.isLocal
+        self.transientError = state.transientError
+    }
+    
+    func playByIndex(index: Int) {
+        viewModel.playByIndex(index: Int32(index))
+    }
+    
+    func removeQueueTrack(index: Int) {
+        viewModel.removeQueueTrack(index: Int32(index))
+    }
+    
+    func moveQueueTrack(from: Int, to: Int) {
+        viewModel.moveQueueTrack(from: Int32(from), to: Int32(to))
+    }
+    
+    func clearQueue() {
+        viewModel.clearQueue()
+    }
+    
+    func clearTransientError() {
+        viewModel.clearTransientError()
+    }
+}
+
+struct QueueView: View {
+    @State private var observable: QueueObservable
     let onBackClick: () -> Void
     
-    @State private var remoteQueue: [Track] = []
-    @State private var isLoadingRemote = false
     @State private var editMode: EditMode = .inactive
     
-    var isLocal: Bool {
-        audioHandler.activeZone.isLocal || audioHandler.activeZone.isOffline || audioHandler.activeZone.isAndroidAuto
-    }
-    
-    var currentQueue: [Track] {
-        isLocal ? audioHandler.localQueue : remoteQueue
-    }
-    
-    var activeIndex: Int {
-        Int(audioHandler.playerStatus?.playingNowPosition ?? -1)
-    }
-    
-    var isPlaying: Bool {
-        audioHandler.playerStatus?.state == .playing
+    init(viewModel: QueueViewModel, onBackClick: @escaping () -> Void) {
+        self._observable = State(initialValue: QueueObservable(viewModel: viewModel))
+        self.onBackClick = onBackClick
     }
     
     var body: some View {
@@ -60,7 +105,7 @@ struct QueueView: View {
                             .frame(height: 44)
                     }
                     
-                    Button(action: clearQueue) {
+                    Button(action: { observable.clearQueue() }) {
                         Text("CLEAR")
                             .font(AppFont.ibmPlexMono(size: 11, weight: .medium))
                             .foregroundColor(.errorColor)
@@ -72,12 +117,12 @@ struct QueueView: View {
             .background(Color.bg1)
             
             // Queue Content
-            if isLoadingRemote && !isLocal {
+            if observable.isLoading {
                 Spacer()
                 ProgressView()
                     .tint(.accentColor)
                 Spacer()
-            } else if currentQueue.isEmpty {
+            } else if observable.queueTracks.isEmpty {
                 Spacer()
                 Text("QUEUE IS EMPTY")
                     .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
@@ -85,14 +130,14 @@ struct QueueView: View {
                 Spacer()
             } else {
                 List {
-                    ForEach(Array(currentQueue.enumerated()), id: \.element.fileKey) { index, track in
-                        let isActive = index == activeIndex
+                    ForEach(Array(observable.queueTracks.enumerated()), id: \.element.fileKey) { index, track in
+                        let isActive = index == observable.activeIndex
                         
                         HStack(spacing: 12) {
                             // Index / VuMeter
                             Group {
                                 if isActive {
-                                    VuMeter(isPlaying: isPlaying)
+                                    VuMeter(isPlaying: observable.isPlaying)
                                 } else {
                                     Text(String(format: "%02d", index + 1))
                                         .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
@@ -123,7 +168,7 @@ struct QueueView: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             if editMode != .active {
-                                JrrDependencies.shared.facade.playByIndex(index: Int32(index))
+                                observable.playByIndex(index: index)
                             }
                         }
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
@@ -151,37 +196,11 @@ struct QueueView: View {
             }
         }
         .background(Color.bg1.ignoresSafeArea())
-        .task(id: audioHandler.activeZone) {
-            await loadRemoteQueueIfNeeded()
-        }
-        .task(id: audioHandler.playerStatus?.playingNowTracks) {
-            await loadRemoteQueueIfNeeded()
-        }
-    }
-    
-    private func loadRemoteQueueIfNeeded() async {
-        guard !isLocal else { return }
-        isLoadingRemote = true
-        do {
-            let tracks = try await JrrDependencies.shared.libraryRepository.getRemoteQueue()
-            await MainActor.run {
-                self.remoteQueue = tracks
-                self.isLoadingRemote = false
-            }
-        } catch {
-            print("Failed to load remote queue: \(error)")
-            await MainActor.run {
-                self.isLoadingRemote = false
-            }
-        }
     }
     
     private func deleteTracks(at offsets: IndexSet) {
         for index in offsets {
-            JrrDependencies.shared.facade.removeQueueTrack(index: Int32(index))
-            if !isLocal {
-                remoteQueue.remove(at: index)
-            }
+            observable.removeQueueTrack(index: index)
         }
     }
     
@@ -189,25 +208,6 @@ struct QueueView: View {
         guard let fromIndex = source.first else { return }
         // Adjust destination index because of the item removed from source
         let toIndex = destination > fromIndex ? destination - 1 : destination
-        
-        JrrDependencies.shared.facade.moveQueueTrack(from: Int32(fromIndex), to: Int32(toIndex))
-        
-        if !isLocal {
-            var tempQueue = remoteQueue
-            let item = tempQueue.remove(at: fromIndex)
-            tempQueue.insert(item, at: toIndex)
-            remoteQueue = tempQueue
-        }
+        observable.moveQueueTrack(from: fromIndex, to: toIndex)
     }
-    
-    private func clearQueue() {
-        JrrDependencies.shared.facade.clearQueue()
-        if !isLocal {
-            remoteQueue = []
-        }
-    }
-}
-
-#Preview {
-    QueueView(onBackClick: {})
 }

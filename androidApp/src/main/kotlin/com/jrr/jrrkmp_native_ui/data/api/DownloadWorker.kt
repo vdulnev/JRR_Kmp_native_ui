@@ -171,8 +171,7 @@ class DownloadWorker(
                     channels = 2,
                     fileType = job.fileType,
                     filePath = finalFile.absolutePath,
-                    folderPath = "",
-                    lastPlayedAt = null
+                    folderPath = ""
                 )
                 trackDao.insert(downloadedTrack)
 

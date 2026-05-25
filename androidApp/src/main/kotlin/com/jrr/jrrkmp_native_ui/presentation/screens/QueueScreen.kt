@@ -1,5 +1,6 @@
 package com.jrr.jrrkmp_native_ui.presentation.screens
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -19,60 +20,36 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
-import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
-import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
-import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
-import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.presentation.components.VuMeter
-import kotlinx.coroutines.launch
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.QueueViewModel
 
 @Composable
 fun QueueScreen(
-    facade: AudioPlayerFacade,
-    libraryRepository: LibraryRepository,
+    viewModel: QueueViewModel,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val scope = rememberCoroutineScope()
-    val playerStatus by facade.playerStatus.collectAsState()
-    val activeZone by facade.activeZone.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
-    val isLocal = activeZone.isLocal || activeZone.isOffline || activeZone.isAndroidAuto
-
-    // Reactive local queue flow
-    val localQueue by facade.localQueue.collectAsState()
-
-    // Remote queue state
-    var remoteQueue by remember { mutableStateOf<List<Track>>(emptyList()) }
-    var isLoadingRemote by remember { mutableStateOf(false) }
-
-    // Fetch remote queue when zone, active playing track count, or current index changes
-    val trackCount = playerStatus?.playingNowTracks ?: 0
-    val activeIndex = playerStatus?.playingNowPosition ?: -1
-    val isPlaying = playerStatus?.state == PlaybackState.PLAYING
-
-    LaunchedEffect(activeZone, trackCount, isLocal) {
-        if (!isLocal) {
-            isLoadingRemote = true
-            scope.launch {
-                try {
-                    val tracks = libraryRepository.getRemoteQueue()
-                    remoteQueue = tracks
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                } finally {
-                    isLoadingRemote = false
-                }
-            }
+    LaunchedEffect(state.transientError) {
+        state.transientError?.let { error ->
+            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            viewModel.clearTransientError()
         }
     }
 
-    val currentQueue = if (isLocal) localQueue else remoteQueue
+    val currentQueue = state.queueTracks
+    val activeIndex = state.activeIndex
+    val isPlaying = state.isPlaying
+    val isLoading = state.isLoading
 
     Column(
         modifier = modifier
@@ -102,25 +79,24 @@ fun QueueScreen(
             )
 
             Button(
-                onClick = {
-                    facade.clearQueue()
-                    if (!isLocal) {
-                        remoteQueue = emptyList()
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.bg2),
+                onClick = { viewModel.clearQueue() },
+                enabled = currentQueue.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.bg2, disabledContainerColor = AppColors.bg2.copy(alpha = 0.5f)),
                 border = BorderStroke(1.dp, AppColors.line),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.height(32.dp)
             ) {
                 Text(
                     text = "Clear".uppercase(),
-                    style = AppTypography.monoLabel.copy(fontSize = 10.sp, color = AppColors.error)
+                    style = AppTypography.monoLabel.copy(
+                        fontSize = 10.sp,
+                        color = if (currentQueue.isNotEmpty()) AppColors.error else AppColors.text3
+                    )
                 )
             }
         }
 
-        if (isLoadingRemote && !isLocal) {
+        if (isLoading) {
             Box(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -163,7 +139,7 @@ fun QueueScreen(
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .clickable {
-                                facade.playByIndex(index)
+                                viewModel.playByIndex(index)
                             }
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -212,18 +188,7 @@ fun QueueScreen(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             IconButton(
-                                onClick = {
-                                    if (index > 0) {
-                                        facade.moveQueueTrack(index, index - 1)
-                                        if (!isLocal) {
-                                            // Optimistic UI updates for remote reordering
-                                            val mutableList = remoteQueue.toMutableList()
-                                            val item = mutableList.removeAt(index)
-                                            mutableList.add(index - 1, item)
-                                            remoteQueue = mutableList
-                                        }
-                                    }
-                                },
+                                onClick = { viewModel.moveQueueTrack(index, index - 1) },
                                 enabled = index > 0,
                                 modifier = Modifier.size(28.dp)
                             ) {
@@ -235,18 +200,7 @@ fun QueueScreen(
                             }
 
                             IconButton(
-                                onClick = {
-                                    if (index < currentQueue.size - 1) {
-                                        facade.moveQueueTrack(index, index + 1)
-                                        if (!isLocal) {
-                                            // Optimistic UI updates for remote reordering
-                                            val mutableList = remoteQueue.toMutableList()
-                                            val item = mutableList.removeAt(index)
-                                            mutableList.add(index + 1, item)
-                                            remoteQueue = mutableList
-                                        }
-                                    }
-                                },
+                                onClick = { viewModel.moveQueueTrack(index, index + 1) },
                                 enabled = index < currentQueue.size - 1,
                                 modifier = Modifier.size(28.dp)
                             ) {
@@ -259,15 +213,7 @@ fun QueueScreen(
 
                             // Delete button
                             IconButton(
-                                onClick = {
-                                    facade.removeQueueTrack(index)
-                                    if (!isLocal) {
-                                        // Optimistic UI updates for remote deleting
-                                        val mutableList = remoteQueue.toMutableList()
-                                        mutableList.removeAt(index)
-                                        remoteQueue = mutableList
-                                    }
-                                },
+                                onClick = { viewModel.removeQueueTrack(index) },
                                 modifier = Modifier.size(28.dp)
                             ) {
                                 Icon(

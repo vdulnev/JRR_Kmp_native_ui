@@ -1,8 +1,11 @@
 import SwiftUI
 import SharedLogic
-
 struct ContentView: View {
-    @ObservedObject var stateObserver = PlaybackStateObserver.shared
+    @State private var libraryViewModel: LibraryViewModel
+    @State private var nowPlayingViewModel: NowPlayingViewModel
+    @State private var queueViewModel: QueueViewModel
+    @State private var zonesViewModel: ZonesViewModel
+    @State private var nowPlayingObservable: NowPlayingObservable
     
     @State private var activeTab: Int = 1 // Start on Server Manager tab (1)
     
@@ -18,6 +21,18 @@ struct ContentView: View {
     @State private var toastMessage: String? = nil
     
     init() {
+        let deps = JrrDependencies.shared
+        let libVM = LibraryViewModel(libraryRepository: deps.libraryRepository, facade: deps.facade)
+        let npVM = NowPlayingViewModel(facade: deps.facade)
+        let qVM = QueueViewModel(facade: deps.facade, libraryRepository: deps.libraryRepository)
+        let zVM = ZonesViewModel(facade: deps.facade, libraryRepository: deps.libraryRepository)
+        
+        self._libraryViewModel = State(initialValue: libVM)
+        self._nowPlayingViewModel = State(initialValue: npVM)
+        self._queueViewModel = State(initialValue: qVM)
+        self._zonesViewModel = State(initialValue: zVM)
+        self._nowPlayingObservable = State(initialValue: NowPlayingObservable(viewModel: npVM))
+        
         let lastActiveZoneId = UserDefaults.standard.string(forKey: "last_active_zone_id")
         let hasSavedServers = UserDefaults.standard.bool(forKey: "has_saved_servers")
         
@@ -52,12 +67,10 @@ struct ContentView: View {
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
     }
-    
     var body: some View {
-        let status = stateObserver.playerStatus
-        let isPlaying = status?.state == .playing
-        let duration = status?.durationMs ?? 0
-        let position = status?.positionMs ?? 0
+        let isPlaying = nowPlayingObservable.isPlaying
+        let duration = nowPlayingObservable.durationMs
+        let position = nowPlayingObservable.positionMs
         let progress = duration > 0 ? Double(position) / Double(duration) : 0.0
         
         ZStack {
@@ -83,9 +96,9 @@ struct ContentView: View {
                     // Tab 2: Player (Now Playing)
                     Group {
                         if showQueue {
-                            QueueView(onBackClick: { showQueue = false })
+                            QueueView(viewModel: queueViewModel, onBackClick: { showQueue = false })
                         } else {
-                            NowPlayingView(onQueueClick: { showQueue = true })
+                            NowPlayingView(viewModel: nowPlayingViewModel, onQueueClick: { showQueue = true })
                         }
                     }
                     .tabItem {
@@ -96,15 +109,24 @@ struct ContentView: View {
                     // Tab 0: Library
                     Group {
                         if let album = selectedAlbum {
-                            AlbumDetailView(
+                            let albumDetailViewModel = AlbumDetailViewModel(
                                 albumName: album.name,
                                 artistName: album.artist,
+                                libraryRepository: JrrDependencies.shared.libraryRepository,
+                                facade: JrrDependencies.shared.facade,
+                                database: JrrDependencies.shared.database
+                            )
+                            AlbumDetailView(
+                                viewModel: albumDetailViewModel,
                                 onBackClick: { selectedAlbum = nil }
                             )
                         } else {
-                            LibraryView(onAlbumClick: { albumName, artistName in
-                                selectedAlbum = (name: albumName, artist: artistName)
-                            })
+                            LibraryView(
+                                viewModel: libraryViewModel,
+                                onAlbumClick: { albumName, artistName in
+                                    selectedAlbum = (name: albumName, artist: artistName)
+                                }
+                            )
                         }
                     }
                     .tabItem {
@@ -113,11 +135,14 @@ struct ContentView: View {
                     .tag(0)
                     
                     // Tab 3: Zones
-                    ZonesView(onBackClick: {
-                        withAnimation {
-                            activeTab = 2
+                    ZonesView(
+                        viewModel: zonesViewModel,
+                        onBackClick: {
+                            withAnimation {
+                                activeTab = 2
+                            }
                         }
-                    })
+                    )
                     .tabItem {
                         Label("Zones", systemImage: "speaker.wave.3.fill")
                     }
@@ -125,6 +150,11 @@ struct ContentView: View {
                     
                     // Tab 4: Settings
                     SettingsView(
+                        isOfflineMode: (zonesViewModel.state.value as! ZonesViewState).isOfflineMode,
+                        serverHost: JrrDependencies.shared.facade.currentServerHost,
+                        useSsl: JrrDependencies.shared.facade.currentServerUseSsl,
+                        serverPort: JrrDependencies.shared.facade.currentServerPort,
+                        serverSslPort: JrrDependencies.shared.facade.currentServerSslPort,
                         onBackClick: {
                             withAnimation {
                                 activeTab = 2
@@ -153,29 +183,29 @@ struct ContentView: View {
             }
             
             // Floating MiniPlayer overlay
-            if activeTab != 2 && activeTab != 1 && status != nil {
+            if activeTab != 2 && activeTab != 1 && nowPlayingObservable.trackTitle != "Idle" {
                 VStack {
                     Spacer()
                     
                     MiniPlayer(
-                        title: status?.trackName ?? "",
-                        artist: status?.trackArtist ?? "",
+                        title: nowPlayingObservable.trackTitle,
+                        artist: nowPlayingObservable.artistName,
                         //TODO: implement later
                         imageUrl: nil,
                         isPlaying: isPlaying,
                         progress: progress,
                         onPlayPauseClick: {
                             if isPlaying {
-                                JrrDependencies.shared.facade.pause()
+                                nowPlayingObservable.pause()
                             } else {
-                                JrrDependencies.shared.facade.play()
+                                nowPlayingObservable.play()
                             }
                         },
                         onNextClick: {
-                            JrrDependencies.shared.facade.next()
+                            nowPlayingObservable.next()
                         },
                         onPrevClick: {
-                            JrrDependencies.shared.facade.previous()
+                            nowPlayingObservable.previous()
                         },
                         onBodyClick: {
                             withAnimation {
@@ -257,7 +287,7 @@ struct ContentView: View {
                                 .stroke(Color.line2, lineWidth: 1)
                         )
                         .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
-                        .padding(.bottom, activeTab != 2 && status != nil ? 140 : 80) // Position above tab bar/miniplayer
+                        .padding(.bottom, activeTab != 2 && nowPlayingObservable.trackTitle != "Idle" ? 140 : 80) // Position above tab bar/miniplayer
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 .ignoresSafeArea(.keyboard)

@@ -1,58 +1,70 @@
 package com.jrr.jrrkmp_native_ui.presentation.screens
 
+import android.widget.Toast
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode as ComposeRepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
-import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
-import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
-import com.jrr.jrrkmp_native_ui.presentation.components.VinylSleeve
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.NowPlayingViewModel
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NowPlayingScreen(
-    facade: AudioPlayerFacade,
+    viewModel: NowPlayingViewModel,
     onQueueClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val playerStatus by facade.playerStatus.collectAsState()
-    val activeZone by facade.activeZone.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
-    val status = playerStatus
+    LaunchedEffect(state.transientError) {
+        state.transientError?.let { error ->
+            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            viewModel.clearTransientError()
+        }
+    }
 
-    // Local state for scrubbing
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubProgress by remember { mutableStateOf(0f) }
 
-    val isPlaying = status?.state == PlaybackState.PLAYING
-    val currentPosition = status?.positionMs ?: 0L
-    val duration = status?.durationMs ?: 0L
+    val isPlaying = state.isPlaying
+    val currentPosition = state.positionMs
+    val duration = state.durationMs
 
     val displayProgress = if (isScrubbing) {
         scrubProgress
@@ -83,7 +95,7 @@ fun NowPlayingScreen(
                     color = AppColors.accent
                 )
                 Text(
-                    text = activeZone.name,
+                    text = state.activeZoneName,
                     style = AppTypography.itemTitle.copy(fontSize = 14.sp),
                     color = AppColors.text2
                 )
@@ -106,8 +118,8 @@ fun NowPlayingScreen(
             contentAlignment = Alignment.Center
         ) {
             VinylSleeve(
-                albumTitle = status?.trackAlbum?.ifEmpty { "No Track" } ?: "No Track",
-                artistName = status?.trackArtist?.ifEmpty { "Unknown Artist" } ?: "Unknown Artist",
+                albumTitle = state.albumTitle,
+                artistName = state.artistName,
                 year = "2026", // Fallback decorative year
                 side = "SIDE A",
                 imageUrl = null,
@@ -121,25 +133,25 @@ fun NowPlayingScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = status?.trackName?.ifEmpty { "Idle" } ?: "Idle",
+                text = state.trackTitle,
                 style = AppTypography.screenTitle.copy(fontSize = 20.sp),
                 maxLines = 1,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
 
             Text(
-                text = (status?.trackArtist?.ifEmpty { "Unknown Artist" } ?: "Unknown Artist") + " — " + (status?.trackAlbum?.ifEmpty { "Unknown Album" } ?: "Unknown Album"),
+                text = state.artistName + " — " + state.albumTitle,
                 style = AppTypography.itemSubtitle.copy(color = AppColors.text2),
                 maxLines = 1,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
             // Technical details badge
-            if (status != null && status.sampleRate > 0) {
+            if (state.sampleRate > 0) {
                 val formatString = buildString {
                     append("AUDIO")
                     append(" | ")
-                    append("${status.sampleRate / 1000}kHz")
+                    append("${state.sampleRate / 1000}kHz")
                 }
 
                 Box(
@@ -170,7 +182,7 @@ fun NowPlayingScreen(
                 onValueChangeFinished = {
                     isScrubbing = false
                     if (duration > 0) {
-                        facade.seekTo((scrubProgress * duration).toLong())
+                        viewModel.seekTo((scrubProgress * duration).toLong())
                     }
                 },
                 colors = SliderDefaults.colors(
@@ -210,24 +222,16 @@ fun NowPlayingScreen(
         ) {
             // Shuffle
             IconButton(
-                onClick = {
-                    val currentMode = status?.shuffleMode ?: ShuffleMode.OFF
-                    val nextMode = when (currentMode) {
-                        ShuffleMode.OFF -> ShuffleMode.ON
-                        ShuffleMode.ON -> ShuffleMode.AUTOMATIC
-                        ShuffleMode.AUTOMATIC -> ShuffleMode.OFF
-                    }
-                    facade.setShuffleMode(nextMode)
-                }
+                onClick = { viewModel.toggleShuffle() }
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         imageVector = Icons.Default.Shuffle,
                         contentDescription = "Shuffle",
-                        tint = if (status?.shuffleMode != ShuffleMode.OFF) AppColors.accent else AppColors.text3,
+                        tint = if (state.shuffleMode != ShuffleMode.OFF) AppColors.accent else AppColors.text3,
                         modifier = Modifier.size(22.dp)
                     )
-                    if (status?.shuffleMode == ShuffleMode.AUTOMATIC) {
+                    if (state.shuffleMode == ShuffleMode.AUTOMATIC) {
                         Text(
                             text = "AUTO",
                             style = AppTypography.monoLabel.copy(fontSize = 7.sp),
@@ -238,7 +242,7 @@ fun NowPlayingScreen(
             }
 
             // Previous
-            IconButton(onClick = { facade.previous() }) {
+            IconButton(onClick = { viewModel.previous() }) {
                 Icon(
                     imageVector = Icons.Default.SkipPrevious,
                     contentDescription = "Previous",
@@ -254,7 +258,7 @@ fun NowPlayingScreen(
                     .clip(RoundedCornerShape(30.dp))
                     .background(AppColors.accent)
                     .clickable {
-                        if (isPlaying) facade.pause() else facade.play()
+                        if (isPlaying) viewModel.pause() else viewModel.play()
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -267,7 +271,7 @@ fun NowPlayingScreen(
             }
 
             // Next
-            IconButton(onClick = { facade.next() }) {
+            IconButton(onClick = { viewModel.next() }) {
                 Icon(
                     imageVector = Icons.Default.SkipNext,
                     contentDescription = "Next",
@@ -278,20 +282,12 @@ fun NowPlayingScreen(
 
             // Repeat
             IconButton(
-                onClick = {
-                    val currentMode = status?.repeatMode ?: RepeatMode.OFF
-                    val nextMode = when (currentMode) {
-                        RepeatMode.OFF -> RepeatMode.PLAYLIST
-                        RepeatMode.PLAYLIST -> RepeatMode.TRACK
-                        RepeatMode.TRACK -> RepeatMode.OFF
-                    }
-                    facade.setRepeatMode(nextMode)
-                }
+                onClick = { viewModel.toggleRepeat() }
             ) {
                 Icon(
-                    imageVector = if (status?.repeatMode == RepeatMode.TRACK) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                    imageVector = if (state.repeatMode == RepeatMode.TRACK) Icons.Default.RepeatOne else Icons.Default.Repeat,
                     contentDescription = "Repeat",
-                    tint = if (status?.repeatMode != RepeatMode.OFF) AppColors.accent else AppColors.text3,
+                    tint = if (state.repeatMode != RepeatMode.OFF) AppColors.accent else AppColors.text3,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -305,7 +301,7 @@ fun NowPlayingScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = if (status?.isMuted == true) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                imageVector = if (state.isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
                 contentDescription = "Volume",
                 tint = AppColors.text3,
                 modifier = Modifier.size(20.dp)
@@ -314,8 +310,8 @@ fun NowPlayingScreen(
             Spacer(modifier = Modifier.width(12.dp))
 
             Slider(
-                value = status?.volume ?: 0.5f,
-                onValueChange = { facade.setVolume(it) },
+                value = state.volume,
+                onValueChange = { viewModel.setVolume(it) },
                 colors = SliderDefaults.colors(
                     thumbColor = AppColors.text2,
                     activeTrackColor = AppColors.text2,
@@ -327,12 +323,171 @@ fun NowPlayingScreen(
             Spacer(modifier = Modifier.width(12.dp))
 
             Text(
-                text = "${((status?.volume ?: 0.5f) * 100).toInt()}",
+                text = "${(state.volume * 100).toInt()}",
                 style = AppTypography.monoLabel,
                 color = AppColors.text3,
                 modifier = Modifier.width(28.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.End
             )
+        }
+    }
+}
+
+@Composable
+fun VinylSleeve(
+    albumTitle: String,
+    artistName: String,
+    year: String,
+    side: String,
+    imageUrl: String?,
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val rotation = remember { Animatable(0f) }
+
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            rotation.animateTo(
+                targetValue = rotation.value + 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 8000, easing = LinearEasing),
+                    repeatMode = ComposeRepeatMode.Restart
+                )
+            )
+        } else {
+            rotation.stop()
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .size(260.dp)
+            .aspectRatio(1f),
+        contentAlignment = Alignment.Center
+    ) {
+        // Outer Vinyl record sticking out of the sleeve slightly
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 24.dp)
+                .rotate(rotation.value)
+                .clip(CircleShape)
+                .background(androidx.compose.ui.graphics.Color.Black)
+                .border(2.dp, androidx.compose.ui.graphics.Color(0xFF1C1C1C), CircleShape)
+        ) {
+            // Vinyl details lines (grooves)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp)
+                    .border(1.dp, androidx.compose.ui.graphics.Color(0xFF151515), CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(64.dp)
+                    .border(1.dp, androidx.compose.ui.graphics.Color(0xFF151515), CircleShape)
+            )
+
+            // Center Label
+            Box(
+                modifier = Modifier
+                    .size(90.dp)
+                    .align(Alignment.Center)
+                    .clip(CircleShape)
+                    .background(AppColors.bg3)
+                    .border(1.dp, AppColors.line2, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                // Spindle hole
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(AppColors.bg0)
+                )
+            }
+        }
+
+        // Cardboard Sleeve (covers the vinyl on the left)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(end = 24.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(AppColors.bg2)
+                .border(1.dp, AppColors.line2, RoundedCornerShape(8.dp))
+                .padding(20.dp)
+        ) {
+            // Sleeve design layout (Minimalist vintage look)
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Top label metadata
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = side.uppercase(),
+                        style = AppTypography.monoLabel.copy(fontSize = 9.sp),
+                        color = AppColors.accent
+                    )
+                    Text(
+                        text = year,
+                        style = AppTypography.monoLabel.copy(fontSize = 9.sp),
+                        color = AppColors.text3
+                    )
+                }
+
+                // Album Artwork or Large Lettering in center of sleeve
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(AppColors.bg3)
+                        .border(0.5.dp, AppColors.line, RoundedCornerShape(4.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!imageUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = imageUrl,
+                            contentDescription = albumTitle,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        // Large letter monogram representation
+                        Text(
+                            text = albumTitle.take(1).uppercase(),
+                            fontSize = 64.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppColors.accentDim,
+                            style = AppTypography.screenTitle
+                        )
+                    }
+                }
+
+                // Bottom Titles
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = albumTitle,
+                        style = AppTypography.itemTitle.copy(fontSize = 15.sp),
+                        maxLines = 1,
+                        color = AppColors.text
+                    )
+                    Text(
+                        text = artistName.uppercase(),
+                        style = AppTypography.monoLabel.copy(fontSize = 9.sp, letterSpacing = 1.sp),
+                        maxLines = 1,
+                        color = AppColors.text2,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
         }
     }
 }

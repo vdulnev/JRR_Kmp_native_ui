@@ -2,14 +2,14 @@ import SwiftUI
 import SharedLogic
 
 struct SettingsView: View {
-    @ObservedObject var stateObserver = PlaybackStateObserver.shared
+    let isOfflineMode: Bool
+    let serverHost: String?
+    let useSsl: Bool
+    let serverPort: Int32
+    let serverSslPort: Int32
     
     let onBackClick: () -> Void
     let onDisconnectClick: () -> Void
-    
-    var isOfflineMode: Bool {
-        stateObserver.activeZone.isOffline || JrrDependencies.shared.facade.currentServerHost == nil || JrrDependencies.shared.facade.currentServerHost?.isEmpty == true
-    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -67,12 +67,12 @@ struct SettingsView: View {
                                 .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                                 .foregroundColor(.textTertiary)
                             
-                            Text("Host: \(JrrDependencies.shared.facade.currentServerHost ?? "")")
+                            Text("Host: \(serverHost ?? "")")
                                 .font(AppFont.inter(size: 15, weight: .medium))
                                 .foregroundColor(.textPrimary)
                             
-                            let port = JrrDependencies.shared.facade.currentServerUseSsl ? JrrDependencies.shared.facade.currentServerSslPort : JrrDependencies.shared.facade.currentServerPort
-                            let type = JrrDependencies.shared.facade.currentServerUseSsl ? "SSL" : "HTTP"
+                            let port = useSsl ? serverSslPort : serverPort
+                            let type = useSsl ? "SSL" : "HTTP"
                             Text("Port: \(port) (\(type))")
                                 .font(AppFont.inter(size: 13, weight: .regular))
                                 .foregroundColor(.textSecondary)

@@ -1,16 +1,71 @@
 import SwiftUI
 import SharedLogic
 
+@Observable
+@MainActor
+class ZonesObservable {
+    let viewModel: ZonesViewModel
+    
+    var serverZones: [Zone] = []
+    var deviceZones: [Zone] = []
+    var activeZoneId: String = ""
+    var currentVolume: Float = 0.5
+    var isLoading: Bool = false
+    var isOfflineMode: Bool = true
+    var transientError: String? = nil
+    
+    private let subscription = FlowSubscription()
+    
+    init(viewModel: ZonesViewModel) {
+        self.viewModel = viewModel
+        
+        let initial = viewModel.state.value as! ZonesViewState
+        sync(state: initial)
+        
+        self.subscription.disposable = FlowObserver<ZonesViewState>(flow: viewModel.state).start { [weak self] state in
+            if let state = state {
+                Task { @MainActor in
+                    self?.sync(state: state)
+                }
+            }
+        }
+    }
+    
+    private func sync(state: ZonesViewState) {
+        self.serverZones = state.serverZones
+        self.deviceZones = state.deviceZones
+        self.activeZoneId = state.activeZoneId
+        self.currentVolume = state.currentVolume
+        self.isLoading = state.isLoading
+        self.isOfflineMode = state.isOfflineMode
+        self.transientError = state.transientError
+    }
+    
+    func refreshZones() {
+        viewModel.refreshZones()
+    }
+    
+    func selectZone(_ zone: Zone) {
+        viewModel.selectZone(zone: zone)
+    }
+    
+    func setVolume(_ level: Float) {
+        viewModel.setVolume(level: level)
+    }
+    
+    func clearTransientError() {
+        viewModel.clearTransientError()
+    }
+}
+
 struct ZonesView: View {
-    @ObservedObject var stateObserver = PlaybackStateObserver.shared
+    @State private var observable: ZonesObservable
     
     let onBackClick: () -> Void
     
-    @State private var serverZones: [Zone] = []
-    @State private var isLoading = false
-    
-    var isOfflineMode: Bool {
-        stateObserver.activeZone.isOffline || JrrDependencies.shared.facade.currentServerHost == nil || JrrDependencies.shared.facade.currentServerHost?.isEmpty == true
+    init(viewModel: ZonesViewModel, onBackClick: @escaping () -> Void) {
+        self._observable = State(initialValue: ZonesObservable(viewModel: viewModel))
+        self.onBackClick = onBackClick
     }
     
     var body: some View {
@@ -45,13 +100,13 @@ struct ZonesView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     // Server Outputs Section
-                    if !isOfflineMode {
+                    if !observable.isOfflineMode {
                         Text("SERVER OUTPUTS")
                             .styleSectionHeading()
                             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                             .padding(.top, 16)
                         
-                        if isLoading {
+                        if observable.isLoading {
                             HStack {
                                 Spacer()
                                 ProgressView()
@@ -59,24 +114,24 @@ struct ZonesView: View {
                                 Spacer()
                             }
                             .padding(.vertical, 20)
-                        } else if serverZones.isEmpty {
+                        } else if observable.serverZones.isEmpty {
                             Text("No server zones found.")
                                 .font(AppFont.inter(size: 13, weight: .regular))
                                 .foregroundColor(.textTertiary)
                                 .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                         } else {
                             VStack(spacing: 12) {
-                                ForEach(serverZones) { zone in
-                                    let isActive = zone.id == stateObserver.activeZone.id
+                                ForEach(observable.serverZones) { zone in
+                                    let isActive = zone.id == observable.activeZoneId
                                     ZoneRow(
                                         zone: zone,
                                         isActive: isActive,
-                                        volume: isActive ? (stateObserver.playerStatus?.volume ?? 0.5) : 0.5,
+                                        volume: isActive ? observable.currentVolume : 0.5,
                                         onZoneClick: {
-                                            JrrDependencies.shared.facade.setZone(zone: zone, skipLoadQueue: false)
+                                            observable.selectZone(zone)
                                         },
                                         onVolumeChange: { newVolume in
-                                            JrrDependencies.shared.facade.setVolume(level: newVolume)
+                                            observable.setVolume(newVolume)
                                         }
                                     )
                                 }
@@ -92,18 +147,17 @@ struct ZonesView: View {
                         .padding(.top, 10)
                     
                     VStack(spacing: 12) {
-                        let deviceZones = getDeviceZones()
-                        ForEach(deviceZones) { zone in
-                            let isActive = zone.id == stateObserver.activeZone.id
+                        ForEach(observable.deviceZones) { zone in
+                            let isActive = zone.id == observable.activeZoneId
                             ZoneRow(
                                 zone: zone,
                                 isActive: isActive,
-                                volume: isActive ? (stateObserver.playerStatus?.volume ?? 0.5) : 0.5,
+                                volume: isActive ? observable.currentVolume : 0.5,
                                 onZoneClick: {
-                                    JrrDependencies.shared.facade.setZone(zone: zone, skipLoadQueue: false)
+                                    observable.selectZone(zone)
                                 },
                                 onVolumeChange: { newVolume in
-                                    JrrDependencies.shared.facade.setVolume(level: newVolume)
+                                    observable.setVolume(newVolume)
                                 }
                             )
                         }
@@ -115,29 +169,21 @@ struct ZonesView: View {
         }
         .background(Color.bg1.ignoresSafeArea())
         .task {
-            await loadZones()
+            observable.refreshZones()
         }
-    }
-    
-    private func loadZones() async {
-        guard !isOfflineMode else { return }
-        isLoading = true
-        do {
-            let list = try await JrrDependencies.shared.libraryRepository.getZones()
-            await MainActor.run {
-                self.serverZones = list
-                self.isLoading = false
+        .alert(
+            "Error",
+            isPresented: Binding(
+                get: { observable.transientError != nil },
+                set: { if !$0 { observable.clearTransientError() } }
+            ),
+            actions: {
+                Button("OK", role: .cancel) {}
+            },
+            message: {
+                Text(observable.transientError ?? "")
             }
-        } catch {
-            print("Failed to load zones: \(error)")
-            await MainActor.run {
-                self.isLoading = false
-            }
-        }
-    }
-    
-    private func getDeviceZones() -> [Zone] {
-        return [Zone.companion.Local, Zone.companion.Offline]
+        )
     }
 }
 
@@ -218,4 +264,5 @@ struct ZoneRow: View {
     }
 }
 
-extension Zone: Identifiable {}
+extension Zone: @retroactive Identifiable {}
+

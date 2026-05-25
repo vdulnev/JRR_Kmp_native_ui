@@ -1,18 +1,111 @@
 import SwiftUI
 import SharedLogic
 
-struct AlbumDetailView: View {
-    @ObservedObject var stateObserver = PlaybackStateObserver.shared
+@Observable
+@MainActor
+class AlbumDetailObservable {
+    let viewModel: AlbumDetailViewModel
     
-    let albumName: String
-    let artistName: String
+    var albumName: String
+    var artistName: String
+    var contentState: AlbumDetailContentState
+    var transientError: String?
+    
+    // UI reactive values
+    var tracks: [Track] = []
+    var downloadedTrackKeys: Set<String> = []
+    var activeDownloadJobs: [String: String] = [:]
+    var isFavorite: Bool = false
+    var isLoading: Bool = true
+    var isOffline: Bool = true
+    var errorMessage: String? = nil
+    
+    private let subscription = FlowSubscription()
+    
+    init(viewModel: AlbumDetailViewModel) {
+        self.viewModel = viewModel
+        self.albumName = viewModel.albumName
+        self.artistName = viewModel.artistName
+        
+        let initial = viewModel.state.value as! AlbumDetailViewState
+        self.contentState = initial.contentState
+        self.isOffline = initial.isOfflineMode
+        sync(state: initial)
+        
+        self.subscription.disposable = FlowObserver<AlbumDetailViewState>(flow: viewModel.state).start { [weak self] state in
+            if let state = state {
+                Task { @MainActor in
+                    self?.sync(state: state)
+                }
+            }
+        }
+    }
+    
+    private func sync(state: AlbumDetailViewState) {
+        self.contentState = state.contentState
+        self.isOffline = state.isOfflineMode
+        self.transientError = state.transientError
+        
+        if let success = state.contentState as? AlbumDetailContentStateSuccess {
+            self.tracks = success.tracks
+            self.downloadedTrackKeys = success.downloadedTrackKeys
+            self.activeDownloadJobs = success.activeDownloadJobs
+            self.isFavorite = success.isFavorite
+            self.isLoading = false
+            self.errorMessage = nil
+        } else if let error = state.contentState as? AlbumDetailContentStateError {
+            self.tracks = []
+            self.downloadedTrackKeys = []
+            self.activeDownloadJobs = [:]
+            self.isFavorite = false
+            self.isLoading = false
+            self.errorMessage = error.message
+        } else {
+            self.tracks = []
+            self.downloadedTrackKeys = []
+            self.activeDownloadJobs = [:]
+            self.isFavorite = false
+            self.isLoading = true
+            self.errorMessage = nil
+        }
+    }
+    
+    func playTrack(_ track: Track) {
+        viewModel.playTrack(track: track)
+    }
+    
+    func playAlbum() {
+        viewModel.playAlbum()
+    }
+    
+    func shuffleAlbum() {
+        viewModel.shuffleAlbum()
+    }
+    
+    func toggleFavorite() {
+        viewModel.toggleFavorite()
+    }
+    
+    func startDownload(track: Track) {
+        viewModel.startDownload(track: track)
+    }
+    
+    func clearTransientError() {
+        viewModel.clearTransientError()
+    }
+    
+    func retry() {
+        viewModel.retry()
+    }
+}
+
+struct AlbumDetailView: View {
+    @State private var observable: AlbumDetailObservable
     let onBackClick: () -> Void
     
-    @State private var tracks: [Track] = []
-    @State private var isLoading = true
-    
-    var isFavorite: Bool {
-        stateObserver.favorites.contains(where: { $0.type == "album" && $0.identifier == "\(albumName)|\(artistName)" })
+    init(viewModel: AlbumDetailViewModel, onBackClick: @escaping () -> Void) {
+        self._observable = State(initialValue: AlbumDetailObservable(viewModel: viewModel))
+        self.onBackClick = onBackClick
     }
     
     var body: some View {
@@ -37,29 +130,39 @@ struct AlbumDetailView: View {
                 
                 Spacer()
                 
-                Button(action: toggleFavorite) {
-                    Image(systemName: isFavorite ? "star.fill" : "star")
+                Button(action: { observable.toggleFavorite() }) {
+                    Image(systemName: observable.isFavorite ? "star.fill" : "star")
                         .font(.system(size: 18))
-                        .foregroundColor(isFavorite ? .accentColor : .textTertiary)
+                        .foregroundColor(observable.isFavorite ? .accentColor : .textTertiary)
                         .frame(width: 44, height: 44)
                 }
             }
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
             .background(Color.bg1)
             
-            if isLoading {
+            if observable.isLoading {
                 Spacer()
                 ProgressView()
                     .tint(.accentColor)
+                Spacer()
+            } else if let error = observable.errorMessage {
+                Spacer()
+                VStack(spacing: 16) {
+                    Text("Error: \(error)")
+                        .foregroundColor(.red)
+                        .font(AppFont.inter(size: 14, weight: .semibold))
+                    Button("Retry") {
+                        observable.retry()
+                    }
+                }
                 Spacer()
             } else {
                 ScrollView {
                     VStack(spacing: 20) {
                         // Artwork and details header
                         VStack(alignment: .center, spacing: 16) {
-                            // 2D artwork
                             ZStack {
-                                if let artworkUrl = tracks.first(where: { !$0.imageUrl.isEmpty })?.imageUrl,
+                                if let artworkUrl = observable.tracks.first(where: { !$0.imageUrl.isEmpty })?.imageUrl,
                                    let url = URL(string: artworkUrl) {
                                     JrrAsyncImage(url: url) { image in
                                         image
@@ -90,13 +193,13 @@ struct AlbumDetailView: View {
                             )
                             
                             VStack(spacing: 4) {
-                                Text(albumName)
+                                Text(observable.albumName)
                                     .font(AppFont.inter(size: 20, weight: .bold))
                                     .foregroundColor(.textPrimary)
                                     .lineLimit(2)
                                     .multilineTextAlignment(.center)
                                 
-                                Text(artistName)
+                                Text(observable.artistName)
                                     .font(AppFont.inter(size: 13, weight: .regular))
                                     .foregroundColor(.textSecondary)
                                     .lineLimit(1)
@@ -107,9 +210,7 @@ struct AlbumDetailView: View {
                             // Play / Shuffle Buttons
                             HStack(spacing: 12) {
                                 Button(action: {
-                                    if !tracks.isEmpty {
-                                        JrrDependencies.shared.facade.setQueue(tracks: tracks, startIndex: 0)
-                                    }
+                                    observable.playAlbum()
                                 }) {
                                     HStack(spacing: 8) {
                                         Image(systemName: "play.fill")
@@ -126,10 +227,7 @@ struct AlbumDetailView: View {
                                 }
                                 
                                 Button(action: {
-                                    if !tracks.isEmpty {
-                                        let shuffled = tracks.shuffled()
-                                        JrrDependencies.shared.facade.setQueue(tracks: tracks, startIndex: 0)
-                                    }
+                                    observable.shuffleAlbum()
                                 }) {
                                     HStack(spacing: 8) {
                                         Text("🔀")
@@ -170,13 +268,10 @@ struct AlbumDetailView: View {
             }
         }
         .background(Color.bg1.ignoresSafeArea())
-        .task {
-            await loadTracks()
-        }
     }
     
     private var sortedTracks: [Track] {
-        tracks.sorted { ($0.discNumber, $0.trackNumber) < ($1.discNumber, $1.trackNumber) }
+        observable.tracks.sorted { ($0.discNumber, $0.trackNumber) < ($1.discNumber, $1.trackNumber) }
     }
     
     private var discGroups: [Int32: [Track]] {
@@ -199,7 +294,7 @@ struct AlbumDetailView: View {
                     .styleItemTitle()
                     .lineLimit(1)
                 
-                if track.artist != artistName {
+                if track.artist != observable.artistName {
                     Text(track.artist)
                         .styleItemSubtitle()
                         .lineLimit(1)
@@ -209,14 +304,14 @@ struct AlbumDetailView: View {
             Spacer()
             
             // Download status / action button
-            if !stateObserver.activeZone.isOffline {
-                if stateObserver.downloadedTracks.contains(where: { $0.fileKey == track.fileKey }) {
+            if !observable.isOffline {
+                if observable.downloadedTrackKeys.contains(track.fileKey) {
                     Image(systemName: "checkmark")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(.accentColor)
                         .padding(.trailing, 8)
-                } else if let job = stateObserver.downloadJobs.first(where: { $0.fileKey == track.fileKey }) {
-                    if job.state == "downloading" || job.state == "DOWNLOADING" {
+                } else if let jobState = observable.activeDownloadJobs[track.fileKey] {
+                    if jobState == "downloading" || jobState == "DOWNLOADING" {
                         ProgressView()
                             .controlSize(.small)
                             .tint(.accentColor)
@@ -229,7 +324,7 @@ struct AlbumDetailView: View {
                     }
                 } else {
                     Button(action: {
-                        triggerDownload(track: track)
+                        observable.startDownload(track: track)
                     }) {
                         Image(systemName: "arrow.down.circle")
                             .font(.system(size: 14))
@@ -247,8 +342,7 @@ struct AlbumDetailView: View {
         .contentShape(Rectangle())
         .padding(.vertical, 12)
         .onTapGesture {
-            let index = sortedTracks.firstIndex(of: track) ?? 0
-            JrrDependencies.shared.facade.setQueue(tracks: sortedTracks, startIndex: Int32(index))
+            observable.playTrack(track)
         }
     }
     
@@ -276,56 +370,6 @@ struct AlbumDetailView: View {
                 
                 Divider()
                     .background(Color.line)
-            }
-        }
-    }
-    
-    private func loadTracks() async {
-        isLoading = true
-        do {
-            let list = try await JrrDependencies.shared.libraryRepository.getAlbumTracks(albumName: albumName, artistName: artistName)
-            await MainActor.run {
-                self.tracks = list
-                self.isLoading = false
-            }
-        } catch {
-            print("Failed to load album tracks: \(error)")
-            await MainActor.run {
-                self.isLoading = false
-            }
-        }
-    }
-    
-    private func triggerDownload(track: Track) {
-        Task {
-            do {
-                _ = try await JrrDependencies.shared.libraryRepository.startDownload(track: track)
-            } catch {
-                print("Failed to start download: \(error)")
-            }
-        }
-    }
-    
-    private func toggleFavorite() {
-        Task {
-            do {
-                let db = JrrDependencies.shared.database
-                let identifier = "\(albumName)|\(artistName)"
-                if let existing = try await db.favoriteDao().getFavorite(type: "album", identifier: identifier) {
-                    try await db.favoriteDao().delete(favorite: existing)
-                } else {
-                    let newFav = FavoriteEntity(
-                        id: 0,
-                        type: "album",
-                        identifier: identifier,
-                        displayName: albumName,
-                        addedAt: Int64(Date().timeIntervalSince1970 * 1000)
-                    )
-                    try await db.favoriteDao().insert(favorite: newFav)
-                }
-                PlaybackStateObserver.shared.refreshFavorites()
-            } catch {
-                print("Failed to toggle favorite: \(error)")
             }
         }
     }

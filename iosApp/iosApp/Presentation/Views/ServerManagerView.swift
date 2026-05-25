@@ -363,7 +363,7 @@ struct ServerManagerView: View {
                         throw NSError(domain: "jrr", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to look up Access Key"])
                     }
                     
-                    resolvedHost = (result.localIpList.first as? String) ?? result.ip
+                    resolvedHost = (result.localIpList.first) ?? result.ip
                     resolvedPort = Int(result.port?.intValue ?? 52199)
                     resolvedSslPort = Int(result.httpsPort?.intValue ?? 52200)
                     resolvedUseSsl = useSsl // default user choice for SSL

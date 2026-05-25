@@ -1,5 +1,6 @@
 package com.jrr.jrrkmp_native_ui.presentation.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,45 +15,37 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
-import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
-import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
-import kotlinx.coroutines.launch
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.ZonesViewModel
 
 @Composable
 fun ZonesScreen(
-    facade: AudioPlayerFacade,
-    libraryRepository: LibraryRepository,
+    viewModel: ZonesViewModel,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val scope = rememberCoroutineScope()
-    val activeZone by facade.activeZone.collectAsState()
-    val playerStatus by facade.playerStatus.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
-    var serverZones by remember { mutableStateOf<List<Zone>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
-
-    val isOfflineMode = activeZone.isOffline || facade.currentServerHost.isNullOrEmpty()
-
-    LaunchedEffect(Unit) {
-        if (!isOfflineMode) {
-            isLoading = true
-            scope.launch {
-                try {
-                    serverZones = libraryRepository.getZones()
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                } finally {
-                    isLoading = false
-                }
-            }
+    LaunchedEffect(state.transientError) {
+        state.transientError?.let { error ->
+            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            viewModel.clearTransientError()
         }
     }
+
+    val serverZones = state.serverZones
+    val deviceZones = state.deviceZones
+    val activeZoneId = state.activeZoneId
+    val currentVolume = state.currentVolume
+    val isLoading = state.isLoading
+    val isOfflineMode = state.isOfflineMode
 
     Column(
         modifier = modifier
@@ -124,13 +117,13 @@ fun ZonesScreen(
                     }
                 } else {
                     items(serverZones) { zone ->
-                        val isActive = zone.id == activeZone.id
+                        val isActive = zone.id == activeZoneId
                         ZoneRow(
                             zone = zone,
                             isActive = isActive,
-                            volume = if (isActive) playerStatus?.volume ?: 0.5f else 0.5f,
-                            onZoneClick = { facade.setZone(zone) },
-                            onVolumeChange = { facade.setVolume(it) }
+                            volume = if (isActive) currentVolume else 0.5f,
+                            onZoneClick = { viewModel.selectZone(zone) },
+                            onVolumeChange = { viewModel.setVolume(it) }
                         )
                     }
                 }
@@ -145,19 +138,14 @@ fun ZonesScreen(
                 )
             }
 
-            val deviceZones = mutableListOf(Zone.Local)
-            deviceZones.add(Zone.Offline)
-            // Add Android Auto if supported
-            deviceZones.add(Zone.AndroidAuto)
-
             items(deviceZones) { zone ->
-                val isActive = zone.id == activeZone.id
+                val isActive = zone.id == activeZoneId
                 ZoneRow(
                     zone = zone,
                     isActive = isActive,
-                    volume = if (isActive) playerStatus?.volume ?: 0.5f else 0.5f,
-                    onZoneClick = { facade.setZone(zone) },
-                    onVolumeChange = { facade.setVolume(it) }
+                    volume = if (isActive) currentVolume else 0.5f,
+                    onZoneClick = { viewModel.selectZone(zone) },
+                    onVolumeChange = { viewModel.setVolume(it) }
                 )
             }
         }
@@ -198,40 +186,41 @@ fun ZoneRow(
                 )
                 Text(
                     text = when {
-                        zone.isLocal -> "Local Playback"
-                        zone.isOffline -> "Offline Library"
-                        zone.isAndroidAuto -> "Car System"
-                        zone.isDLNA -> "DLNA Renderer"
-                        else -> "Network Zone"
+                        zone.isOffline -> "No Server Connection Required"
+                        zone.isLocal -> "Local Android Player Engine"
+                        zone.isAndroidAuto -> "Android Auto Mode"
+                        zone.isDLNA -> "DLNA Network Renderer"
+                        else -> "JRiver Media Center Zone"
                     },
                     style = AppTypography.itemSubtitle,
-                    color = AppColors.text2
+                    color = AppColors.text3,
+                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
 
             if (isActive) {
-                Text(
-                    text = "ACTIVE",
-                    style = AppTypography.monoLabel.copy(fontSize = 11.sp),
-                    color = AppColors.accent
-                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(AppColors.accentDim)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "ACTIVE",
+                        style = AppTypography.monoLabel.copy(color = AppColors.accent, fontSize = 9.sp)
+                    )
+                }
             }
         }
 
-        // Inline volume slider for active zone
-        if (isActive) {
+        if (isActive && !zone.isOffline) {
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "🔊",
-                    fontSize = 16.sp,
-                    color = AppColors.accent,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+                Text("Volume".uppercase(), style = AppTypography.monoLabel, color = AppColors.text2)
+                Spacer(modifier = Modifier.width(12.dp))
                 Slider(
                     value = volume,
                     onValueChange = onVolumeChange,
@@ -241,6 +230,14 @@ fun ZoneRow(
                         inactiveTrackColor = AppColors.line
                     ),
                     modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "${(volume * 100).toInt()}%",
+                    style = AppTypography.monoLabel,
+                    color = AppColors.text,
+                    modifier = Modifier.width(36.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End
                 )
             }
         }

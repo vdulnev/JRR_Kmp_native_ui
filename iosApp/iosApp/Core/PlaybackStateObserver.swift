@@ -24,13 +24,13 @@ class PlaybackStateObserver: ObservableObject {
         let db = JrrDependencies.shared.database
         
         activeZoneDisposable = FlowObserver<Zone>(flow: facade.activeZone).start { [weak self] zone in
-            if let zone = zone as? Zone {
+            if let zone = zone {
                 self?.activeZone = zone
             }
         }
         
         playerStatusDisposable = FlowObserver<PlayerStatus>(flow: facade.playerStatus).start { [weak self] status in
-            let status = status as? PlayerStatus
+            let status = status
             self?.playerStatus = status
             
             // Update lock screen controls when playing on local/offline zone

@@ -1,21 +1,115 @@
 import SwiftUI
 import SharedLogic
 
-struct NowPlayingView: View {
-    @ObservedObject var audioHandler = PlaybackStateObserver.shared
+@Observable
+@MainActor
+class NowPlayingObservable {
+    let viewModel: NowPlayingViewModel
     
+    var trackTitle: String = "Idle"
+    var artistName: String = "Unknown Artist"
+    var albumTitle: String = "Unknown Album"
+    var isPlaying: Bool = false
+    var positionMs: Int64 = 0
+    var durationMs: Int64 = 0
+    var volume: Float = 0.5
+    var isMuted: Bool = false
+    var shuffleMode: ShuffleMode = .off
+    var repeatMode: RepeatMode = .off
+    var sampleRate: Int32 = 0
+    var activeZoneName: String = "No Zone Selected"
+    var transientError: String? = nil
+    
+    private let subscription = FlowSubscription()
+    
+    init(viewModel: NowPlayingViewModel) {
+        self.viewModel = viewModel
+        
+        let initial = viewModel.state.value as! NowPlayingViewState
+        sync(state: initial)
+        
+        self.subscription.disposable = FlowObserver<NowPlayingViewState>(flow: viewModel.state).start { [weak self] state in
+            if let state = state {
+                Task { @MainActor in
+                    self?.sync(state: state)
+                }
+            }
+        }
+    }
+    
+    private func sync(state: NowPlayingViewState) {
+        self.trackTitle = state.trackTitle
+        self.artistName = state.artistName
+        self.albumTitle = state.albumTitle
+        self.isPlaying = state.isPlaying
+        self.positionMs = state.positionMs
+        self.durationMs = state.durationMs
+        self.volume = state.volume
+        self.isMuted = state.isMuted
+        self.shuffleMode = state.shuffleMode
+        self.repeatMode = state.repeatMode
+        self.sampleRate = state.sampleRate
+        self.activeZoneName = state.activeZoneName
+        self.transientError = state.transientError
+    }
+    
+    func play() {
+        viewModel.play()
+    }
+    
+    func pause() {
+        viewModel.pause()
+    }
+    
+    func stop() {
+        viewModel.stop()
+    }
+    
+    func next() {
+        viewModel.next()
+    }
+    
+    func previous() {
+        viewModel.previous()
+    }
+    
+    func seekTo(positionMs: Int64) {
+        viewModel.seekTo(positionMs: positionMs)
+    }
+    
+    func setVolume(level: Float) {
+        viewModel.setVolume(level: level)
+    }
+    
+    func toggleShuffle() {
+        viewModel.toggleShuffle()
+    }
+    
+    func toggleRepeat() {
+        viewModel.toggleRepeat()
+    }
+    
+    func clearTransientError() {
+        viewModel.clearTransientError()
+    }
+}
+
+struct NowPlayingView: View {
+    @State private var observable: NowPlayingObservable
     let onQueueClick: () -> Void
     
     @State private var isScrubbing = false
     @State private var scrubProgress: Double = 0.0
     
+    init(viewModel: NowPlayingViewModel, onQueueClick: @escaping () -> Void) {
+        self._observable = State(initialValue: NowPlayingObservable(viewModel: viewModel))
+        self.onQueueClick = onQueueClick
+    }
+    
     var body: some View {
-        let status = audioHandler.playerStatus
-        
-        let isPlaying = status?.state == .playing
-        let currentPosition = status?.positionMs ?? 0
-        let duration = status?.durationMs ?? 0
-        
+        let isPlaying = observable.isPlaying
+        let currentPosition = observable.positionMs
+        let duration = observable.durationMs
         let displayProgress = isScrubbing ? scrubProgress : (duration > 0 ? Double(currentPosition) / Double(duration) : 0.0)
         
         VStack(spacing: 0) {
@@ -25,7 +119,7 @@ struct NowPlayingView: View {
                     Text("NOW PLAYING")
                         .styleSectionLabel()
                     
-                    Text(audioHandler.activeZone.name)
+                    Text(observable.activeZoneName)
                         .font(AppFont.inter(size: 14, weight: .semibold))
                         .foregroundColor(.textSecondary)
                 }
@@ -46,11 +140,10 @@ struct NowPlayingView: View {
             
             // Vinyl Sleeve Hero
             VinylSleeve(
-                albumTitle: status?.trackAlbum ?? "No Track Selected",
-                artistName: status?.trackArtist ?? "Unknown Artist",
-                year: status != nil ? "2026" : "—", // Fallback decorative year
+                albumTitle: observable.albumTitle,
+                artistName: observable.artistName,
+                year: "2026", // Fallback decorative year
                 side: "SIDE A",
-                //TODO: implenent later
                 imageUrl: nil,
                 isPlaying: isPlaying
             )
@@ -60,32 +153,30 @@ struct NowPlayingView: View {
             
             // Metadata & details
             VStack(spacing: 8) {
-                Text(status?.trackName ?? "Not Playing")
+                Text(observable.trackTitle)
                     .styleNowPlayingTitle()
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
                 
-                Text((status?.trackArtist ?? "Unknown Artist") + " — " + (status?.trackAlbum ?? "Unknown Album"))
+                Text(observable.artistName + " — " + observable.albumTitle)
                     .styleItemSubtitle()
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
                 
                 // Format Badge
-                if let status = status, status.sampleRate > 0 {
-                    //TODO: implement later
-                    //let formatString = buildFormatString(track: track)
-//                    Text(formatString)
-//                        .font(AppFont.ibmPlexMono(size: 9, weight: .medium))
-//                        .tracking(1.6)
-//                        .foregroundColor(.textTertiary)
-//                        .padding(.horizontal, 8)
-//                        .padding(.vertical, 4)
-//                        .background(Color.bg2)
-//                        .cornerRadius(4)
-//                        .overlay(
-//                            RoundedRectangle(cornerRadius: 4)
-//                                .stroke(Color.line2, lineWidth: 1)
-//                        )
+                if observable.sampleRate > 0 {
+                    Text("AUDIO | \(observable.sampleRate / 1000)KHZ")
+                        .font(AppFont.ibmPlexMono(size: 9, weight: .medium))
+                        .tracking(1.6)
+                        .foregroundColor(.textTertiary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.bg2)
+                        .cornerRadius(4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.line2, lineWidth: 1)
+                        )
                 }
             }
             .padding(.horizontal, AppSpacing.nowPlayingHorizontalMargin)
@@ -107,7 +198,7 @@ struct NowPlayingView: View {
                         if !editing {
                             isScrubbing = false
                             if duration > 0 {
-                                JrrDependencies.shared.facade.seekTo(positionMs: Int64(scrubProgress * Double(duration)))
+                                observable.seekTo(positionMs: Int64(scrubProgress * Double(duration)))
                             }
                         }
                     }
@@ -137,33 +228,24 @@ struct NowPlayingView: View {
             HStack(spacing: 0) {
                 // Shuffle Button
                 Button(action: {
-                    let currentMode = status?.shuffleMode ?? .off
-                    let nextMode: ShuffleMode = {
-                        switch currentMode {
-                        case .off: return .on
-                        case .on: return .automatic
-                        case .automatic: return .off
-                        default: return .off
-                        }
-                    }()
-                    JrrDependencies.shared.facade.setShuffleMode(mode: nextMode)
+                    observable.toggleShuffle()
                 }) {
                     VStack(spacing: 2) {
                         Image(systemName: "shuffle")
                             .font(.system(size: 18))
-                        if status?.shuffleMode == .automatic {
+                        if observable.shuffleMode == .automatic {
                             Text("AUTO")
                                 .font(AppFont.ibmPlexMono(size: 8, weight: .bold))
                         }
                     }
-                    .foregroundColor(status?.shuffleMode != .off ? .accentColor : .textTertiary)
+                    .foregroundColor(observable.shuffleMode != .off ? .accentColor : .textTertiary)
                     .frame(width: 44, height: 44)
                 }
                 
                 Spacer()
                 
                 // Previous Button
-                Button(action: { JrrDependencies.shared.facade.previous() }) {
+                Button(action: { observable.previous() }) {
                     Image(systemName: "backward.end.fill")
                         .font(.system(size: 24))
                         .foregroundColor(.textPrimary)
@@ -175,9 +257,9 @@ struct NowPlayingView: View {
                 // Play / Pause Circle Disc
                 Button(action: {
                     if isPlaying {
-                        JrrDependencies.shared.facade.pause()
+                        observable.pause()
                     } else {
-                        JrrDependencies.shared.facade.play()
+                        observable.play()
                     }
                 }) {
                     ZStack {
@@ -196,7 +278,7 @@ struct NowPlayingView: View {
                 Spacer()
                 
                 // Next Button
-                Button(action: { JrrDependencies.shared.facade.next() }) {
+                Button(action: { observable.next() }) {
                     Image(systemName: "forward.end.fill")
                         .font(.system(size: 24))
                         .foregroundColor(.textPrimary)
@@ -207,20 +289,11 @@ struct NowPlayingView: View {
                 
                 // Repeat Button
                 Button(action: {
-                    let currentMode = status?.repeatMode ?? .off
-                    let nextMode: RepeatMode = {
-                        switch currentMode {
-                        case .off: return .playlist
-                        case .playlist: return .track
-                        case .track: return .off
-                        default: return .off
-                        }
-                    }()
-                    JrrDependencies.shared.facade.setRepeatMode(mode: nextMode)
+                    observable.toggleRepeat()
                 }) {
-                    Image(systemName: status?.repeatMode == .track ? "repeat.1" : "repeat")
+                    Image(systemName: observable.repeatMode == .track ? "repeat.1" : "repeat")
                         .font(.system(size: 18))
-                        .foregroundColor(status?.repeatMode != .off ? .accentColor : .textTertiary)
+                        .foregroundColor(observable.repeatMode != .off ? .accentColor : .textTertiary)
                         .frame(width: 44, height: 44)
                 }
             }
@@ -230,7 +303,7 @@ struct NowPlayingView: View {
             
             // Volume Slider Row
             HStack(spacing: 12) {
-                let volume = status?.volume ?? 0.5
+                let volume = observable.volume
                 Image(systemName: volume == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .font(.system(size: 14))
                     .foregroundColor(.textTertiary)
@@ -239,7 +312,7 @@ struct NowPlayingView: View {
                 Slider(
                     value: Binding(
                         get: { Double(volume) },
-                        set: { JrrDependencies.shared.facade.setVolume(level: Float($0)) }
+                        set: { observable.setVolume(level: Float($0)) }
                     ),
                     in: 0.0...1.0
                 )
@@ -260,29 +333,5 @@ struct NowPlayingView: View {
         let m = seconds / 60
         let s = seconds % 60
         return String(format: "%d:%02d", m, s)
-    }
-    
-    private func buildFormatString(track: Track) -> String {
-        var parts: [String] = []
-        // Try to guess from imageUrl query parameter or just use default
-        if let url = URL(string: track.imageUrl),
-           let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-           let formatItem = components.queryItems?.first(where: { $0.name == "Format" })?.value {
-            parts.append(formatItem.uppercased())
-        } else {
-            parts.append("AUDIO")
-        }
-        
-        if track.bitDepth > 0 {
-            parts.append("\(track.bitDepth)-BIT")
-        }
-        if track.sampleRate > 0 {
-            parts.append("\(track.sampleRate / 1000)KHZ")
-        }
-        if track.bitrate > 0 {
-            parts.append("\(track.bitrate)KBPS")
-        }
-        
-        return parts.joined(separator: " | ")
     }
 }

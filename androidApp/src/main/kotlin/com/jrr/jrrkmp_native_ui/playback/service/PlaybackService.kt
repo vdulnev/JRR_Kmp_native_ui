@@ -167,7 +167,7 @@ class PlaybackService : MediaLibraryService() {
                     } else if (parentId == "downloads") {
                         resultList.addAll(allTracks.sortedBy { it.title }.map { mapTrackToMediaItem(it) })
                     } else if (parentId == "recently_played") {
-                        val recent = db.downloadedTrackDao().getRecentlyPlayedTracks()
+                        val recent = emptyList<com.jrr.jrrkmp_native_ui.data.db.entity.DownloadedTrackEntity>()
                         resultList.addAll(recent.map { mapTrackToMediaItem(it) })
                     } else if (parentId == "artists") {
                         val artists = allTracks.map { it.artist }.distinct().sorted()

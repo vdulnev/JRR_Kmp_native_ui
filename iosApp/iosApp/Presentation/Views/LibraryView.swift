@@ -1,32 +1,124 @@
 import SwiftUI
 import SharedLogic
 
+struct BrowseNode: Hashable, Identifiable {
+    var id: String { nodeId }
+    let label: String
+    let nodeId: String
+}
+
+@Observable
+@MainActor
+class LibraryObservable {
+    let viewModel: LibraryViewModel
+    
+    var searchQuery: String = ""
+    var searchResults: [Track] = []
+    var currentTab: String = "artists"
+    var artists: [String] = []
+    var selectedArtist: String? = nil
+    var artistAlbums: [Album] = []
+    var randomAlbums: [Album] = []
+    var browseStack: [BrowseNode] = []
+    var browseChildren: [String: String] = [:]
+    var browseTracks: [Track] = []
+    var isOffline: Bool = false
+    var isLoading: Bool = false
+    var isTabLoading: Bool = false
+    var transientError: String? = nil
+    
+    private let subscription = FlowSubscription()
+    
+    init(viewModel: LibraryViewModel) {
+        self.viewModel = viewModel
+        
+        let initial = viewModel.state.value as! LibraryViewState
+        sync(state: initial)
+        
+        self.subscription.disposable = FlowObserver<LibraryViewState>(flow: viewModel.state).start { [weak self] state in
+            if let state = state {
+                Task { @MainActor in
+                    self?.sync(state: state)
+                }
+            }
+        }
+    }
+    
+    private func sync(state: LibraryViewState) {
+        self.searchQuery = state.searchQuery
+        self.searchResults = state.searchResults
+        self.currentTab = state.currentTab
+        self.artists = state.artists
+        self.selectedArtist = state.selectedArtist
+        self.artistAlbums = state.artistAlbums
+        self.randomAlbums = state.randomAlbums
+        
+        // Map browse stack safely
+        if let kotlinStack = state.browseStack as? [KotlinPair<AnyObject, AnyObject>] {
+            self.browseStack = kotlinStack.map { pair in
+                let label = pair.first as? String ?? ""
+                let id = pair.second as? String ?? ""
+                return BrowseNode(label: label, nodeId: id)
+            }
+        } else {
+            self.browseStack = []
+        }
+        
+        self.browseChildren = state.browseChildren
+        self.browseTracks = state.browseTracks
+        self.isOffline = state.isOffline
+        self.isLoading = state.isLoading
+        self.isTabLoading = state.isTabLoading
+        self.transientError = state.transientError
+    }
+    
+    func updateSearchQuery(_ query: String) {
+        viewModel.updateSearchQuery(query: query)
+    }
+    
+    func switchTab(_ tab: String) {
+        viewModel.switchTab(tab: tab)
+    }
+    
+    func selectArtist(_ artistName: String?) {
+        viewModel.selectArtist(artistName: artistName)
+    }
+    
+    func pushBrowseNode(label: String, nodeId: String) {
+        viewModel.pushBrowseNode(label: label, nodeId: nodeId)
+    }
+    
+    func popBrowseNode() {
+        viewModel.popBrowseNode()
+    }
+    
+    func playTrack(_ track: Track) {
+        viewModel.playTrack(track: track)
+    }
+    
+    func playTracks(_ tracks: [Track], startIndex: Int) {
+        viewModel.playTracks(tracks: tracks, startIndex: Int32(startIndex))
+    }
+    
+    func retry() {
+        viewModel.retry()
+    }
+    
+    func clearTransientError() {
+        viewModel.clearTransientError()
+    }
+}
+
 struct LibraryView: View {
-    @ObservedObject var audioHandler = PlaybackStateObserver.shared
+    @State private var observable: LibraryObservable
     let onAlbumClick: (String, String) -> Void // AlbumName, ArtistName
-    
-    @State private var searchQuery = ""
     @State private var isSearching = false
-    @State private var searchResults: [Track] = []
-    @State private var isSearchingLoading = false
+    @State private var searchQueryText = ""
     
-    @State private var currentTab = 0 // 0 = Artists, 1 = Random, 2 = Browse, 3 = Favorites
-    
-    // Tab Data states
-    @State private var artists: [String] = []
-    @State private var selectedArtist: String? = nil
-    @State private var artistAlbums: [Album] = []
-    @State private var isLoadingArtistAlbums = false
-    @State private var isLoadingArtists = false
-    
-    @State private var randomAlbums: [Album] = []
-    @State private var isLoadingRandom = false
-    
-    // Browse tree stack: list of (Label, ID)
-    @State private var browseStack = [("Library", "-1")]
-    @State private var browseChildren: [String: String] = [:] // Name -> ID
-    @State private var browseTracks: [Track] = []
-    @State private var isLoadingBrowse = false
+    init(viewModel: LibraryViewModel, onAlbumClick: @escaping (String, String) -> Void) {
+        self._observable = State(initialValue: LibraryObservable(viewModel: viewModel))
+        self.onAlbumClick = onAlbumClick
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -37,17 +129,20 @@ struct LibraryView: View {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.textTertiary)
                         
-                        TextField("Search tracks, artists...", text: $searchQuery)
+                        TextField("Search tracks, artists...", text: $searchQueryText)
                             .foregroundColor(.textPrimary)
                             .font(AppFont.inter(size: 14, weight: .regular))
                             .textInputAutocapitalization(.never)
                             .disableAutocorrection(true)
-                            .onChange(of: searchQuery) { newValue in
-                                performSearch(query: newValue)
+                            .onChange(of: searchQueryText) { oldValue, newValue in
+                                observable.updateSearchQuery(newValue)
                             }
                         
-                        if !searchQuery.isEmpty {
-                            Button(action: { searchQuery = "" }) {
+                        if !searchQueryText.isEmpty {
+                            Button(action: {
+                                searchQueryText = ""
+                                observable.updateSearchQuery("")
+                            }) {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundColor(.textSecondary)
                             }
@@ -64,8 +159,8 @@ struct LibraryView: View {
                     
                     Button(action: {
                         isSearching = false
-                        searchQuery = ""
-                        searchResults = []
+                        searchQueryText = ""
+                        observable.updateSearchQuery("")
                     }) {
                         Text("Cancel")
                             .font(AppFont.inter(size: 14, weight: .medium))
@@ -97,7 +192,7 @@ struct LibraryView: View {
             
             if isSearching {
                 // Search Results
-                if isSearchingLoading {
+                if observable.isTabLoading {
                     VStack {
                         Spacer()
                         ProgressView()
@@ -108,9 +203,9 @@ struct LibraryView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 8) {
-                            ForEach(searchResults, id: \.fileKey) { track in
+                            ForEach(observable.searchResults, id: \.fileKey) { track in
                                 trackRowItem(track: track) {
-                                    JrrDependencies.shared.facade.setQueue(tracks: [track], startIndex: 0)
+                                    observable.playTrack(track)
                                 }
                             }
                         }
@@ -122,25 +217,25 @@ struct LibraryView: View {
             } else {
                 // Tab strip
                 HStack(spacing: 0) {
-                    tabButton(title: "Artists", index: 0)
-                    if !audioHandler.activeZone.isOffline {
-                        tabButton(title: "Random", index: 1)
-                        tabButton(title: "Browse", index: 2)
+                    tabButton(title: "Artists", id: "artists")
+                    if !observable.isOffline {
+                        tabButton(title: "Random", id: "random")
+                        tabButton(title: "Browse", id: "browse")
                     }
-                    tabButton(title: "Favorites", index: 3)
+                    tabButton(title: "Favorites", id: "favorites")
                 }
                 .background(Color.bg1)
                 
                 // Tab Content
                 Group {
-                    switch currentTab {
-                    case 0:
+                    switch observable.currentTab {
+                    case "artists":
                         artistsTab()
-                    case 1:
+                    case "random":
                         randomTab()
-                    case 2:
+                    case "browse":
                         browseTab()
-                    case 3:
+                    case "favorites":
                         favoritesTab()
                     default:
                         EmptyView()
@@ -150,32 +245,22 @@ struct LibraryView: View {
             }
         }
         .background(Color.bg1.ignoresSafeArea())
-        .onAppear {
-            loadTabData()
-        }
-        .onChange(of: audioHandler.activeZone.isOffline) { isOffline in
-            if isOffline && (currentTab == 1 || currentTab == 2) {
-                currentTab = 0
-            }
-            loadTabData()
-        }
     }
     
     // Tab Button Helper
-    private func tabButton(title: String, index: Int) -> some View {
+    private func tabButton(title: String, id: String) -> some View {
         Button(action: {
-            currentTab = index
-            loadTabData()
+            observable.switchTab(id)
         }) {
             VStack(spacing: 4) {
                 Text(title.uppercased())
                     .font(AppFont.ibmPlexMono(size: 10.5, weight: .medium))
                     .tracking(1.6)
-                    .foregroundColor(currentTab == index ? .accentColor : .textTertiary)
+                    .foregroundColor(observable.currentTab == id ? .accentColor : .textTertiary)
                 
                 // Active Underline
                 Rectangle()
-                    .fill(currentTab == index ? Color.accentColor : Color.clear)
+                    .fill(observable.currentTab == id ? Color.accentColor : Color.clear)
                     .frame(height: 2)
             }
             .frame(maxWidth: .infinity)
@@ -183,87 +268,13 @@ struct LibraryView: View {
         }
     }
     
-    private func loadTabData() {
-        switch currentTab {
-        case 0:
-            if artists.isEmpty {
-                isLoadingArtists = true
-                Task {
-                    do {
-                        let list = try await JrrDependencies.shared.libraryRepository.getArtists()
-                        await MainActor.run {
-                            self.artists = list
-                            self.isLoadingArtists = false
-                        }
-                    } catch {
-                        print("Failed to get artists: \(error)")
-                        await MainActor.run {
-                            self.isLoadingArtists = false
-                        }
-                    }
-                }
-            }
-        case 1:
-            if randomAlbums.isEmpty {
-                refreshRandomAlbums()
-            }
-        case 2:
-            if browseChildren.isEmpty && browseTracks.isEmpty {
-                loadBrowseLevel()
-            }
-        default:
-            break
-        }
-    }
-    
-    private func refreshRandomAlbums() {
-        isLoadingRandom = true
-        Task {
-            do {
-                let list = try await JrrDependencies.shared.libraryRepository.getRandomAlbums(limit: 20)
-                await MainActor.run {
-                    self.randomAlbums = list
-                    self.isLoadingRandom = false
-                }
-            } catch {
-                print("Failed to get random albums: \(error)")
-                await MainActor.run {
-                    self.isLoadingRandom = false
-                }
-            }
-        }
-    }
-    
-    private func performSearch(query: String) {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            searchResults = []
-            return
-        }
-        isSearchingLoading = true
-        Task {
-            do {
-                let list = try await JrrDependencies.shared.libraryRepository.searchFiles(query: trimmed)
-                await MainActor.run {
-                    self.searchResults = list
-                    self.isSearchingLoading = false
-                }
-            } catch {
-                print("Failed to search tracks: \(error)")
-                await MainActor.run {
-                    self.isSearchingLoading = false
-                }
-            }
-        }
-    }
-    
     // MARK: - Artists Tab View
     @ViewBuilder
     private func artistsTab() -> some View {
-        if let artist = selectedArtist {
+        if let artist = observable.selectedArtist {
             VStack(spacing: 0) {
                 // Back to artists list header
-                Button(action: { self.selectedArtist = nil }) {
+                Button(action: { observable.selectArtist(nil) }) {
                     HStack {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.accentColor)
@@ -278,14 +289,14 @@ struct LibraryView: View {
                     .padding(.vertical, 12)
                 }
                 
-                if isLoadingArtistAlbums {
+                if observable.isTabLoading {
                     Spacer()
                     ProgressView().tint(.accentColor)
                     Spacer()
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 8) {
-                            ForEach(artistAlbums, id: \.name) { album in
+                            ForEach(observable.artistAlbums, id: \.name) { album in
                                 albumRowItem(album: album) {
                                     onAlbumClick(album.name, album.albumArtist)
                                 }
@@ -297,7 +308,7 @@ struct LibraryView: View {
                 }
             }
         } else {
-            if isLoadingArtists {
+            if observable.isLoading {
                 VStack {
                     Spacer()
                     ProgressView().tint(.accentColor)
@@ -306,7 +317,7 @@ struct LibraryView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        ForEach(artists, id: \.self) { artist in
+                        ForEach(observable.artists, id: \.self) { artist in
                             HStack {
                                 // Avatar circle with initial
                                 ZStack {
@@ -339,31 +350,12 @@ struct LibraryView: View {
                                     .stroke(Color.line, lineWidth: 1)
                             )
                             .onTapGesture {
-                                selectArtist(artist)
+                                observable.selectArtist(artist)
                             }
                         }
                     }
                     .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                     .padding(.top, 12)
-                }
-            }
-        }
-    }
-    
-    private func selectArtist(_ artistName: String) {
-        selectedArtist = artistName
-        isLoadingArtistAlbums = true
-        Task {
-            do {
-                let albums = try await JrrDependencies.shared.libraryRepository.getAlbumsByArtist(artistName: artistName)
-                await MainActor.run {
-                    self.artistAlbums = albums
-                    self.isLoadingArtistAlbums = false
-                }
-            } catch {
-                print("Failed to get albums for artist: \(error)")
-                await MainActor.run {
-                    self.isLoadingArtistAlbums = false
                 }
             }
         }
@@ -375,13 +367,13 @@ struct LibraryView: View {
         VStack(spacing: 0) {
             // Meta strip
             HStack {
-                Text("SHUFFLED · \(randomAlbums.count) ALBUMS")
+                Text("SHUFFLED · \(observable.randomAlbums.count) ALBUMS")
                     .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
                     .foregroundColor(.textTertiary)
                 
                 Spacer()
                 
-                Button(action: refreshRandomAlbums) {
+                Button(action: { observable.retry() }) {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 11))
@@ -394,7 +386,7 @@ struct LibraryView: View {
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
             .padding(.vertical, 8)
             
-            if isLoadingRandom {
+            if observable.isLoading {
                 Spacer()
                 ProgressView().tint(.accentColor)
                 Spacer()
@@ -406,7 +398,7 @@ struct LibraryView: View {
                     ]
                     
                     LazyVGrid(columns: columns, spacing: 14) {
-                        ForEach(randomAlbums, id: \.name) { album in
+                        ForEach(observable.randomAlbums, id: \.name) { album in
                             let imageUrl = McwsClient.shared.buildImageUrl(fileKey: album.artworkFileKey)
                             Button(action: { onAlbumClick(album.name, album.albumArtist) }) {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -467,14 +459,14 @@ struct LibraryView: View {
     private func browseTab() -> some View {
         VStack(spacing: 0) {
             // Breadcrumb navigation header
-            if browseStack.count > 1 {
-                Button(action: popBrowseLevel) {
+            if observable.browseStack.count > 1 {
+                Button(action: { observable.popBrowseNode() }) {
                     HStack {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.accentColor)
                             .font(.system(size: 16, weight: .bold))
                         
-                        Text(browseStack.map { $0.0 }.joined(separator: " / "))
+                        Text(observable.browseStack.map { $0.label }.joined(separator: " / "))
                             .font(AppFont.inter(size: 13, weight: .regular))
                             .foregroundColor(.textSecondary)
                             .lineLimit(1)
@@ -486,15 +478,15 @@ struct LibraryView: View {
                 }
             }
             
-            if isLoadingBrowse {
+            if observable.isLoading || observable.isTabLoading {
                 Spacer()
                 ProgressView().tint(.accentColor)
                 Spacer()
             } else {
                 ScrollView {
-                    if !browseChildren.isEmpty {
+                    if !observable.browseChildren.isEmpty {
                         LazyVStack(spacing: 8) {
-                            ForEach(browseChildren.sorted(by: { $0.key < $1.key }), id: \.value) { nodeLabel, nodeId in
+                            ForEach(observable.browseChildren.sorted(by: { $0.key < $1.key }), id: \.value) { nodeLabel, nodeId in
                                 HStack {
                                     Text(nodeLabel)
                                         .font(AppFont.inter(size: 16, weight: .medium))
@@ -512,19 +504,17 @@ struct LibraryView: View {
                                         .stroke(Color.line, lineWidth: 1)
                                 )
                                 .onTapGesture {
-                                    pushBrowseLevel(label: nodeLabel, id: nodeId)
+                                    observable.pushBrowseNode(label: nodeLabel, nodeId: nodeId)
                                 }
                             }
                         }
                         .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                         .padding(.top, 12)
-                    } else if !browseTracks.isEmpty {
+                    } else if !observable.browseTracks.isEmpty {
                         LazyVStack(spacing: 8) {
-                            ForEach(browseTracks, id: \.fileKey) { track in
+                            ForEach(observable.browseTracks, id: \.fileKey) { track in
                                 trackRowItem(track: track) {
-                                    if let idx = browseTracks.firstIndex(of: track) {
-                                        JrrDependencies.shared.facade.setQueue(tracks: browseTracks, startIndex: Int32(idx))
-                                    }
+                                    observable.playTracks(observable.browseTracks, startIndex: observable.browseTracks.firstIndex(of: track) ?? 0)
                                 }
                             }
                         }
@@ -543,51 +533,10 @@ struct LibraryView: View {
         }
     }
     
-    private func pushBrowseLevel(label: String, id: String) {
-        browseStack.append((label, id))
-        loadBrowseLevel()
-    }
-    
-    private func popBrowseLevel() {
-        if browseStack.count > 1 {
-            browseStack.removeLast()
-            loadBrowseLevel()
-        }
-    }
-    
-    private func loadBrowseLevel() {
-        guard let current = browseStack.last else { return }
-        isLoadingBrowse = true
-        Task {
-            do {
-                let ch = try await JrrDependencies.shared.libraryRepository.getBrowseChildren(parentId: current.1)
-                if !ch.isEmpty {
-                    await MainActor.run {
-                        self.browseChildren = ch
-                        self.browseTracks = []
-                        self.isLoadingBrowse = false
-                    }
-                } else {
-                    let tracks = try await JrrDependencies.shared.libraryRepository.getBrowseFiles(nodeId: current.1)
-                    await MainActor.run {
-                        self.browseChildren = [:]
-                        self.browseTracks = tracks
-                        self.isLoadingBrowse = false
-                    }
-                }
-            } catch {
-                print("Failed to get browse children: \(error)")
-                await MainActor.run {
-                    self.isLoadingBrowse = false
-                }
-            }
-        }
-    }
-    
     // MARK: - Favorites Tab View
     @ViewBuilder
     private func favoritesTab() -> some View {
-        let favoritedAlbums = audioHandler.favorites.filter { $0.type == "album" }
+        let favoritedAlbums = PlaybackStateObserver.shared.favorites.filter { $0.type == "album" }
         
         if favoritedAlbums.isEmpty {
             VStack {
@@ -607,14 +556,12 @@ struct LibraryView: View {
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(favoritedAlbums, id: \.identifier) { fav in
-                        // Extract artist/albumName
                         let parts = fav.identifier.split(separator: "|")
                         let artist = parts.count > 1 ? String(parts[1]) : "Unknown Artist"
                         let albumName = String(parts[0])
                         
                         HStack {
                             ZStack {
-                                // Diagonal stripes artwork placeholder
                                 Canvas { context, size in
                                     context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: 0x1E293B)))
                                     var path = Path()
@@ -635,12 +582,12 @@ struct LibraryView: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(albumName)
-                                    .styleItemTitle()
-                                    .lineLimit(1)
-                                Text(artist)
-                                    .styleItemSubtitle()
-                                    .lineLimit(1)
+                                  Text(albumName)
+                                      .styleItemTitle()
+                                      .lineLimit(1)
+                                  Text(artist)
+                                      .styleItemSubtitle()
+                                      .lineLimit(1)
                             }
                             .padding(.leading, 8)
                             

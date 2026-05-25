@@ -41,6 +41,7 @@ import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.presentation.components.MiniPlayer
 import com.jrr.jrrkmp_native_ui.presentation.screens.*
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.*
 import android.widget.Toast
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -77,10 +78,23 @@ fun MainShell(
     serverRepository: ServerRepository,
     libraryRepository: LibraryRepository
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val libraryViewModel = remember {
+        LibraryViewModel(libraryRepository, facade)
+    }
+    val nowPlayingViewModel = remember {
+        NowPlayingViewModel(facade)
+    }
+    val queueViewModel = remember {
+        QueueViewModel(facade, libraryRepository)
+    }
+    val zonesViewModel = remember {
+        ZonesViewModel(facade, libraryRepository)
+    }
+
     val playerStatus by facade.playerStatus.collectAsState()
     val activeZone by facade.activeZone.collectAsState()
-
-    val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("jrr_settings", Context.MODE_PRIVATE) }
     val lastActiveZoneId = remember { prefs.getString("last_active_zone_id", null) }
     val hasSavedServers = remember { prefs.getBoolean("has_saved_servers", false) }
@@ -334,17 +348,22 @@ fun MainShell(
                     // Library Tab with nested AlbumDetailScreen
                     val album = selectedAlbum
                     if (album != null) {
+                        val albumDetailViewModel = remember(album.first, album.second) {
+                            AlbumDetailViewModel(
+                                albumName = album.first,
+                                artistName = album.second,
+                                libraryRepository = libraryRepository,
+                                facade = facade,
+                                database = com.jrr.jrrkmp_native_ui.JrrDependencies.getDatabase(context)
+                            )
+                        }
                         AlbumDetailScreen(
-                            albumName = album.first,
-                            artistName = album.second,
-                            facade = facade,
-                            libraryRepository = libraryRepository,
+                            viewModel = albumDetailViewModel,
                             onBackClick = { selectedAlbum = null }
                         )
                     } else {
                         LibraryScreen(
-                            facade = facade,
-                            libraryRepository = libraryRepository,
+                            viewModel = libraryViewModel,
                             onAlbumClick = { albumName, artistName ->
                                 selectedAlbum = Pair(albumName, artistName)
                             }
@@ -362,21 +381,19 @@ fun MainShell(
                     // Now Playing Tab with nested QueueScreen
                     if (showQueue) {
                         QueueScreen(
-                            facade = facade,
-                            libraryRepository = libraryRepository,
+                            viewModel = queueViewModel,
                             onBackClick = { showQueue = false }
                         )
                     } else {
                         NowPlayingScreen(
-                            facade = facade,
+                            viewModel = nowPlayingViewModel,
                             onQueueClick = { showQueue = true }
                         )
                     }
                 }
                 3 -> {
                     ZonesScreen(
-                        facade = facade,
-                        libraryRepository = libraryRepository,
+                        viewModel = zonesViewModel,
                         onBackClick = { activeTab = 2 }
                     )
                 }
