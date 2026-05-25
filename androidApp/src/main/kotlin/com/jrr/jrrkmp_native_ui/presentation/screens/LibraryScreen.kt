@@ -54,6 +54,12 @@ fun LibraryScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        if (viewModel.state.value.artists.isEmpty() && !viewModel.state.value.isLoading) {
+            viewModel.retry()
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -157,6 +163,7 @@ fun LibraryScreen(
                         artists = state.artists,
                         selectedArtist = state.selectedArtist,
                         artistAlbums = state.artistAlbums,
+                        isLoadingArtists = state.isLoading,
                         isLoadingAlbums = state.isTabLoading,
                         onArtistClick = { artistName ->
                             viewModel.selectArtist(artistName)
@@ -200,6 +207,7 @@ fun ArtistsTab(
     artists: List<String>,
     selectedArtist: String?,
     artistAlbums: List<Album>,
+    isLoadingArtists: Boolean,
     isLoadingAlbums: Boolean,
     onArtistClick: (String) -> Unit,
     onAlbumClick: (String, String) -> Unit,
@@ -236,35 +244,41 @@ fun ArtistsTab(
             }
         }
     } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(artists) { artist ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(AppColors.bg2)
-                        .clickable { onArtistClick(artist) }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
+        if (isLoadingArtists) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = AppColors.accent)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(artists) { artist ->
+                    Row(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(AppColors.accentDim),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AppColors.bg2)
+                            .clickable { onArtistClick(artist) }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = artist.take(1).uppercase(),
-                            style = AppTypography.chipMono.copy(color = AppColors.accent, fontSize = 14.sp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(AppColors.accentDim),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = artist.take(1).uppercase(),
+                                style = AppTypography.chipMono.copy(color = AppColors.accent, fontSize = 14.sp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(artist, style = AppTypography.itemTitle)
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(artist, style = AppTypography.itemTitle)
                 }
             }
         }
