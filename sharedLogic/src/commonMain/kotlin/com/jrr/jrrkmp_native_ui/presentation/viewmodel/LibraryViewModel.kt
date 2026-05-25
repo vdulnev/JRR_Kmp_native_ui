@@ -35,22 +35,26 @@ class LibraryViewModel(
     val state: StateFlow<LibraryViewState> = _state.asStateFlow()
 
     init {
-        // Observe offline status and sync tabs
-        facade.activeZone
-            .map { it.isOffline }
-            .distinctUntilChanged()
-            .onEach { isOffline ->
-                _state.update { 
-                    val nextTab = if (isOffline && (it.currentTab == "random" || it.currentTab == "browse")) {
-                        "artists"
-                    } else {
-                        it.currentTab
-                    }
-                    it.copy(isOffline = isOffline, currentTab = nextTab) 
+        // Observe offline status and server connection token to sync tabs and reload content
+        combine(
+            facade.activeZone.map { it.isOffline }.distinctUntilChanged(),
+            facade.connectionToken
+        ) { isOffline, token ->
+            Pair(isOffline, token)
+        }
+        .distinctUntilChanged()
+        .onEach { (isOffline, _) ->
+            _state.update { 
+                val nextTab = if (isOffline && (it.currentTab == "random" || it.currentTab == "browse")) {
+                    "artists"
+                } else {
+                    it.currentTab
                 }
-                loadTabContent()
+                it.copy(isOffline = isOffline, currentTab = nextTab) 
             }
-            .launchIn(viewModelScope)
+            loadTabContent()
+        }
+        .launchIn(viewModelScope)
     }
 
     fun updateSearchQuery(query: String) {
