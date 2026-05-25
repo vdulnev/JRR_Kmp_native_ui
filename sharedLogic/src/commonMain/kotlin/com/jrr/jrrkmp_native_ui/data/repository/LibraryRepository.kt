@@ -18,18 +18,23 @@ class LibraryRepository(
 ) {
     var onDownloadQueued: ((track: Track, jobId: Int) -> Unit)? = null
 
+    private val ESC_REGEX = Regex("""[\[\]()\-]""")
+    fun esc(value: String): String =
+        value.replace(ESC_REGEX) { "/${it.value}" }
+
     suspend fun searchFiles(query: String): List<Track> = withContext(Dispatchers.IO) {
         if (isOfflineProvider()) {
             val db = database ?: return@withContext emptyList()
             return@withContext db.downloadedTrackDao().getAllTracks()
                 .filter {
-                    it.title.contains(query, ignoreCase = true) ||
-                    it.artist.contains(query, ignoreCase = true) ||
-                    it.album.contains(query, ignoreCase = true)
+                    it.name.contains(query, ignoreCase = true) ||
+                            it.artist.contains(query, ignoreCase = true) ||
+                            it.album.contains(query, ignoreCase = true)
                 }
                 .map { it.toTrack() }
         }
-        val mcwsQuery = "[Media Type]=Audio ([Name] contains \"$query\" OR [Artist] contains \"$query\" OR [Album] contains \"$query\")"
+        val mcwsQuery =
+            "[Media Type]=Audio ([Name] contains \"$query\" OR [Artist] contains \"$query\" OR [Album] contains \"$query\")"
         McwsClient.searchTracks(mcwsQuery)
     }
 
@@ -45,8 +50,9 @@ class LibraryRepository(
             }
             return@withContext artistsSet.sortedWith(compareBy { it.lowercase() })
         }
-        val mcwsQuery = "[Media Type]=Audio ~limit=-1,1,[Artist] ~sort=[Artist]"
-        McwsClient.searchArtists(mcwsQuery)
+        val mcwsQuery =
+            "[Media Type]=Audio ~limit=-1,1,[Album Artist (auto)] ~sort=[Album Artist (auto)]"
+        McwsClient.searchTracks(mcwsQuery).map { track -> track.albumArtist }
     }
 
     suspend fun getAlbumsByArtist(artistName: String): List<Album> = withContext(Dispatchers.IO) {
@@ -65,34 +71,48 @@ class LibraryRepository(
                 Album(it.toTrack())
             }.distinct().sortedWith(compareBy { it.name.lowercase() })
         }
-        val mcwsQuery = "[Media Type]=Audio [Artist]=\"$artistName\" ~limit=-1,1,[Album] ~sort=[Album]"
-        McwsClient.searchAlbums(mcwsQuery)
+        val mcwsQuery =
+            "[Album Artist (auto)]=[${esc(artistName)}] ~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
+        McwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
     }
 
-    suspend fun getAlbumTracks(albumName: String, artistName: String): List<Track> = withContext(Dispatchers.IO) {
+    suspend fun getAlbumTracks(album: Album): List<Track> = withContext(Dispatchers.IO) {
         if (isOfflineProvider()) {
             val db = database ?: return@withContext emptyList()
             return@withContext db.downloadedTrackDao().getAllTracks()
-                .filter { it.artist.equals(artistName, ignoreCase = true) && it.album.equals(albumName, ignoreCase = true) }
+                .filter {
+                    it.folderPath.equals(
+                        album.folderPath,
+                        ignoreCase = true
+                    ) && it.album.equals(album.name, ignoreCase = true)
+                }
                 .map { it.toTrack() }
                 .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
         }
-        val mcwsQuery = "[Media Type]=Audio [Album]=\"$albumName\" [Artist]=\"$artistName\""
-        McwsClient.searchTracks(mcwsQuery).sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
+        val base = "[Album]=[${esc(album.name)}]"
+        val filtered = if (album.folderPath.isNotEmpty()) {
+            "$base [Filename (path)]=\"${esc(album.folderPath)}\""
+        } else {
+            base
+        }
+        val mcwsQuery = "$filtered ~sort=[Disc #],[Track #]"
+        McwsClient.searchTracks(mcwsQuery)
+            .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
     }
 
     suspend fun getRandomAlbums(limit: Int = 10): List<Album> = withContext(Dispatchers.IO) {
         val mcwsQuery = "[Media Type]=Audio ~limit=$limit,-1,[Album],[Filename (path)] ~n=$limit"
-        McwsClient.searchAlbums(mcwsQuery)
+        McwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
     }
 
     suspend fun getZones(): List<Zone> = withContext(Dispatchers.IO) {
         McwsClient.getZones()
     }
 
-    suspend fun getBrowseChildren(parentId: String): Map<String, String> = withContext(Dispatchers.IO) {
-        McwsClient.getBrowseChildren(parentId)
-    }
+    suspend fun getBrowseChildren(parentId: String): Map<String, String> =
+        withContext(Dispatchers.IO) {
+            McwsClient.getBrowseChildren(parentId)
+        }
 
     suspend fun getBrowseFiles(nodeId: String): List<Track> = withContext(Dispatchers.IO) {
         McwsClient.getBrowseFiles(nodeId)
@@ -116,9 +136,10 @@ class LibraryRepository(
             bytesDownloaded = 0L,
             bytesTotal = 0L,
             enqueuedAt = getTimeMillis(),
-            title = track.name,
+            name = track.name,
             artist = track.artist,
             album = track.album,
+            albumArtist = track.albumArtist,
             durationMs = track.durationMs,
             trackNumber = track.trackNumber,
             genre = track.genre,

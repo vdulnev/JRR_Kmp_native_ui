@@ -6,7 +6,6 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.jrr.jrrkmp_native_ui.JrrDependencies
 import com.jrr.jrrkmp_native_ui.core.network.SslHelper
-import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.DownloadedTrackEntity
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -155,7 +154,7 @@ class DownloadWorker(
                 // 3. Add to downloaded_tracks
                 val downloadedTrack = DownloadedTrackEntity(
                     fileKey = fileKey,
-                    title = job.title,
+                    name = job.name,
                     artist = job.artist,
                     album = job.album,
                     date = "",

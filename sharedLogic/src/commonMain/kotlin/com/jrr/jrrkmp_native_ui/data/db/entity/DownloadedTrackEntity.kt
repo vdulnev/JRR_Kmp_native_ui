@@ -11,15 +11,16 @@ data class DownloadedTrackEntity(
     @ColumnInfo(name = "file_key")
     val fileKey: String,
     @ColumnInfo(name = "file_path")
-    val title: String,
+    val name: String,
     val artist: String,
     val album: String,
+    val albumArtist: String,
     val date: String,
+    val genre: String,
     @ColumnInfo(name = "duration_ms")
     val durationMs: Long,
     @ColumnInfo(name = "track_number")
     val trackNumber: Int,
-    val genre: String,
     val discNumber: Int,
     val totalDiscs: Int,
     val totalTracks: Int,
@@ -34,14 +35,14 @@ data class DownloadedTrackEntity(
     fun toTrack(): Track {
         return Track(
             fileKey = fileKey,
-            name = title,
+            name = name,
             artist = artist,
             album = album,
-            albumArtist = artist,
+            albumArtist = albumArtist,
             date = date,
-            genre = genre ?: "Unknown",
+            genre = genre,
             durationMs = durationMs,
-            trackNumber = trackNumber ?: 0,
+            trackNumber = trackNumber,
             discNumber = discNumber,
             totalDiscs = totalDiscs,
             totalTracks = totalTracks,

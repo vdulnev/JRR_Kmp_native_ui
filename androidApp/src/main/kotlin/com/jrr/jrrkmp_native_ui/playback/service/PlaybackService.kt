@@ -1,21 +1,17 @@
 package com.jrr.jrrkmp_native_ui.playback.service
 
 import android.app.PendingIntent
-import android.content.Intent
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaLibraryService.MediaLibrarySession
-import androidx.media3.session.MediaLibraryService.LibraryParams
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import com.jrr.jrrkmp_native_ui.JrrDependencies
-import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import kotlinx.coroutines.*
 import java.io.File
@@ -165,7 +161,7 @@ class PlaybackService : MediaLibraryService() {
                                 .build()
                         )
                     } else if (parentId == "downloads") {
-                        resultList.addAll(allTracks.sortedBy { it.title }.map { mapTrackToMediaItem(it) })
+                        resultList.addAll(allTracks.sortedBy { it.name }.map { mapTrackToMediaItem(it) })
                     } else if (parentId == "recently_played") {
                         val recent = emptyList<com.jrr.jrrkmp_native_ui.data.db.entity.DownloadedTrackEntity>()
                         resultList.addAll(recent.map { mapTrackToMediaItem(it) })
@@ -207,7 +203,7 @@ class PlaybackService : MediaLibraryService() {
                         val albumName = parts.getOrNull(2) ?: ""
                         val tracks = allTracks.filter {
                             it.artist.equals(artistName, ignoreCase = true) && it.album.equals(albumName, ignoreCase = true)
-                        }.sortedWith(compareBy({ it.trackNumber ?: 0 }, { it.title }))
+                        }.sortedWith(compareBy({ it.trackNumber ?: 0 }, { it.name }))
                         resultList.addAll(tracks.map { mapTrackToMediaItem(it) })
                     } else if (parentId == "albums") {
                         val albums = allTracks.map { it.album }.distinct().sorted()
@@ -227,7 +223,7 @@ class PlaybackService : MediaLibraryService() {
                     } else if (parentId.startsWith("album|")) {
                         val albumName = parentId.substring("album|".length)
                         val tracks = allTracks.filter { it.album.equals(albumName, ignoreCase = true) }
-                            .sortedWith(compareBy({ it.trackNumber ?: 0 }, { it.title }))
+                            .sortedWith(compareBy({ it.trackNumber ?: 0 }, { it.name }))
                         resultList.addAll(tracks.map { mapTrackToMediaItem(it) })
                     }
 
@@ -400,7 +396,7 @@ class PlaybackService : MediaLibraryService() {
             .setUri(fileUri)
             .setMediaMetadata(
                 MediaMetadata.Builder()
-                    .setTitle(track.title)
+                    .setTitle(track.name)
                     .setArtist(track.artist)
                     .setAlbumTitle(track.album)
                     .setArtworkUri(artUri)

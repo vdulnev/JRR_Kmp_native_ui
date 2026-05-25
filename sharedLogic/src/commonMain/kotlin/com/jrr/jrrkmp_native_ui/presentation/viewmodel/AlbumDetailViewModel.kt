@@ -2,11 +2,12 @@ package com.jrr.jrrkmp_native_ui.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.jrr.jrrkmp_native_ui.domain.model.Track
-import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
-import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity
+import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
+import com.jrr.jrrkmp_native_ui.domain.model.Album
+import com.jrr.jrrkmp_native_ui.domain.model.Track
+import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -19,6 +20,7 @@ sealed interface AlbumDetailContentState {
         val activeDownloadJobs: Map<String, String> = emptyMap(), // Map of FileKey to job state
         val isFavorite: Boolean = false
     ) : AlbumDetailContentState
+
     data class Error(val message: String) : AlbumDetailContentState
 }
 
@@ -31,14 +33,13 @@ data class AlbumDetailViewState(
 )
 
 class AlbumDetailViewModel(
-    val albumName: String,
-    val artistName: String,
+    val album: Album,
     private val libraryRepository: LibraryRepository,
     private val facade: AudioPlayerFacade,
     private val database: JrrDatabase
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(AlbumDetailViewState(albumName, artistName))
+    private val _state = MutableStateFlow(AlbumDetailViewState(album.name, album.albumArtist))
     val state: StateFlow<AlbumDetailViewState> = _state.asStateFlow()
 
     // Internal state updates
@@ -83,15 +84,21 @@ class AlbumDetailViewModel(
             _state.update { it.copy(contentState = AlbumDetailContentState.Loading) }
             try {
                 // Fetch tracks from repository
-                val albumTracks = libraryRepository.getAlbumTracks(albumName, artistName)
+                val albumTracks = libraryRepository.getAlbumTracks(album)
                 tracksFlow.value = albumTracks
 
                 // Check favorite status in DB
-                val identifier = "$albumName|$artistName"
+                val identifier = "${album.name}|${album.albumArtist}"
                 val favorite = database.favoriteDao().getFavorite("album", identifier) != null
                 favoriteFlow.value = favorite
             } catch (e: Exception) {
-                _state.update { it.copy(contentState = AlbumDetailContentState.Error(e.message ?: "Failed to load album tracks")) }
+                _state.update {
+                    it.copy(
+                        contentState = AlbumDetailContentState.Error(
+                            e.message ?: "Failed to load album tracks"
+                        )
+                    )
+                }
             }
         }
     }
@@ -124,7 +131,7 @@ class AlbumDetailViewModel(
     fun toggleFavorite() {
         viewModelScope.launch {
             try {
-                val identifier = "$albumName|$artistName"
+                val identifier = "${album.name}|${album.albumArtist}"
                 val dao = database.favoriteDao()
                 val existing = dao.getFavorite("album", identifier)
                 if (existing != null) {
@@ -134,7 +141,7 @@ class AlbumDetailViewModel(
                     val newFav = FavoriteEntity(
                         type = "album",
                         identifier = identifier,
-                        displayName = albumName,
+                        displayName = album.name,
                         addedAt = getTimeMillis()
                     )
                     dao.insert(newFav)

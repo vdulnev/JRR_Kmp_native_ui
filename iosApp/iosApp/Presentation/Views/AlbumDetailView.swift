@@ -24,8 +24,8 @@ class AlbumDetailObservable {
     
     init(viewModel: AlbumDetailViewModel) {
         self.viewModel = viewModel
-        self.albumName = viewModel.albumName
-        self.artistName = viewModel.artistName
+        self.albumName = viewModel.album.name
+        self.artistName = viewModel.album.albumArtist
         
         let initial = viewModel.state.value as! AlbumDetailViewState
         self.contentState = initial.contentState

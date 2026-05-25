@@ -19,15 +19,16 @@ data class DownloadJobEntity(
     val enqueuedAt: Long,
     @ColumnInfo(name = "started_at")
     val startedAt: Long? = null,
-    val title: String,
+    val name: String,
     val artist: String,
     val album: String,
+    val albumArtist: String,
     val date: String,
+    val genre: String,
     @ColumnInfo(name = "duration_ms")
     val durationMs: Long,
     @ColumnInfo(name = "track_number")
     val trackNumber: Int,
-    val genre: String,
     val discNumber: Int,
     val totalDiscs: Int,
     val totalTracks: Int,

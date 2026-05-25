@@ -77,7 +77,7 @@ class VoiceSearchResolver {
                 }
                 MediaStore.Audio.Media.ENTRY_CONTENT_TYPE, "vnd.android.cursor.item/track" -> {
                     if (!title.isNullOrEmpty()) {
-                        var matched = allTracks.filter { it.title.lowercase().contains(title) }
+                        var matched = allTracks.filter { it.name.lowercase().contains(title) }
                         if (!artist.isNullOrEmpty()) {
                             val withArtist = matched.filter { it.artist.lowercase().contains(artist) }
                             if (withArtist.isNotEmpty()) matched = withArtist
@@ -95,7 +95,7 @@ class VoiceSearchResolver {
         }
 
         // Search for title matches
-        val titleMatches = allTracks.filter { it.title.lowercase().contains(cleanQuery) }
+        val titleMatches = allTracks.filter { it.name.lowercase().contains(cleanQuery) }
         if (titleMatches.isNotEmpty()) {
             return SearchResult(titleMatches, forceShuffle)
         }
@@ -120,7 +120,7 @@ class VoiceSearchResolver {
 
         // Broad substring match across artist + album + title
         val broadMatches = allTracks.filter {
-            it.title.lowercase().contains(cleanQuery) ||
+            it.name.lowercase().contains(cleanQuery) ||
             it.artist.lowercase().contains(cleanQuery) ||
             it.album.lowercase().contains(cleanQuery)
         }

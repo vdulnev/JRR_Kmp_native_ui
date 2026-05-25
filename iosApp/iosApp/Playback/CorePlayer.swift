@@ -118,7 +118,6 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
             let index32 = Int32(idx)
             localCurrentIndex = index32
             engine.updateCurrentIndex(index: index32)
-            let track = localQueue[idx]
         }
     }
     

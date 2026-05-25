@@ -94,41 +94,21 @@ struct ContentView: View {
                     }
                 )) {
                     // Tab 2: Player (Now Playing)
-                    Group {
-                        if showQueue {
-                            QueueView(viewModel: queueViewModel, onBackClick: { showQueue = false })
-                        } else {
-                            NowPlayingView(viewModel: nowPlayingViewModel, onQueueClick: { showQueue = true })
-                        }
-                    }
+                    PlayerTabContainerView(
+                        showQueue: $showQueue,
+                        queueViewModel: queueViewModel,
+                        nowPlayingViewModel: nowPlayingViewModel
+                    )
                     .tabItem {
                         Label("Player", systemImage: "play.circle.fill")
                     }
                     .tag(2)
                     
                     // Tab 0: Library
-                    Group {
-                        if let album = selectedAlbum {
-                            let albumDetailViewModel = AlbumDetailViewModel(
-                                albumName: album.name,
-                                artistName: album.artist,
-                                libraryRepository: JrrDependencies.shared.libraryRepository,
-                                facade: JrrDependencies.shared.facade,
-                                database: JrrDependencies.shared.database
-                            )
-                            AlbumDetailView(
-                                viewModel: albumDetailViewModel,
-                                onBackClick: { selectedAlbum = nil }
-                            )
-                        } else {
-                            LibraryView(
-                                viewModel: libraryViewModel,
-                                onAlbumClick: { albumName, artistName in
-                                    selectedAlbum = (name: albumName, artist: artistName)
-                                }
-                            )
-                        }
-                    }
+                    LibraryTabContainerView(
+                        selectedAlbum: $selectedAlbum,
+                        libraryViewModel: libraryViewModel
+                    )
                     .tabItem {
                         Label("Library", systemImage: "music.note.house.fill")
                     }
@@ -429,5 +409,56 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+    }
+}
+
+struct PlayerTabContainerView: View {
+    @Binding var showQueue: Bool
+    let queueViewModel: QueueViewModel
+    let nowPlayingViewModel: NowPlayingViewModel
+    
+    var body: some View {
+        if showQueue {
+            QueueView(viewModel: queueViewModel, onBackClick: { showQueue = false })
+        } else {
+            NowPlayingView(viewModel: nowPlayingViewModel, onQueueClick: { showQueue = true })
+        }
+    }
+}
+
+struct LibraryTabContainerView: View {
+    @Binding var selectedAlbum: (name: String, artist: String)?
+    let libraryViewModel: LibraryViewModel
+    
+    var body: some View {
+        if let album = selectedAlbum {
+            let kmpAlbum = Album(
+                name: album.name,
+                albumArtist: album.artist,
+                folderPath: "",
+                parentFolderPath: "",
+                date: "",
+                artworkFileKey: "",
+                totalDiscs: 1,
+                discNumber: 1
+            )
+            let albumDetailViewModel = AlbumDetailViewModel(
+                album: kmpAlbum,
+                libraryRepository: JrrDependencies.shared.libraryRepository,
+                facade: JrrDependencies.shared.facade,
+                database: JrrDependencies.shared.database
+            )
+            AlbumDetailView(
+                viewModel: albumDetailViewModel,
+                onBackClick: { selectedAlbum = nil }
+            )
+        } else {
+            LibraryView(
+                viewModel: libraryViewModel,
+                onAlbumClick: { albumName, artistName in
+                    selectedAlbum = (name: albumName, artist: artistName)
+                }
+            )
+        }
     }
 }

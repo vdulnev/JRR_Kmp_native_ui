@@ -109,34 +109,6 @@ object McwsClient {
         return parseTracksJson(json)
     }
 
-    suspend fun searchArtists(query: String): List<String> {
-        val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated"))
-        if (json.isNullOrEmpty()) return emptyList()
-        val artistsSet = mutableSetOf<String>()
-        try {
-            val jsonArray = jsonConfiguration.parseToJsonElement(json).jsonArray
-            for (element in jsonArray) {
-                val obj = element.jsonObject
-                val artist = obj["Artist"]?.jsonPrimitive?.content?.trim() ?: ""
-                if (artist.isNotEmpty()) {
-                    artistsSet.add(artist)
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return artistsSet.sortedWith(compareBy { it.lowercase() })
-    }
-
-    suspend fun searchAlbums(query: String): List<Album> {
-        val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated"))
-        if (json.isNullOrEmpty()) return emptyList()
-        val tracks = parseTracksJson(json)
-        return tracks.map {
-            track -> Album(track)
-        }
-    }
-
     suspend fun getBrowseFiles(nodeId: String): List<Track> {
         val json = getMcwsJson("Browse/Files", mapOf("Fields" to "Calculated", "ID" to nodeId))
         return parseTracksJson(json)

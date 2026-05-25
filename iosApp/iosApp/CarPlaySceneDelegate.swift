@@ -58,12 +58,12 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         Task {
             do {
                 let tracks = try await database.downloadedTrackDao().getAllTracks()
-                let sortedTracks = tracks.sorted { $0.title < $1.title }
+                let sortedTracks = tracks.sorted { $0.name < $1.name }
                 
                 let items = sortedTracks.enumerated().map { index, track in
-                    let item = CPListItem(text: track.title, detailText: "\(track.artist) — \(track.album)")
+                    let item = CPListItem(text: track.name, detailText: "\(track.artist) — \(track.album)")
                     item.handler = { [weak self] _, completion in
-                        guard let self = self else { completion(); return }
+                        guard self != nil else { completion(); return }
                         let tracks = sortedTracks.map { ($0).toTrack() }
                         JrrDependencies.shared.facade.setQueue(tracks: tracks, startIndex: Int32(index))
                         completion()
@@ -181,15 +181,15 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 
                 let sortedTracks = tracks.sorted {
                     if $0.trackNumber == $1.trackNumber {
-                        return $0.title < $1.title
+                        return $0.name < $1.name
                     }
                     return $0.trackNumber < $1.trackNumber
                 }
                 
                 let items = sortedTracks.enumerated().map { index, track in
-                    let item = CPListItem(text: track.title, detailText: track.artist)
+                    let item = CPListItem(text: track.name, detailText: track.artist)
                     item.handler = { [weak self] _, completion in
-                        guard let self = self else { completion(); return }
+                        guard self != nil else { completion(); return }
                         let tracks = sortedTracks.map { ($0).toTrack() }
                         JrrDependencies.shared.facade.setQueue(tracks: tracks, startIndex: Int32(index))
                         completion()
