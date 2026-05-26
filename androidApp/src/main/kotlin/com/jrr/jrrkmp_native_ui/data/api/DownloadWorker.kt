@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import com.jrr.jrrkmp_native_ui.JrrDependencies
+import com.jrr.jrrkmp_native_ui.core.di.appContainer
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.core.network.SslHelper
 import com.jrr.jrrkmp_native_ui.data.db.entity.DownloadedTrackEntity
@@ -24,10 +24,11 @@ class DownloadWorker(
         val jobId = inputData.getInt("job_id", -1)
         if (jobId == -1) return Result.failure()
 
-        val db = JrrDependencies.getDatabase(context)
+        val container = context.appContainer
+        val db = container.database
         val jobDao = db.downloadJobDao()
         val trackDao = db.downloadedTrackDao()
-        val serverRepository = JrrDependencies.getServerRepository(context)
+        val serverRepository = container.serverRepository
 
         // 1. Get the job entity
         val job = jobDao.getJobById(jobId) ?: return Result.failure()

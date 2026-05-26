@@ -11,7 +11,7 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
-import com.jrr.jrrkmp_native_ui.JrrDependencies
+import com.jrr.jrrkmp_native_ui.core.di.appContainer
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import kotlinx.coroutines.*
 import java.io.File
@@ -25,8 +25,8 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
-        val facade = JrrDependencies.getAudioPlayerFacade(this)
-        val player = JrrDependencies.getLocalPlayerHandler(this).getUnderlyingPlayer()
+        val facade = this.appContainer.facade
+        val player = this.appContainer.localPlayerHandler.getUnderlyingPlayer()
 
         val sessionActivityPendingIntent = packageManager.getLaunchIntentForPackage(packageName)?.let { sessionIntent ->
             PendingIntent.getActivity(
@@ -55,7 +55,7 @@ class PlaybackService : MediaLibraryService() {
                 controllerInfo.connectionHints.containsKey("androidx.media3.session.connection.CAR_CONNECTION") ||
                 controllerInfo.connectionHints.getBoolean("androidx.media3.session.connection.CAR_CONNECTION", false)
         if (isCar) {
-            val facade = JrrDependencies.getAudioPlayerFacade(this)
+            val facade = this.appContainer.facade
             facade.setZone(Zone.AndroidAuto, skipLoadQueue = true)
         }
         return mediaLibrarySession
@@ -103,7 +103,7 @@ class PlaybackService : MediaLibraryService() {
             val future = SettableFuture.create<LibraryResult<ImmutableList<MediaItem>>>()
             serviceScope.launch(Dispatchers.IO) {
                 try {
-                    val db = JrrDependencies.getDatabase(this@PlaybackService)
+                    val db = this@PlaybackService.appContainer.database
                     val allTracks = db.downloadedTrackDao().getAllTracks()
                     val resultList = mutableListOf<MediaItem>()
 
@@ -251,7 +251,7 @@ class PlaybackService : MediaLibraryService() {
             val future = SettableFuture.create<LibraryResult<MediaItem>>()
             serviceScope.launch(Dispatchers.IO) {
                 try {
-                    val db = JrrDependencies.getDatabase(this@PlaybackService)
+                    val db = this@PlaybackService.appContainer.database
                     val track = db.downloadedTrackDao().getTrack(mediaId)
                     if (track != null) {
                         future.set(LibraryResult.ofItem(mapTrackToMediaItem(track), null))
@@ -274,7 +274,7 @@ class PlaybackService : MediaLibraryService() {
             val future = SettableFuture.create<LibraryResult<Void>>()
             serviceScope.launch(Dispatchers.IO) {
                 try {
-                    val db = JrrDependencies.getDatabase(this@PlaybackService)
+                    val db = this@PlaybackService.appContainer.database
                     val allTracks = db.downloadedTrackDao().getAllTracks()
                     val resolver = VoiceSearchResolver()
                     val searchResult = resolver.resolve(query, null, allTracks)
@@ -324,7 +324,7 @@ class PlaybackService : MediaLibraryService() {
                 val future = SettableFuture.create<List<MediaItem>>()
                 serviceScope.launch(Dispatchers.IO) {
                     try {
-                        val db = JrrDependencies.getDatabase(this@PlaybackService)
+                        val db = this@PlaybackService.appContainer.database
                         val allTracks = db.downloadedTrackDao().getAllTracks()
 
                         val resolver = VoiceSearchResolver()
@@ -334,7 +334,7 @@ class PlaybackService : MediaLibraryService() {
                         if (matchedTracks.isNotEmpty()) {
                             val items = matchedTracks.map { mapTrackToMediaItem(it) }
                             withContext(Dispatchers.Main) {
-                                val facade = JrrDependencies.getAudioPlayerFacade(this@PlaybackService)
+                                val facade = this@PlaybackService.appContainer.facade
                                 facade.setZone(Zone.AndroidAuto)
                                 val trackInfos = matchedTracks.map { it.toTrack() }
                                 facade.setQueue(trackInfos, 0)
@@ -360,14 +360,14 @@ class PlaybackService : MediaLibraryService() {
             val future = SettableFuture.create<List<MediaItem>>()
             serviceScope.launch(Dispatchers.IO) {
                 try {
-                    val db = JrrDependencies.getDatabase(this@PlaybackService)
+                    val db = this@PlaybackService.appContainer.database
                     val itemsToPlay = mediaItems.mapNotNull { item ->
                         val track = db.downloadedTrackDao().getTrack(item.mediaId)
                         track?.let { mapTrackToMediaItem(it) }
                     }
                     if (itemsToPlay.isNotEmpty()) {
                         withContext(Dispatchers.Main) {
-                            val facade = JrrDependencies.getAudioPlayerFacade(this@PlaybackService)
+                            val facade = this@PlaybackService.appContainer.facade
                             facade.setZone(Zone.AndroidAuto)
                             val trackInfos = itemsToPlay.mapNotNull { item ->
                                 val track = db.downloadedTrackDao().getTrack(item.mediaId)

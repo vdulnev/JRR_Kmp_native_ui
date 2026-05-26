@@ -34,6 +34,7 @@ import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.JrrTheme
 import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
+import com.jrr.jrrkmp_native_ui.core.di.appContainer
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
@@ -60,10 +61,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        facade = JrrDependencies.getAudioPlayerFacade(this)
-        serverRepository = JrrDependencies.getServerRepository(this)
-        libraryRepository = JrrDependencies.getLibraryRepository(this)
-        mcwsClient = JrrDependencies.getMcwsClient(this)
+        val container = appContainer
+        facade = container.facade
+        serverRepository = container.serverRepository
+        libraryRepository = container.libraryRepository
+        mcwsClient = container.mcwsClient
 
         val prefs = getSharedPreferences("jrr_settings", Context.MODE_PRIVATE)
         val settings = object : MainShellSettings {
@@ -289,7 +291,7 @@ fun MainShell(
                                 album = album,
                                 libraryRepository = libraryRepository,
                                 facade = facade,
-                                database = com.jrr.jrrkmp_native_ui.JrrDependencies.getDatabase(context)
+                                database = context.appContainer.database
                             )
                         }
                         AlbumDetailScreen(
