@@ -138,7 +138,7 @@ class McwsClient(
         val xml = getMcwsXml("Playback/Zones") ?: return emptyList()
         val list = mutableListOf<Zone>()
         try {
-            val parsed = McwsXmlParser.parseResponse(xml)
+            val parsed = parseMcwsResponse(xml)
             if (parsed.status == "OK") {
                 val numZones = parsed.items["NumberZones"]?.toIntOrNull() ?: 0
                 for (i in 0 until numZones) {
@@ -157,7 +157,7 @@ class McwsClient(
     suspend fun getBrowseChildren(parentId: String): Map<String, String> {
         val xml = getMcwsXml("Browse/Children", mapOf("ID" to parentId, "Version" to "1", "ErrorOnMissing" to "0")) ?: return emptyMap()
         return try {
-            val parsed = McwsXmlParser.parseResponse(xml)
+            val parsed = parseMcwsResponse(xml)
             if (parsed.status == "OK") {
                 parsed.items
             } else emptyMap()
@@ -170,7 +170,7 @@ class McwsClient(
     suspend fun getPlaybackInfo(zoneId: String): PlayerStatus? {
         val xml = getMcwsXml("Playback/Info", mapOf("Zone" to zoneId, "ZoneType" to "ID")) ?: return null
         val items = try {
-            val parsed = McwsXmlParser.parseResponse(xml)
+            val parsed = parseMcwsResponse(xml)
             if (parsed.status == "OK") parsed.items else null
         } catch (e: Exception) {
             e.printStackTrace()
@@ -222,7 +222,7 @@ class McwsClient(
     suspend fun executeCommand(endpoint: String, params: Map<String, String>): Boolean {
         val xml = getMcwsXml(endpoint, params) ?: return false
         return try {
-            val parsed = McwsXmlParser.parseResponse(xml)
+            val parsed = parseMcwsResponse(xml)
             parsed.status == "OK"
         } catch (e: Exception) {
             e.printStackTrace()

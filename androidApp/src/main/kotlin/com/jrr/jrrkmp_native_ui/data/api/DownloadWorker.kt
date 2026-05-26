@@ -5,8 +5,10 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.jrr.jrrkmp_native_ui.core.di.appContainer
+import com.jrr.jrrkmp_native_ui.core.network.acceptAllHostnameVerifier
+import com.jrr.jrrkmp_native_ui.core.network.trustAllSslSocketFactory
+import com.jrr.jrrkmp_native_ui.core.network.trustAllTrustManager
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
-import com.jrr.jrrkmp_native_ui.core.network.SslHelper
 import com.jrr.jrrkmp_native_ui.data.db.entity.DownloadedTrackEntity
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -48,8 +50,8 @@ class DownloadWorker(
         val client = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
-            .sslSocketFactory(SslHelper.sslSocketFactory, SslHelper.trustAllTrustManager)
-            .hostnameVerifier(SslHelper.hostnameVerifier)
+            .sslSocketFactory(trustAllSslSocketFactory, trustAllTrustManager)
+            .hostnameVerifier(acceptAllHostnameVerifier)
             .build()
 
         val request = Request.Builder()

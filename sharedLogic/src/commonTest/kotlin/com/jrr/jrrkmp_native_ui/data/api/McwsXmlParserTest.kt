@@ -17,7 +17,7 @@ class McwsXmlParserTest {
             </Response>
         """.trimIndent()
 
-        val parsed = McwsXmlParser.parseResponse(xml)
+        val parsed = parseMcwsResponse(xml)
         assertEquals("OK", parsed.status)
         assertEquals("My JRiver & Streamer", parsed.items["FriendlyName"])
         assertEquals("abcde12345", parsed.items["Token"])
@@ -27,7 +27,7 @@ class McwsXmlParserTest {
     @Test
     fun testParseResponse_failure() {
         val xml = """<Response Status="Failure" />"""
-        val parsed = McwsXmlParser.parseResponse(xml)
+        val parsed = parseMcwsResponse(xml)
         assertEquals("Failure", parsed.status)
         assertTrue(parsed.items.isEmpty())
     }
@@ -35,7 +35,7 @@ class McwsXmlParserTest {
     @Test
     fun testParseResponse_spacesAndSingleQuotes() {
         val xml = """<Response Status = 'OK'><Item Name = 'Key' >Value &apos;1&apos;</Item></Response>"""
-        val parsed = McwsXmlParser.parseResponse(xml)
+        val parsed = parseMcwsResponse(xml)
         assertEquals("OK", parsed.status)
         assertEquals("Value '1'", parsed.items["Key"])
     }
@@ -51,7 +51,7 @@ class McwsXmlParserTest {
             </Response>
         """.trimIndent()
 
-        val parsed = McwsXmlParser.parseWebPlayLookup(xml)
+        val parsed = parseMcwsWebPlayLookup(xml)
         assertEquals("192.168.1.50", parsed["ip"])
         assertEquals("52199", parsed["port"])
         assertEquals("00:11:22:33:44:55", parsed["mac"])

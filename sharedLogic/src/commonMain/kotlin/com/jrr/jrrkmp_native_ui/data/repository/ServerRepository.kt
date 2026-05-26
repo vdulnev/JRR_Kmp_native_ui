@@ -1,7 +1,8 @@
 package com.jrr.jrrkmp_native_ui.data.repository
 
-import com.jrr.jrrkmp_native_ui.data.api.McwsXmlParser
-import com.jrr.jrrkmp_native_ui.data.api.WebPlayLookup
+import com.jrr.jrrkmp_native_ui.data.api.WebPlayLookupResult
+import com.jrr.jrrkmp_native_ui.data.api.parseMcwsResponse
+import com.jrr.jrrkmp_native_ui.data.api.webPlayLookup
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.SavedServerEntity
 import io.ktor.client.HttpClient
@@ -37,8 +38,8 @@ class ServerRepository(
         _activeServer.value = if (host.isEmpty()) null else McwsServerData(host, port, useSsl, sslPort, token)
     }
 
-    suspend fun lookupAccessKey(key: String): WebPlayLookup.LookupResult? = withContext(Dispatchers.IO) {
-        WebPlayLookup.lookup(httpClient, key)
+    suspend fun lookupAccessKey(key: String): WebPlayLookupResult? = withContext(Dispatchers.IO) {
+        webPlayLookup(httpClient, key)
     }
 
     suspend fun authenticate(
@@ -62,7 +63,7 @@ class ServerRepository(
             }
             if (response.status.value in 200..299) {
                 val body = response.bodyAsText()
-                val xmlResponse = McwsXmlParser.parseResponse(body)
+                val xmlResponse = parseMcwsResponse(body)
                 if (xmlResponse.status == "OK") {
                     xmlResponse.items["Token"]
                 } else null
@@ -90,7 +91,7 @@ class ServerRepository(
             }
             if (response.status.value in 200..299) {
                 val body = response.bodyAsText()
-                val xmlResponse = McwsXmlParser.parseResponse(body)
+                val xmlResponse = parseMcwsResponse(body)
                 if (xmlResponse.status == "OK") {
                     xmlResponse.items["FriendlyName"] ?: "JRiver Server"
                 } else null
