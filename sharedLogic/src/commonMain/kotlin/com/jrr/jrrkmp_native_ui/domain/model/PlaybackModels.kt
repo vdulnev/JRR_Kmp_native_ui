@@ -59,7 +59,8 @@ data class PlayerStatus(
     val trackAlbum: String,
     val trackArtist: String,
     val trackName: String,
-    val sampleRate: Int
+    val sampleRate: Int,
+    val trackFileKey: String = ""
 )
 
 @Serializable
@@ -159,8 +160,12 @@ data class Track(
             "${album.lowercase()}|${folderPath.lowercase()}"
         }
 
-    //TODO: implement later
-    val imageUrl = ""
+    val imageUrl: String
+        get() = if (fileKey.isNotEmpty()) {
+            com.jrr.jrrkmp_native_ui.data.api.McwsClient.buildImageUrl(fileKey)
+        } else {
+            ""
+        }
 }
 
 @Serializable

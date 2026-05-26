@@ -34,6 +34,7 @@ import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.JrrTheme
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
+import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
@@ -123,6 +124,10 @@ fun MainShell(
 
     val trackName = playerStatus?.trackName
     val trackArtist = playerStatus?.trackArtist
+    val trackImageUrl = playerStatus?.trackFileKey
+        ?.takeIf { it.isNotEmpty() }
+        ?.let { McwsClient.buildImageUrl(it) }
+        ?.takeIf { it.isNotEmpty() }
     val isPlaying = playerStatus?.state == PlaybackState.PLAYING
     val duration = playerStatus?.durationMs ?: 0L
     val position = playerStatus?.positionMs ?: 0L
@@ -143,7 +148,7 @@ fun MainShell(
                             MiniPlayer(
                                 title = trackName,
                                 artist = trackArtist ?: "",
-                                imageUrl = null,
+                                imageUrl = trackImageUrl,
                                 isPlaying = isPlaying,
                                 progress = progress,
                                 onPlayPauseClick = {

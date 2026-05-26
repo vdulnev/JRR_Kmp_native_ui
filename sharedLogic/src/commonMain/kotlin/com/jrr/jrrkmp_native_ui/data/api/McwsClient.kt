@@ -208,7 +208,8 @@ object McwsClient {
             trackAlbum = trackAlbum ?: "",
             trackArtist = trackArtist ?: "",
             trackName = trackName ?: "",
-            sampleRate = sampleRate
+            sampleRate = sampleRate,
+            trackFileKey = fileKey ?: ""
         )
     }
 

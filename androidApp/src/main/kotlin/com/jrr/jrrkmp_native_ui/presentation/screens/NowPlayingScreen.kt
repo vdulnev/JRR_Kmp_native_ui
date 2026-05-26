@@ -122,7 +122,7 @@ fun NowPlayingScreen(
                 artistName = state.artistName,
                 year = "2026", // Fallback decorative year
                 side = "SIDE A",
-                imageUrl = null,
+                imageUrl = state.imageUrl.ifEmpty { null },
                 isPlaying = isPlaying
             )
         }

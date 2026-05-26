@@ -113,7 +113,8 @@ class AudioPlayerFacade(
                         trackAlbum = track?.album ?: "",
                         trackArtist = track?.artist ?: "",
                         trackName = track?.name ?: "",
-                        sampleRate = track?.sampleRate ?: -1
+                        sampleRate = track?.sampleRate ?: -1,
+                        trackFileKey = track?.fileKey ?: ""
                     )
                 }
             }.collect()

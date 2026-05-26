@@ -2,6 +2,7 @@ package com.jrr.jrrkmp_native_ui.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.PlayerStatus
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
@@ -23,7 +24,8 @@ data class NowPlayingViewState(
     val repeatMode: RepeatMode = RepeatMode.OFF,
     val sampleRate: Int = 0,
     val activeZoneName: String = "No Zone Selected",
-    val transientError: String? = null
+    val transientError: String? = null,
+    val imageUrl: String = ""
 )
 
 class NowPlayingViewModel(
@@ -52,7 +54,12 @@ class NowPlayingViewModel(
                     shuffleMode = status.shuffleMode,
                     repeatMode = status.repeatMode,
                     sampleRate = status.sampleRate,
-                    activeZoneName = activeZone.name
+                    activeZoneName = activeZone.name,
+                    imageUrl = if (status.trackFileKey.isNotEmpty()) {
+                        McwsClient.buildImageUrl(status.trackFileKey)
+                    } else {
+                        ""
+                    }
                 )
             } else {
                 NowPlayingViewState(

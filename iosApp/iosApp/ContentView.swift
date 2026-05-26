@@ -234,8 +234,7 @@ struct ContentView: View {
                     MiniPlayer(
                         title: nowPlayingObservable.trackTitle,
                         artist: nowPlayingObservable.artistName,
-                        //TODO: implement later
-                        imageUrl: nil,
+                        imageUrl: nowPlayingObservable.imageUrl.isEmpty ? nil : nowPlayingObservable.imageUrl,
                         isPlaying: isPlaying,
                         progress: progress,
                         onPlayPauseClick: {

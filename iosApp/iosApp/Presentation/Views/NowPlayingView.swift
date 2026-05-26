@@ -19,6 +19,7 @@ class NowPlayingObservable {
     var sampleRate: Int32 = 0
     var activeZoneName: String = "No Zone Selected"
     var transientError: String? = nil
+    var imageUrl: String = ""
     
     private let subscription = FlowSubscription()
     
@@ -51,6 +52,7 @@ class NowPlayingObservable {
         self.sampleRate = state.sampleRate
         self.activeZoneName = state.activeZoneName
         self.transientError = state.transientError
+        self.imageUrl = state.imageUrl
     }
     
     func play() {
@@ -144,7 +146,7 @@ struct NowPlayingView: View {
                 artistName: observable.artistName,
                 year: "2026", // Fallback decorative year
                 side: "SIDE A",
-                imageUrl: nil,
+                imageUrl: observable.imageUrl.isEmpty ? nil : observable.imageUrl,
                 isPlaying: isPlaying
             )
             .padding(.vertical, 20)
