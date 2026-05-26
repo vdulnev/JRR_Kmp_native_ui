@@ -262,6 +262,8 @@ struct LibraryView: View {
                     .font(AppFont.ibmPlexMono(size: 10.5, weight: .medium))
                     .tracking(1.6)
                     .foregroundColor(observable.currentTab == id ? .accentColor : .textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 
                 // Active Underline
                 Rectangle()
