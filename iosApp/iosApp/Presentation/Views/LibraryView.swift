@@ -20,7 +20,7 @@ class LibraryObservable {
     var artistAlbums: [Album] = []
     var randomAlbums: [Album] = []
     var browseStack: [BrowseNode] = []
-    var browseChildren: [String: String] = [:]
+    var browseChildren: [BrowseItem] = []
     var browseTracks: [Track] = []
     var isOffline: Bool = false
     var isLoading: Bool = false
@@ -84,8 +84,8 @@ class LibraryObservable {
         viewModel.selectArtist(artistName: artistName)
     }
     
-    func pushBrowseNode(label: String, nodeId: String) {
-        viewModel.pushBrowseNode(label: label, nodeId: nodeId)
+    func pushBrowseNode(browseItem: BrowseItem) {
+        viewModel.pushBrowseNode(label: browseItem.name, nodeId: browseItem.key)
     }
     
     func popBrowseNode() {
@@ -467,78 +467,105 @@ struct LibraryView: View {
     @ViewBuilder
     private func browseTab() -> some View {
         VStack(spacing: 0) {
-            // Breadcrumb navigation header
-            if observable.browseStack.count > 1 {
-                Button(action: { observable.popBrowseNode() }) {
-                    HStack {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(.accentColor)
-                            .font(.system(size: 16, weight: .bold))
-                        
-                        Text(observable.browseStack.map { $0.label }.joined(separator: " / "))
-                            .font(AppFont.inter(size: 13, weight: .regular))
-                            .foregroundColor(.textSecondary)
-                            .lineLimit(1)
-                        
-                        Spacer()
-                    }
-                    .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                    .padding(.vertical, 12)
+            browseBreadcrumb()
+            browseContent()
+        }
+    }
+
+    @ViewBuilder
+    private func browseBreadcrumb() -> some View {
+        if observable.browseStack.count > 1 {
+            Button(action: { observable.popBrowseNode() }) {
+                HStack {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(.accentColor)
+                        .font(.system(size: 16, weight: .bold))
+
+                    Text(observable.browseStack.map { $0.label }.joined(separator: " / "))
+                        .font(AppFont.inter(size: 13, weight: .regular))
+                        .foregroundColor(.textSecondary)
+                        .lineLimit(1)
+
+                    Spacer()
+                }
+                .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                .padding(.vertical, 12)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func browseContent() -> some View {
+        if observable.isLoading || observable.isTabLoading {
+            Spacer()
+            ProgressView().tint(.accentColor)
+            Spacer()
+        } else {
+            ScrollView {
+                if !observable.browseChildren.isEmpty {
+                    browseChildrenList()
+                } else if !observable.browseTracks.isEmpty {
+                    browseTracksList()
+                } else {
+                    browseEmptyState()
                 }
             }
-            
-            if observable.isLoading || observable.isTabLoading {
-                Spacer()
-                ProgressView().tint(.accentColor)
-                Spacer()
-            } else {
-                ScrollView {
-                    if !observable.browseChildren.isEmpty {
-                        LazyVStack(spacing: 8) {
-                            ForEach(observable.browseChildren.sorted(by: { $0.key < $1.key }), id: \.value) { nodeLabel, nodeId in
-                                HStack {
-                                    Text(nodeLabel)
-                                        .font(AppFont.inter(size: 16, weight: .medium))
-                                        .foregroundColor(.textPrimary)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.textTertiary)
-                                }
-                                .padding(16)
-                                .background(Color.bg2)
-                                .cornerRadius(10)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(Color.line, lineWidth: 1)
-                                )
-                                .onTapGesture {
-                                    observable.pushBrowseNode(label: nodeLabel, nodeId: nodeId)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                        .padding(.top, 12)
-                    } else if !observable.browseTracks.isEmpty {
-                        LazyVStack(spacing: 8) {
-                            ForEach(observable.browseTracks, id: \.fileKey) { track in
-                                trackRowItem(track: track) {
-                                    observable.playTracks(observable.browseTracks, startIndex: observable.browseTracks.firstIndex(of: track) ?? 0)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                        .padding(.top, 12)
-                    } else {
-                        VStack {
-                            Spacer().frame(height: 80)
-                            Text("Empty folder")
-                                .font(AppFont.inter(size: 14, weight: .regular))
-                                .foregroundColor(.textSecondary)
-                        }
-                    }
+        }
+    }
+
+    @ViewBuilder
+    private func browseChildrenList() -> some View {
+        LazyVStack(spacing: 8) {
+            ForEach(observable.browseChildren, id: \.key) { browseItem in
+                browseChildRow(browseItem: browseItem)
+            }
+        }
+        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+        .padding(.top, 12)
+    }
+
+    private func browseChildRow(browseItem: BrowseItem) -> some View {
+        HStack {
+            Text(browseItem.name)
+                .font(AppFont.inter(size: 16, weight: .medium))
+                .foregroundColor(.textPrimary)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14))
+                .foregroundColor(.textTertiary)
+        }
+        .padding(16)
+        .background(Color.bg2)
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.line, lineWidth: 1)
+        )
+        .onTapGesture {
+            observable.pushBrowseNode(browseItem: browseItem)
+        }
+    }
+
+    @ViewBuilder
+    private func browseTracksList() -> some View {
+        LazyVStack(spacing: 8) {
+            ForEach(observable.browseTracks, id: \.fileKey) { track in
+                trackRowItem(track: track) {
+                    observable.playTracks(observable.browseTracks, startIndex: observable.browseTracks.firstIndex(of: track) ?? 0)
                 }
             }
+        }
+        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+        .padding(.top, 12)
+    }
+
+    @ViewBuilder
+    private func browseEmptyState() -> some View {
+        VStack {
+            Spacer().frame(height: 80)
+            Text("Empty folder")
+                .font(AppFont.inter(size: 14, weight: .regular))
+                .foregroundColor(.textSecondary)
         }
     }
     

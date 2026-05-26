@@ -2,11 +2,20 @@ package com.jrr.jrrkmp_native_ui.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
+import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
-import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class LibraryViewState(
@@ -18,7 +27,7 @@ data class LibraryViewState(
     val artistAlbums: List<Album> = emptyList(),
     val randomAlbums: List<Album> = emptyList(),
     val browseStack: List<Pair<String, String>> = listOf(Pair("Library", "-1")),
-    val browseChildren: Map<String, String> = emptyMap(),
+    val browseChildren: List<BrowseItem> = emptyList(),
     val browseTracks: List<Track> = emptyList(),
     val isOffline: Boolean = false,
     val isLoading: Boolean = false,
@@ -42,19 +51,20 @@ class LibraryViewModel(
         ) { isOffline, token ->
             Pair(isOffline, token)
         }
-        .distinctUntilChanged()
-        .onEach { (isOffline, _) ->
-            _state.update { 
-                val nextTab = if (isOffline && (it.currentTab == "random" || it.currentTab == "browse")) {
-                    "artists"
-                } else {
-                    it.currentTab
+            .distinctUntilChanged()
+            .onEach { (isOffline, _) ->
+                _state.update {
+                    val nextTab =
+                        if (isOffline && (it.currentTab == "random" || it.currentTab == "browse")) {
+                            "artists"
+                        } else {
+                            it.currentTab
+                        }
+                    it.copy(isOffline = isOffline, currentTab = nextTab)
                 }
-                it.copy(isOffline = isOffline, currentTab = nextTab) 
+                loadTabContent()
             }
-            loadTabContent()
-        }
-        .launchIn(viewModelScope)
+            .launchIn(viewModelScope)
     }
 
     fun updateSearchQuery(query: String) {
@@ -74,7 +84,13 @@ class LibraryViewModel(
     }
 
     fun switchTab(tab: String) {
-        _state.update { it.copy(currentTab = tab, selectedArtist = null, artistAlbums = emptyList()) }
+        _state.update {
+            it.copy(
+                currentTab = tab,
+                selectedArtist = null,
+                artistAlbums = emptyList()
+            )
+        }
         loadTabContent()
     }
 
@@ -87,7 +103,12 @@ class LibraryViewModel(
                     val albums = libraryRepository.getAlbumsByArtist(artistName)
                     _state.update { it.copy(artistAlbums = albums, isTabLoading = false) }
                 } catch (e: Exception) {
-                    _state.update { it.copy(isTabLoading = false, transientError = "Failed to load albums: ${e.message}") }
+                    _state.update {
+                        it.copy(
+                            isTabLoading = false,
+                            transientError = "Failed to load albums: ${e.message}"
+                        )
+                    }
                 }
             }
         } else {
@@ -115,13 +136,34 @@ class LibraryViewModel(
         viewModelScope.launch {
             _state.update { it.copy(isTabLoading = true) }
             try {
-                val children = libraryRepository.getBrowseChildren(nodeId)
-                val tracks = libraryRepository.getBrowseFiles(nodeId)
-                _state.update { it.copy(browseChildren = children, browseTracks = tracks, isTabLoading = false) }
+                val (children, tracks) = getChildrenAndTracks(nodeId)
+                _state.update {
+                    it.copy(
+                        browseChildren = children,
+                        browseTracks = tracks,
+                        isTabLoading = false
+                    )
+                }
             } catch (e: Exception) {
-                _state.update { it.copy(isTabLoading = false, transientError = "Failed to load directory: ${e.message}") }
+                _state.update {
+                    it.copy(
+                        isTabLoading = false,
+                        transientError = "Failed to load directory: ${e.message}"
+                    )
+                }
             }
         }
+    }
+
+    private suspend fun getChildrenAndTracks(nodeId: String): Pair<List<BrowseItem>, List<Track>> {
+        val children =
+            libraryRepository.getBrowseChildren(nodeId)
+        val tracks = if (children.isEmpty()) {
+            libraryRepository.getBrowseFiles(nodeId)
+        } else {
+            emptyList()
+        }
+        return Pair(children, tracks)
     }
 
     fun playTrack(track: Track) {
@@ -160,19 +202,31 @@ class LibraryViewModel(
                         val artistsList = libraryRepository.getArtists()
                         _state.update { it.copy(artists = artistsList, isLoading = false) }
                     }
+
                     "random" -> {
                         val albums = libraryRepository.getRandomAlbums(20)
                         _state.update { it.copy(randomAlbums = albums, isLoading = false) }
                     }
+
                     "browse" -> {
                         val currentNode = currentState.browseStack.last()
-                        val children = libraryRepository.getBrowseChildren(currentNode.second)
-                        val tracks = libraryRepository.getBrowseFiles(currentNode.second)
-                        _state.update { it.copy(browseChildren = children, browseTracks = tracks, isLoading = false) }
+                        val (children, tracks) = getChildrenAndTracks(currentNode.second)
+                        _state.update {
+                            it.copy(
+                                browseChildren = children,
+                                browseTracks = tracks,
+                                isLoading = false
+                            )
+                        }
                     }
                 }
             } catch (e: Exception) {
-                _state.update { it.copy(isLoading = false, transientError = "Failed to load content: ${e.message}") }
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        transientError = "Failed to load content: ${e.message}"
+                    )
+                }
             }
         }
     }

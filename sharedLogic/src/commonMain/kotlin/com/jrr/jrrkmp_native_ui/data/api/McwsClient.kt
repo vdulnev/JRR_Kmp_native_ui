@@ -1,18 +1,22 @@
 package com.jrr.jrrkmp_native_ui.data.api
 
+import com.jrr.jrrkmp_native_ui.data.repository.McwsServerData
+import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
+import com.jrr.jrrkmp_native_ui.domain.model.PlayerStatus
+import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
+import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
+import com.jrr.jrrkmp_native_ui.domain.model.Track
+import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.serialization.kotlinx.json.json
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.*
+import io.ktor.client.request.get
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.URLBuilder
 import io.ktor.http.appendPathSegments
-import com.jrr.jrrkmp_native_ui.domain.model.*
-
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.flow.StateFlow
-import com.jrr.jrrkmp_native_ui.data.repository.McwsServerData
+import kotlinx.serialization.json.Json
 
 private val jsonConfiguration = Json {
     ignoreUnknownKeys = true
@@ -46,6 +50,8 @@ internal fun parseMcwsTracksJson(jsonStr: String?): List<Track> {
         emptyList()
     }
 }
+
+data class BrowseItem(val key: String, val name: String)
 
 class McwsClient(
     val httpClient: HttpClient,
@@ -82,7 +88,10 @@ class McwsClient(
         }
     }
 
-    private suspend fun getMcwsJson(endpoint: String, params: Map<String, String> = emptyMap()): String? {
+    private suspend fun getMcwsJson(
+        endpoint: String,
+        params: Map<String, String> = emptyMap()
+    ): String? {
         val base = getBaseUrl() ?: return null
         val server = getActiveServer() ?: return null
         val token = server.token ?: return null
@@ -100,7 +109,10 @@ class McwsClient(
         return getRaw(url)
     }
 
-    private suspend fun getMcwsXml(endpoint: String, params: Map<String, String> = emptyMap()): String? {
+    private suspend fun getMcwsXml(
+        endpoint: String,
+        params: Map<String, String> = emptyMap()
+    ): String? {
         val base = getBaseUrl() ?: return null
         val server = getActiveServer()
         val token = server?.token
@@ -154,8 +166,11 @@ class McwsClient(
         return list
     }
 
-    suspend fun getBrowseChildren(parentId: String): Map<String, String> {
-        val xml = getMcwsXml("Browse/Children", mapOf("ID" to parentId, "Version" to "1", "ErrorOnMissing" to "0")) ?: return emptyMap()
+    suspend fun getBrowseChildren(parentId: String): List<BrowseItem> {
+        val xml = getMcwsXml(
+            "Browse/Children",
+            mapOf("ID" to parentId, "Version" to "1", "ErrorOnMissing" to "0")
+        ) ?: return emptyList()
         return try {
             val parsed = parseMcwsResponse(xml)
             if (parsed.status == "OK") {
@@ -164,11 +179,12 @@ class McwsClient(
         } catch (e: Exception) {
             e.printStackTrace()
             emptyMap()
-        }
+        }.toList().map { BrowseItem(key = it.second, name = it.first) }.sortedBy { it.name.lowercase() }
     }
 
     suspend fun getPlaybackInfo(zoneId: String): PlayerStatus? {
-        val xml = getMcwsXml("Playback/Info", mapOf("Zone" to zoneId, "ZoneType" to "ID")) ?: return null
+        val xml =
+            getMcwsXml("Playback/Info", mapOf("Zone" to zoneId, "ZoneType" to "ID")) ?: return null
         val items = try {
             val parsed = parseMcwsResponse(xml)
             if (parsed.status == "OK") parsed.items else null

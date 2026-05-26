@@ -33,6 +33,7 @@ import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.outlinedTextFieldColors
+import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.LibraryViewModel
@@ -368,7 +369,7 @@ fun RandomTab(
 @Composable
 fun BrowseTab(
     stack: List<Pair<String, String>>,
-    children: Map<String, String>,
+    children: List<BrowseItem>,
     tracks: List<Track>,
     isLoading: Boolean,
     onNodeClick: (String, String) -> Unit,

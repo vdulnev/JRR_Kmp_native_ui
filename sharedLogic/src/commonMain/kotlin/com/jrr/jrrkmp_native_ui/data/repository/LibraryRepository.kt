@@ -1,5 +1,6 @@
 package com.jrr.jrrkmp_native_ui.data.repository
 
+import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.DownloadJobEntity
@@ -110,7 +111,7 @@ class LibraryRepository(
         mcwsClient.getZones()
     }
 
-    suspend fun getBrowseChildren(parentId: String): Map<String, String> =
+    suspend fun getBrowseChildren(parentId: String): List<BrowseItem> =
         withContext(Dispatchers.IO) {
             mcwsClient.getBrowseChildren(parentId)
         }
