@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.jrr.jrrkmp_native_ui.JrrDependencies
+import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.core.network.SslHelper
 import com.jrr.jrrkmp_native_ui.data.db.entity.DownloadedTrackEntity
 import okhttp3.OkHttpClient
@@ -26,7 +27,7 @@ class DownloadWorker(
         val db = JrrDependencies.getDatabase(context)
         val jobDao = db.downloadJobDao()
         val trackDao = db.downloadedTrackDao()
-        val serverDao = db.savedServerDao()
+        val serverRepository = JrrDependencies.getServerRepository(context)
 
         // 1. Get the job entity
         val job = jobDao.getJobById(jobId) ?: return Result.failure()
@@ -35,7 +36,7 @@ class DownloadWorker(
         jobDao.update(job.copy(state = "DOWNLOADING", startedAt = System.currentTimeMillis()))
 
         // 2. Resolve server parameters
-        val activeServer = serverDao.getLastUsedServer() ?: return Result.failure()
+        val activeServer = serverRepository.getLastUsedServer() ?: return Result.failure()
         val host = activeServer.host
         val scheme = if (activeServer.useSsl) "https" else "http"
         val port = if (activeServer.useSsl) activeServer.sslPort else activeServer.port

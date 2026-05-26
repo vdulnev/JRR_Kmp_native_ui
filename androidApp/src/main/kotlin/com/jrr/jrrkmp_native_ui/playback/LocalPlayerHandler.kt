@@ -13,11 +13,12 @@ import com.jrr.jrrkmp_native_ui.domain.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
+import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
+import kotlinx.coroutines.runBlocking
 
 class LocalPlayerHandler(
     private val context: Context,
-    private val serverUrlProvider: () -> String?,
-    private val tokenProvider: () -> String?,
+    private val serverRepository: ServerRepository,
     private val checkLocalFileProvider: (String) -> String?
 ) : LocalPlayerEngine {
     private var exoPlayer: ExoPlayer? = null
@@ -111,8 +112,25 @@ class LocalPlayerHandler(
             val uri = if (localPath != null && File(localPath).exists()) {
                 Uri.fromFile(File(localPath))
             } else {
-                val serverUrl = serverUrlProvider() ?: ""
-                val token = tokenProvider() ?: ""
+                val active = serverRepository.activeServer.value
+                val (serverUrl, token) = if (active != null) {
+                    val host = active.host
+                    val scheme = if (active.useSsl) "https" else "http"
+                    val port = if (active.useSsl) active.sslPort else active.port
+                    Pair("$scheme://$host:$port/MCWS/v1", active.token ?: "")
+                } else {
+                    val activeServer = runBlocking {
+                        serverRepository.getLastUsedServer()
+                    }
+                    if (activeServer != null) {
+                        val host = activeServer.host
+                        val scheme = if (activeServer.useSsl) "https" else "http"
+                        val port = if (activeServer.useSsl) activeServer.sslPort else activeServer.port
+                        Pair("$scheme://$host:$port/MCWS/v1", activeServer.authToken ?: "")
+                    } else {
+                        Pair("", "")
+                    }
+                }
                 Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&Playback=1&Token=${token}")
             }
 

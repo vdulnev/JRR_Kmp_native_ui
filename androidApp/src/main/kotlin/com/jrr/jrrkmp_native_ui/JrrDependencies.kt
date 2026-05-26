@@ -29,24 +29,10 @@ object JrrDependencies {
         return localPlayerHandler ?: synchronized(this) {
             localPlayerHandler ?: run {
                 val db = getDatabase(context)
+                val serverRepo = getServerRepository(context)
                 LocalPlayerHandler(
                     context = context.applicationContext,
-                    serverUrlProvider = {
-                        runBlocking {
-                            val activeServer = db.savedServerDao().getLastUsedServer()
-                            if (activeServer != null) {
-                                val host = activeServer.host
-                                val scheme = if (activeServer.useSsl) "https" else "http"
-                                val port = if (activeServer.useSsl) activeServer.sslPort else activeServer.port
-                                "$scheme://$host:$port/MCWS/v1"
-                            } else null
-                        }
-                    },
-                    tokenProvider = {
-                        runBlocking {
-                            db.savedServerDao().getLastUsedServer()?.authToken
-                        }
-                    },
+                    serverRepository = serverRepo,
                     checkLocalFileProvider = { fileKey ->
                         runBlocking {
                             db.downloadedTrackDao().getTrack(fileKey)?.filePath
