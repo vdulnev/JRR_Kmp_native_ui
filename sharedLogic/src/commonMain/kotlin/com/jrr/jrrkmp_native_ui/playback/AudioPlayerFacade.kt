@@ -88,7 +88,7 @@ class AudioPlayerFacade(
                 combine(localPlayerEngine.shuffleMode, localPlayerEngine.repeatMode) { s, r -> Pair(s, r) }
             ) { queue, state, index, vol, shuffleRepeat ->
                 val zone = _activeZone.value
-                val track = if (queue.isNotEmpty()) queue[index] else null
+                val track = if (index in queue.indices) queue[index] else null
                 if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
                     val position = localPlayerEngine.getCurrentPosition()
                     val duration = localPlayerEngine.getDuration()

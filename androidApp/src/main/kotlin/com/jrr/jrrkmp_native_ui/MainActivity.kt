@@ -61,9 +61,19 @@ class MainActivity : ComponentActivity() {
         serverRepository = JrrDependencies.getServerRepository(this)
         libraryRepository = JrrDependencies.getLibraryRepository(this)
 
+        val prefs = getSharedPreferences("jrr_settings", Context.MODE_PRIVATE)
+        val settings = object : MainShellSettings {
+            override fun getLastActiveZoneId(): String? = prefs.getString("last_active_zone_id", null)
+            override fun setLastActiveZoneId(zoneId: String?) = prefs.edit().putString("last_active_zone_id", zoneId).apply()
+            override fun getHasSavedServers(): Boolean = prefs.getBoolean("has_saved_servers", false)
+            override fun setHasSavedServers(hasSaved: Boolean) = prefs.edit().putBoolean("has_saved_servers", hasSaved).apply()
+        }
+        val mainShellViewModel = MainShellViewModel(facade, serverRepository, settings)
+
         setContent {
             JrrTheme {
                 MainShell(
+                    viewModel = mainShellViewModel,
                     facade = facade,
                     serverRepository = serverRepository,
                     libraryRepository = libraryRepository
@@ -75,6 +85,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainShell(
+    viewModel: MainShellViewModel,
     facade: AudioPlayerFacade,
     serverRepository: ServerRepository,
     libraryRepository: LibraryRepository
@@ -96,95 +107,17 @@ fun MainShell(
 
     val playerStatus by facade.playerStatus.collectAsState()
     val activeZone by facade.activeZone.collectAsState()
-    val prefs = remember { context.getSharedPreferences("jrr_settings", Context.MODE_PRIVATE) }
-    val lastActiveZoneId = remember { prefs.getString("last_active_zone_id", null) }
-    val hasSavedServers = remember { prefs.getBoolean("has_saved_servers", false) }
 
-    // Tab state: 0 = Library, 1 = Server Manager, 2 = Now Playing, 3 = Zones, 4 = Settings
-    var activeTab by remember {
-        mutableStateOf(
-            if (lastActiveZoneId == Zone.Offline.id) 2
-            else if (hasSavedServers) 2
-            else 1
-        )
-    }
-
-    // Navigation sub-states
-    var selectedAlbum by remember { mutableStateOf<Album?>(null) } // AlbumName to ArtistName
-    var showQueue by remember { mutableStateOf(false) }
-
-    // Auto-login states
-    var isAutoConnecting by remember { mutableStateOf(false) }
-    var autoConnectServerName by remember { mutableStateOf("") }
-    var autoConnectJob by remember { mutableStateOf<Job?>(null) }
-
-    val scope = rememberCoroutineScope()
+    val shellState by viewModel.state.collectAsState()
 
     LaunchedEffect(Unit) {
-        val lastServer = serverRepository.getLastUsedServer()
-        // Sync has_saved_servers with DB state in case of migration
-        prefs.edit().putBoolean("has_saved_servers", lastServer != null).apply()
+        viewModel.performAutoConnect()
+    }
 
-        if (lastActiveZoneId == Zone.Offline.id) {
-            facade.setZone(Zone.Offline)
-            activeTab = 2
-            return@LaunchedEffect
-        }
-
-        if (lastServer != null) {
-            autoConnectServerName = lastServer.friendlyName ?: "JRiver Server"
-            isAutoConnecting = true
-            autoConnectJob = scope.launch {
-                try {
-                    val token = serverRepository.authenticate(
-                        lastServer.host,
-                        lastServer.port,
-                        lastServer.useSsl,
-                        lastServer.sslPort,
-                        lastServer.username,
-                        lastServer.passwordKey
-                    )
-                    if (token != null) {
-                        val finalName = serverRepository.checkAlive(
-                            lastServer.host,
-                            lastServer.port,
-                            lastServer.useSsl,
-                            lastServer.sslPort,
-                            token
-                        ) ?: lastServer.friendlyName ?: "JRiver Server"
-
-                        val updatedServer = lastServer.copy(
-                            friendlyName = finalName,
-                            lastUsedAt = System.currentTimeMillis(),
-                            authToken = token
-                        )
-                        serverRepository.saveServer(updatedServer)
-
-                        facade.setServerConnection(
-                            lastServer.host,
-                            lastServer.port,
-                            lastServer.useSsl,
-                            lastServer.sslPort,
-                            token
-                        )
-                        facade.setZone(Zone.Local)
-
-                        Toast.makeText(context, "Connected to $finalName", Toast.LENGTH_SHORT).show()
-                        activeTab = 2 // Switch to Player
-                    } else {
-                        Toast.makeText(context, "Auto-connect failed: Authentication error", Toast.LENGTH_SHORT).show()
-                        activeTab = 1
-                    }
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Auto-connect failed: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                    activeTab = 1
-                } finally {
-                    isAutoConnecting = false
-                    autoConnectJob = null
-                }
-            }
-        } else {
-            activeTab = 1
+    LaunchedEffect(shellState.toastMessage) {
+        shellState.toastMessage?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            viewModel.clearToast()
         }
     }
 
@@ -195,20 +128,13 @@ fun MainShell(
     val position = playerStatus?.positionMs ?: 0L
     val progress = if (duration > 0) position.toFloat() / duration.toFloat() else 0f
 
-    val isServerConnected = activeZone != Zone.Offline && !facade.currentServerHost.isNullOrEmpty()
-
-    // Automatically switch to Player once a server is connected successfully
-    val onConnectSuccess = {
-        activeTab = 2
-    }
-
     Scaffold(
         bottomBar = {
-            if (activeTab != 1) {
+            if (shellState.activeTab != 1) {
                 Column {
                     // Mini Player: sits above the tab bar, shown on all tabs except Now Playing (2),
                     // and only if a track is active/loaded
-                    if (activeTab != 2 && !trackName.isNullOrEmpty()) {
+                    if (shellState.activeTab != 2 && !trackName.isNullOrEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -226,7 +152,7 @@ fun MainShell(
                                 onNextClick = { facade.next() },
                                 onPrevClick = { facade.previous() },
                                 onBodyClick = {
-                                    activeTab = 2 // Switch to full Player tab
+                                    viewModel.selectTab(2) // Switch to full Player tab
                                 }
                             )
                         }
@@ -257,7 +183,7 @@ fun MainShell(
                         )
 
                         tabs.forEach { (label, icon, index) ->
-                            val selected = activeTab == index
+                            val selected = shellState.activeTab == index
                             
                             // Smooth color transition
                             val tintColor by animateColorAsState(
@@ -294,10 +220,7 @@ fun MainShell(
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null // Clean animated tab clicks without clunky M3 background ripple
                                     ) {
-                                        activeTab = index
-                                        if (index == 0) {
-                                            selectedAlbum = null
-                                        }
+                                        viewModel.selectTab(index)
                                     },
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
@@ -344,10 +267,10 @@ fun MainShell(
                 .background(AppColors.bg1)
                 .padding(innerPadding)
         ) {
-            when (activeTab) {
+            when (shellState.activeTab) {
                 0 -> {
                     // Library Tab with nested AlbumDetailScreen
-                    val album = selectedAlbum
+                    val album = shellState.selectedAlbum
                     if (album != null) {
                         val albumDetailViewModel = remember(album) {
                             AlbumDetailViewModel(
@@ -359,13 +282,13 @@ fun MainShell(
                         }
                         AlbumDetailScreen(
                             viewModel = albumDetailViewModel,
-                            onBackClick = { selectedAlbum = null }
+                            onBackClick = { viewModel.selectAlbum(null) }
                         )
                     } else {
                         LibraryScreen(
                             viewModel = libraryViewModel,
                             onAlbumClick = { album ->
-                                selectedAlbum = album
+                                viewModel.selectAlbum(album)
                             }
                         )
                     }
@@ -374,37 +297,35 @@ fun MainShell(
                     ServerManagerScreen(
                         facade = facade,
                         serverRepository = serverRepository,
-                        onConnectSuccess = onConnectSuccess
+                        onConnectSuccess = { viewModel.selectTab(2) }
                     )
                 }
                 2 -> {
                     // Now Playing Tab with nested QueueScreen
-                    if (showQueue) {
+                    if (shellState.showQueue) {
                         QueueScreen(
                             viewModel = queueViewModel,
-                            onBackClick = { showQueue = false }
+                            onBackClick = { viewModel.setShowQueue(false) }
                         )
                     } else {
                         NowPlayingScreen(
                             viewModel = nowPlayingViewModel,
-                            onQueueClick = { showQueue = true }
+                            onQueueClick = { viewModel.setShowQueue(true) }
                         )
                     }
                 }
                 3 -> {
                     ZonesScreen(
                         viewModel = zonesViewModel,
-                        onBackClick = { activeTab = 2 }
+                        onBackClick = { viewModel.selectTab(2) }
                     )
                 }
                 4 -> {
                     SettingsScreen(
                         facade = facade,
-                        onBackClick = { activeTab = 2 },
+                        onBackClick = { viewModel.selectTab(2) },
                         onDisconnectClick = {
-                            facade.setServerConnection("", 0, false, 0, null)
-                            facade.setZone(Zone.Offline)
-                            activeTab = 1
+                            viewModel.disconnect()
                         }
                     )
                 }
@@ -412,7 +333,7 @@ fun MainShell(
         }
     }
 
-    if (isAutoConnecting) {
+    if (shellState.isAutoConnecting) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -431,7 +352,7 @@ fun MainShell(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 Text(
-                    text = "Connecting to $autoConnectServerName...",
+                    text = "Connecting to ${shellState.autoConnectServerName}...",
                     style = AppTypography.itemSubtitle,
                     color = AppColors.text2,
                     modifier = Modifier.padding(bottom = 24.dp)
@@ -443,11 +364,7 @@ fun MainShell(
                 Spacer(modifier = Modifier.height(32.dp))
                 OutlinedButton(
                     onClick = {
-                        autoConnectJob?.cancel()
-                        isAutoConnecting = false
-                        autoConnectJob = null
-                        Toast.makeText(context, "Connection cancelled", Toast.LENGTH_SHORT).show()
-                        activeTab = 1
+                        viewModel.cancelAutoConnect()
                     },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColors.text2),
                     border = BorderStroke(1.dp, AppColors.line2),

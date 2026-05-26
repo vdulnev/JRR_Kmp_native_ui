@@ -1,5 +1,90 @@
 import SwiftUI
 import SharedLogic
+class SwiftMainShellSettings: NSObject, MainShellSettings {
+    func getLastActiveZoneId() -> String? {
+        return UserDefaults.standard.string(forKey: "last_active_zone_id")
+    }
+    
+    func setLastActiveZoneId(zoneId: String?) {
+        UserDefaults.standard.set(zoneId, forKey: "last_active_zone_id")
+    }
+    
+    func getHasSavedServers() -> Bool {
+        return UserDefaults.standard.bool(forKey: "has_saved_servers")
+    }
+    
+    func setHasSavedServers(hasSaved: Bool) {
+        UserDefaults.standard.set(hasSaved, forKey: "has_saved_servers")
+    }
+}
+
+@Observable
+@MainActor
+class MainShellObservable {
+    let viewModel: MainShellViewModel
+    
+    var activeTab: Int = 1
+    var selectedAlbum: Album? = nil
+    var showQueue: Bool = false
+    var isAutoConnecting: Bool = false
+    var autoConnectServerName: String = ""
+    var toastMessage: String? = nil
+    
+    private let subscription = FlowSubscription()
+    
+    init(viewModel: MainShellViewModel) {
+        self.viewModel = viewModel
+        
+        let initial = viewModel.state.value as! MainShellState
+        sync(state: initial)
+        
+        self.subscription.disposable = FlowObserver<MainShellState>(flow: viewModel.state).start { [weak self] state in
+            if let state = state {
+                Task { @MainActor in
+                    self?.sync(state: state)
+                }
+            }
+        }
+    }
+    
+    private func sync(state: MainShellState) {
+        self.activeTab = Int(state.activeTab)
+        self.selectedAlbum = state.selectedAlbum
+        self.showQueue = state.showQueue
+        self.isAutoConnecting = state.isAutoConnecting
+        self.autoConnectServerName = state.autoConnectServerName
+        self.toastMessage = state.toastMessage
+    }
+    
+    func performAutoConnect() {
+        viewModel.performAutoConnect()
+    }
+    
+    func cancelAutoConnect() {
+        viewModel.cancelAutoConnect()
+    }
+    
+    func selectTab(_ tab: Int) {
+        viewModel.selectTab(tab: Int32(tab))
+    }
+    
+    func selectAlbum(_ album: Album?) {
+        viewModel.selectAlbum(album: album)
+    }
+    
+    func setShowQueue(_ show: Bool) {
+        viewModel.setShowQueue(show: show)
+    }
+    
+    func clearToast() {
+        viewModel.clearToast()
+    }
+    
+    func disconnect() {
+        viewModel.disconnect()
+    }
+}
+
 struct ContentView: View {
     @State private var libraryViewModel: LibraryViewModel
     @State private var nowPlayingViewModel: NowPlayingViewModel
@@ -7,18 +92,8 @@ struct ContentView: View {
     @State private var zonesViewModel: ZonesViewModel
     @State private var nowPlayingObservable: NowPlayingObservable
     
-    @State private var activeTab: Int = 1 // Start on Server Manager tab (1)
-    
-    // Nested navigation states
-    @State private var selectedAlbum: Album? = nil
-    @State private var showQueue: Bool = false
-    
-    // Auto-connect states
-    @State private var isAutoConnecting: Bool = false
-    @State private var autoConnectServerName: String = ""
-    @State private var autoConnectTask: Task<Void, Never>? = nil
-    @State private var hasAttemptedAutoConnect: Bool = false
-    @State private var toastMessage: String? = nil
+    @State private var mainShellViewModel: MainShellViewModel
+    @State private var mainShellObservable: MainShellObservable
     
     init() {
         let deps = JrrDependencies.shared
@@ -33,18 +108,10 @@ struct ContentView: View {
         self._zonesViewModel = State(initialValue: zVM)
         self._nowPlayingObservable = State(initialValue: NowPlayingObservable(viewModel: npVM))
         
-        let lastActiveZoneId = UserDefaults.standard.string(forKey: "last_active_zone_id")
-        let hasSavedServers = UserDefaults.standard.bool(forKey: "has_saved_servers")
-        
-        let initialTab: Int
-        if lastActiveZoneId == Zone.companion.Offline.id {
-            initialTab = 2
-        } else if hasSavedServers {
-            initialTab = 2
-        } else {
-            initialTab = 1
-        }
-        _activeTab = State(initialValue: initialTab)
+        let settings = SwiftMainShellSettings()
+        let shellVM = MainShellViewModel(facade: deps.facade, serverRepository: deps.serverRepository, settings: settings)
+        self._mainShellViewModel = State(initialValue: shellVM)
+        self._mainShellObservable = State(initialValue: MainShellObservable(viewModel: shellVM))
         
         // Configure standard tab bar appearance with custom premium dark system theme
         let appearance = UITabBarAppearance()
@@ -67,6 +134,7 @@ struct ContentView: View {
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
     }
+    
     var body: some View {
         let isPlaying = nowPlayingObservable.isPlaying
         let duration = nowPlayingObservable.durationMs
@@ -76,26 +144,29 @@ struct ContentView: View {
         ZStack {
             Color.bg1.ignoresSafeArea()
             
-            if activeTab == 1 {
+            if mainShellObservable.activeTab == 1 {
                 ServerManagerView(onConnectSuccess: {
                     withAnimation {
-                        activeTab = 2 // Switch to Player
+                        mainShellObservable.selectTab(2) // Switch to Player
                     }
                 })
             } else {
                 TabView(selection: Binding(
-                    get: { activeTab },
+                    get: { mainShellObservable.activeTab },
                     set: { newValue in
-                        if newValue == 0 && activeTab == 0 {
+                        if newValue == 0 && mainShellObservable.activeTab == 0 {
                             // Tapping the active tab resets details
-                            selectedAlbum = nil
+                            mainShellObservable.selectAlbum(nil)
                         }
-                        activeTab = newValue
+                        mainShellObservable.selectTab(newValue)
                     }
                 )) {
                     // Tab 2: Player (Now Playing)
                     PlayerTabContainerView(
-                        showQueue: $showQueue,
+                        showQueue: Binding(
+                            get: { mainShellObservable.showQueue },
+                            set: { mainShellObservable.setShowQueue($0) }
+                        ),
                         queueViewModel: queueViewModel,
                         nowPlayingViewModel: nowPlayingViewModel
                     )
@@ -106,7 +177,10 @@ struct ContentView: View {
                     
                     // Tab 0: Library
                     LibraryTabContainerView(
-                        selectedAlbum: $selectedAlbum,
+                        selectedAlbum: Binding(
+                            get: { mainShellObservable.selectedAlbum },
+                            set: { mainShellObservable.selectAlbum($0) }
+                        ),
                         libraryViewModel: libraryViewModel
                     )
                     .tabItem {
@@ -119,7 +193,7 @@ struct ContentView: View {
                         viewModel: zonesViewModel,
                         onBackClick: {
                             withAnimation {
-                                activeTab = 2
+                                mainShellObservable.selectTab(2)
                             }
                         }
                     )
@@ -137,21 +211,11 @@ struct ContentView: View {
                         serverSslPort: JrrDependencies.shared.facade.currentServerSslPort,
                         onBackClick: {
                             withAnimation {
-                                activeTab = 2
+                                mainShellObservable.selectTab(2)
                             }
                         },
                         onDisconnectClick: {
-                            JrrDependencies.shared.facade.setServerConnection(
-                                host: "",
-                                port: Int32(0),
-                                useSsl: false,
-                                sslPort: Int32(0),
-                                authToken: nil
-                            )
-                            JrrDependencies.shared.facade.setZone(zone: Zone.companion.Offline, skipLoadQueue: false)
-                            withAnimation {
-                                activeTab = 1 // Switch to Server Manager
-                            }
+                            mainShellObservable.disconnect()
                         }
                     )
                     .tabItem {
@@ -163,7 +227,7 @@ struct ContentView: View {
             }
             
             // Floating MiniPlayer overlay
-            if activeTab != 2 && activeTab != 1 && nowPlayingObservable.trackTitle != "Idle" {
+            if mainShellObservable.activeTab != 2 && mainShellObservable.activeTab != 1 && nowPlayingObservable.trackTitle != "Idle" {
                 VStack {
                     Spacer()
                     
@@ -189,7 +253,7 @@ struct ContentView: View {
                         },
                         onBodyClick: {
                             withAnimation {
-                                activeTab = 2 // Open Full Player
+                                mainShellObservable.selectTab(2) // Open Full Player
                             }
                         }
                     )
@@ -200,7 +264,7 @@ struct ContentView: View {
             }
             
             // Auto-connecting Overlay
-            if isAutoConnecting {
+            if mainShellObservable.isAutoConnecting {
                 ZStack {
                     Color.bg0
                         .opacity(0.95)
@@ -215,7 +279,7 @@ struct ContentView: View {
                             .tracking(2.5)
                             .foregroundColor(.accentColor)
                         
-                        Text("Connecting to \(autoConnectServerName)...")
+                        Text("Connecting to \(mainShellObservable.autoConnectServerName)...")
                             .font(AppFont.inter(size: 14, weight: .regular))
                             .foregroundColor(.textSecondary)
                         
@@ -225,13 +289,7 @@ struct ContentView: View {
                             .padding(.vertical, 16)
                         
                         Button(action: {
-                            autoConnectTask?.cancel()
-                            isAutoConnecting = false
-                            autoConnectTask = nil
-                            showToast(message: "Connection cancelled")
-                            withAnimation {
-                                activeTab = 1
-                            }
+                            mainShellObservable.cancelAutoConnect()
                         }) {
                             Text("CANCEL")
                                 .font(AppFont.ibmPlexMono(size: 11, weight: .medium))
@@ -252,7 +310,7 @@ struct ContentView: View {
             }
             
             // Premium Toast Message
-            if let message = toastMessage {
+            if let message = mainShellObservable.toastMessage {
                 VStack {
                     Spacer()
                     Text(message)
@@ -267,141 +325,14 @@ struct ContentView: View {
                                 .stroke(Color.line2, lineWidth: 1)
                         )
                         .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
-                        .padding(.bottom, activeTab != 2 && nowPlayingObservable.trackTitle != "Idle" ? 140 : 80) // Position above tab bar/miniplayer
+                        .padding(.bottom, mainShellObservable.activeTab != 2 && nowPlayingObservable.trackTitle != "Idle" ? 140 : 80) // Position above tab bar/miniplayer
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 .ignoresSafeArea(.keyboard)
             }
         }
         .task {
-            performAutoConnect()
-        }
-    }
-    
-    private func performAutoConnect() {
-        guard !hasAttemptedAutoConnect else { return }
-        hasAttemptedAutoConnect = true
-        
-        let lastActiveZoneId = UserDefaults.standard.string(forKey: "last_active_zone_id")
-        if lastActiveZoneId == Zone.companion.Offline.id {
-            // Boot directly into offline mode (Player tab, zone offline)
-            JrrDependencies.shared.facade.setZone(zone: Zone.companion.Offline, skipLoadQueue: false)
-            withAnimation {
-                activeTab = 2
-            }
-            return
-        }
-        
-        autoConnectTask = Task {
-            do {
-                guard let lastServer = try await JrrDependencies.shared.serverRepository.getLastUsedServer() else {
-                    // No saved servers, stay on Server Manager tab (1)
-                    await MainActor.run {
-                        UserDefaults.standard.set(false, forKey: "has_saved_servers")
-                        withAnimation {
-                            activeTab = 1
-                        }
-                    }
-                    return
-                }
-                
-                await MainActor.run {
-                    UserDefaults.standard.set(true, forKey: "has_saved_servers")
-                    autoConnectServerName = lastServer.friendlyName ?? "JRiver Server"
-                    isAutoConnecting = true
-                }
-                
-                // Perform authentication using the stored credentials
-                guard let token = try await JrrDependencies.shared.serverRepository.authenticate(
-                    host: lastServer.host,
-                    port: lastServer.port,
-                    useSsl: lastServer.useSsl,
-                    sslPort: lastServer.sslPort,
-                    username: lastServer.username,
-                    passwordVal: lastServer.passwordKey
-                ) else {
-                    throw NSError(domain: "jrr", code: 4, userInfo: [NSLocalizedDescriptionKey: "Authentication failed. Check credentials"])
-                }
-                
-                // Perform checkAlive to verify connection and get friendly name
-                let finalName = try await JrrDependencies.shared.serverRepository.checkAlive(
-                    host: lastServer.host,
-                    port: lastServer.port,
-                    useSsl: lastServer.useSsl,
-                    sslPort: lastServer.sslPort,
-                    token: token
-                ) ?? lastServer.friendlyName ?? "JRiver Server"
-                
-                // Check if task is cancelled before modifying states
-                try Task.checkCancellation()
-                
-                // Update server info
-                let updatedServer = SavedServerEntity(
-                    id: lastServer.id,
-                    host: lastServer.host,
-                    port: lastServer.port,
-                    username: lastServer.username,
-                    passwordKey: lastServer.passwordKey,
-                    friendlyName: finalName,
-                    lastUsedAt: KotlinLong(value: Int64(Date().timeIntervalSince1970 * 1000)),
-                    authToken: token,
-                    useSsl: lastServer.useSsl,
-                    sslPort: lastServer.sslPort
-                )
-                try await JrrDependencies.shared.serverRepository.saveServer(server: updatedServer)
-                
-                // Configure handler
-                JrrDependencies.shared.facade.setServerConnection(
-                    host: lastServer.host,
-                    port: lastServer.port,
-                    useSsl: lastServer.useSsl,
-                    sslPort: lastServer.sslPort,
-                    authToken: token
-                )
-                JrrDependencies.shared.facade.setZone(zone: Zone.companion.Local, skipLoadQueue: false)
-                
-                await MainActor.run {
-                    showToast(message: "Connected to \(finalName)")
-                    withAnimation {
-                        activeTab = 2
-                    }
-                }
-            } catch is CancellationError {
-                await MainActor.run {
-                    showToast(message: "Connection cancelled")
-                    withAnimation {
-                        activeTab = 1
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    showToast(message: "Auto-connect failed: \(error.localizedDescription)")
-                    withAnimation {
-                        activeTab = 1
-                    }
-                }
-            }
-            
-            await MainActor.run {
-                withAnimation {
-                    isAutoConnecting = false
-                }
-                autoConnectTask = nil
-            }
-        }
-    }
-    
-    private func showToast(message: String) {
-        withAnimation {
-            toastMessage = message
-        }
-        // Auto dismiss after 2.5 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-            if toastMessage == message {
-                withAnimation {
-                    toastMessage = nil
-                }
-            }
+            mainShellObservable.performAutoConnect()
         }
     }
 }
