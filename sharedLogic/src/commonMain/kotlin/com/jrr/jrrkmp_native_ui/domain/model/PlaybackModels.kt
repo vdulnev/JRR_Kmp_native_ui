@@ -66,16 +66,23 @@ data class PlayerStatus(
 data class Zone(
     val id: String,
     val name: String,
-    val guid: String,
-    val isDLNA: Boolean = false,
-    val isLocal: Boolean = false,
-    val isOffline: Boolean = false,
-    val isAndroidAuto: Boolean = false
+    val guid: String
 ) {
+    val isDLNA: Boolean
+        get() = !isLocal && !isOffline && !isAndroidAuto
+    val isLocal: Boolean
+        get() = id == "local"
+    val isOffline: Boolean
+        get() = id == "offline"
+    val isAndroidAuto: Boolean
+        get() = id == "android_auto"
+    val isTransientZone: Boolean
+        get() = isAndroidAuto
+
     companion object {
-        val Local = Zone(id = "local", name = "Local Device", guid = "local_guid", isLocal = true)
-        val Offline = Zone(id = "offline", name = "Offline", guid = "offline_guid", isOffline = true)
-        val AndroidAuto = Zone(id = "android_auto", name = "Android Auto", guid = "android_auto_guid", isAndroidAuto = true)
+        val Local = Zone(id = "local", name = "Local Device", guid = "local_guid")
+        val Offline = Zone(id = "offline", name = "Offline", guid = "offline_guid")
+        val AndroidAuto = Zone(id = "android_auto", name = "Android Auto", guid = "android_auto_guid")
     }
 }
 

@@ -188,7 +188,11 @@ class AudioPlayerFacade(
         _activeZone.value = zone
         _playerStatus.value = null
 
-        saveLastActiveZoneId(zone.id)
+        if (!zone.isTransientZone) {
+            saveLastActiveZoneId(zone.id)
+        }
+
+
 
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             if (skipLoadQueue) {

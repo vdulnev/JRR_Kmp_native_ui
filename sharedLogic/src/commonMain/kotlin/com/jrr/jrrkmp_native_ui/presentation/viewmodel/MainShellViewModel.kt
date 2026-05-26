@@ -107,7 +107,6 @@ class MainShellViewModel(
                             lastServer.sslPort,
                             token
                         )
-                        facade.setZone(Zone.Local)
 
                         showToast("Connected to $finalName")
                         _state.update { it.copy(activeTab = 2) }

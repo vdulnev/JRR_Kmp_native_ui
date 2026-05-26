@@ -399,8 +399,11 @@ struct ServerManagerView: View {
                 
                 // Save Server to Room Database
                 let serverId = "\(resolvedHost):\(resolvedUseSsl ? resolvedSslPort : resolvedPort)"
+                let servers = try await JrrDependencies.shared.serverRepository.getAllServers()
+                let existing = servers.first(where: { $0.host == resolvedHost && Int($0.port) == resolvedPort })
+
                 let newServer = SavedServerEntity(
-                    id: serverId,
+                    id: existing?.id ?? serverId,
                     host: resolvedHost,
                     port: Int32(resolvedPort),
                     username: username,
@@ -423,7 +426,8 @@ struct ServerManagerView: View {
                     sslPort: Int32(resolvedSslPort),
                     authToken: token
                 )
-                JrrDependencies.shared.facade.setZone(zone: Zone.companion.Local, skipLoadQueue: false)
+                
+
                 
                 isConnecting = false
                 loadServers()

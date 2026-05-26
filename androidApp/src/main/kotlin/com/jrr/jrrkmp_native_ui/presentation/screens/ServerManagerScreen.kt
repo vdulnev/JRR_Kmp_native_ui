@@ -72,8 +72,9 @@ fun ServerManagerScreen(
                     val finalName = serverRepository.checkAlive(h, p, ssl, sp, token) ?: friendly ?: "JRiver Server"
                     // Save server profiles
                     val id = UUID.nameUUIDFromBytes("$h:$p".toByteArray()).toString()
+                    val existing = serverRepository.getAllServers().find { it.host == h && it.port == p }
                     val entity = SavedServerEntity(
-                        id = id,
+                        id = existing?.id ?: id,
                         host = h,
                         port = p,
                         username = u,
@@ -87,7 +88,6 @@ fun ServerManagerScreen(
                     serverRepository.saveServer(entity)
                     // Set active connection on facade
                     facade.setServerConnection(h, p, ssl, sp, token)
-                    facade.setZone(Zone.Local) // Default to Local on connection
                     
                     Toast.makeText(context, "Connected to $finalName", Toast.LENGTH_SHORT).show()
                     onConnectSuccess()

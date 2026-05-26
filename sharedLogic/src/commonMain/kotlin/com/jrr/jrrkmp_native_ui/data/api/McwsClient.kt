@@ -139,8 +139,7 @@ object McwsClient {
                     val id = parsed.items["ZoneID$i"] ?: continue
                     val name = parsed.items["ZoneName$i"] ?: "Zone $i"
                     val guid = parsed.items["ZoneGUID$i"] ?: ""
-                    val dlna = parsed.items["ZoneDLNA$i"] == "1"
-                    list.add(Zone(id = id, name = name, guid = guid, isDLNA = dlna))
+                    list.add(Zone(id = id, name = name, guid = guid))
                 }
             }
         } catch (e: Exception) {
