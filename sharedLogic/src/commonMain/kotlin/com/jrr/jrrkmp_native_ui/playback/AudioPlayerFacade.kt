@@ -1,4 +1,6 @@
 package com.jrr.jrrkmp_native_ui.playback
+ 
+import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
@@ -33,6 +35,7 @@ import kotlinx.serialization.json.Json
 class AudioPlayerFacade(
     private val database: JrrDatabase?,
     private val localPlayerEngine: LocalPlayerEngine,
+    private val serverRepository: ServerRepository? = null,
     private val saveLastActiveZoneId: (String) -> Unit = {},
     private val loadLastActiveZoneId: () -> String? = { null },
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
@@ -41,16 +44,19 @@ class AudioPlayerFacade(
     private val coroutineScope = CoroutineScope(mainDispatcher + SupervisorJob())
 
     val currentServerHost: String?
-        get() = McwsClient.currentHost
+        get() = serverRepository?.activeServer?.value?.host
 
     val currentServerPort: Int
-        get() = McwsClient.currentPort
+        get() = serverRepository?.activeServer?.value?.port ?: 52199
 
     val currentServerUseSsl: Boolean
-        get() = McwsClient.currentUseSsl
+        get() = serverRepository?.activeServer?.value?.useSsl ?: false
 
     val currentServerSslPort: Int
-        get() = McwsClient.currentSslPort
+        get() = serverRepository?.activeServer?.value?.sslPort ?: 52200
+
+    val currentServerToken: String?
+        get() = serverRepository?.activeServer?.value?.token
 
     // Remote Playback Handler
     private val remoteHandler = McwsRemotePlayerHandler()
@@ -62,7 +68,7 @@ class AudioPlayerFacade(
     private val _playerStatus = MutableStateFlow<PlayerStatus?>(null)
     val playerStatus: StateFlow<PlayerStatus?> = _playerStatus
 
-    private val _connectionToken = MutableStateFlow<String?>(McwsClient.currentToken)
+    private val _connectionToken = MutableStateFlow<String?>(serverRepository?.activeServer?.value?.token)
     val connectionToken: StateFlow<String?> = _connectionToken
 
     val localQueue: StateFlow<List<Track>> = localPlayerEngine.queue
@@ -160,11 +166,7 @@ class AudioPlayerFacade(
         sslPort: Int,
         authToken: String?
     ) {
-        McwsClient.currentHost = host
-        McwsClient.currentPort = port
-        McwsClient.currentUseSsl = useSsl
-        McwsClient.currentSslPort = sslPort
-        McwsClient.currentToken = authToken
+        serverRepository?.setActiveServer(host, port, useSsl, sslPort, authToken)
         _connectionToken.value = authToken
     }
 

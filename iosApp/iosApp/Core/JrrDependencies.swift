@@ -19,9 +19,14 @@ class JrrDependencies {
         let engine = IosLocalPlayerEngine()
         self.localPlayerEngine = engine
         
+        let serverRepo = ServerRepository(database: db)
+        self.serverRepository = serverRepo
+        McwsClient.shared.initialize(flow: serverRepo.activeServer)
+        
         let facadeInstance = AudioPlayerFacadeFactory.shared.create(
             database: db,
             localPlayerEngine: engine,
+            serverRepository: serverRepo,
             saveLastActiveZoneId: { zoneId in
                 UserDefaults.standard.set(zoneId, forKey: "last_active_zone_id")
             },
@@ -35,8 +40,6 @@ class JrrDependencies {
             engine: engine,
             database: db
         )
-        
-        self.serverRepository = ServerRepository(database: db)
         
         self.libraryRepository = LibraryRepository(
             database: db,

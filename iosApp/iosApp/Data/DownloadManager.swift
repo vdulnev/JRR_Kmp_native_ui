@@ -62,15 +62,15 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
     
     private func triggerDownload(fileKey: String, jobId: Int32) {
         // Resolve connection settings from McwsClient
-        guard let host = McwsClient.shared.currentHost else {
+        guard let host = JrrDependencies.shared.facade.currentServerHost else {
             print("[DownloadManager] Download failed: Server not configured.")
             return
         }
         
-        let useSsl = McwsClient.shared.currentUseSsl
-        let port = useSsl ? McwsClient.shared.currentSslPort : McwsClient.shared.currentPort
+        let useSsl = JrrDependencies.shared.facade.currentServerUseSsl
+        let port = useSsl ? JrrDependencies.shared.facade.currentServerSslPort : JrrDependencies.shared.facade.currentServerPort
         let scheme = useSsl ? "https" : "http"
-        let token = McwsClient.shared.currentToken ?? ""
+        let token = JrrDependencies.shared.facade.currentServerToken ?? ""
         
         let urlString = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(fileKey)&Token=\(token)"
         guard let url = URL(string: urlString) else { return }

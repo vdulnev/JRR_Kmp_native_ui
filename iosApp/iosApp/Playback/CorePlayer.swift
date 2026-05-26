@@ -179,11 +179,11 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
             if let localPath = getLocalFilePath(fileKey: track.fileKey) {
                 url = URL(fileURLWithPath: localPath)
             } else {
-                let host = McwsClient.shared.currentHost ?? ""
-                let useSsl = McwsClient.shared.currentUseSsl
-                let port = useSsl ? McwsClient.shared.currentSslPort : McwsClient.shared.currentPort
+                let host = JrrDependencies.shared.facade.currentServerHost ?? ""
+                let useSsl = JrrDependencies.shared.facade.currentServerUseSsl
+                let port = useSsl ? JrrDependencies.shared.facade.currentServerSslPort : JrrDependencies.shared.facade.currentServerPort
                 let scheme = useSsl ? "https" : "http"
-                let token = McwsClient.shared.currentToken ?? ""
+                let token = JrrDependencies.shared.facade.currentServerToken ?? ""
                 let encodedUrl = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(track.fileKey)&Playback=1&Token=\(token)"
                 url = URL(string: encodedUrl) ?? URL(fileURLWithPath: "")
             }
@@ -271,11 +271,11 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
             if let localPath = getLocalFilePath(fileKey: t.fileKey) {
                 url = URL(fileURLWithPath: localPath)
             } else {
-                let host = McwsClient.shared.currentHost ?? ""
-                let useSsl = McwsClient.shared.currentUseSsl
-                let port = useSsl ? McwsClient.shared.currentSslPort : McwsClient.shared.currentPort
+                let host = JrrDependencies.shared.facade.currentServerHost ?? ""
+                let useSsl = JrrDependencies.shared.facade.currentServerUseSsl
+                let port = useSsl ? JrrDependencies.shared.facade.currentServerSslPort : JrrDependencies.shared.facade.currentServerPort
                 let scheme = useSsl ? "https" : "http"
-                let token = McwsClient.shared.currentToken ?? ""
+                let token = JrrDependencies.shared.facade.currentServerToken ?? ""
                 let encodedUrl = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(t.fileKey)&Playback=1&Token=\(token)"
                 url = URL(string: encodedUrl) ?? URL(fileURLWithPath: "")
             }

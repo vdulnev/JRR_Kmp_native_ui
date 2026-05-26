@@ -12,8 +12,27 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+data class McwsServerData(
+    val host: String,
+    val port: Int,
+    val useSsl: Boolean,
+    val sslPort: Int,
+    val token: String?
+)
+
 class ServerRepository(private val database: JrrDatabase) {
     private val serverDao = database.savedServerDao()
+
+    private val _activeServer = MutableStateFlow<McwsServerData?>(null)
+    val activeServer: StateFlow<McwsServerData?> = _activeServer.asStateFlow()
+
+    fun setActiveServer(host: String, port: Int, useSsl: Boolean, sslPort: Int, token: String?) {
+        _activeServer.value = if (host.isEmpty()) null else McwsServerData(host, port, useSsl, sslPort, token)
+    }
 
     suspend fun lookupAccessKey(key: String): WebPlayLookup.LookupResult? = withContext(Dispatchers.IO) {
         WebPlayLookup.lookup(key)

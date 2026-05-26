@@ -6,6 +6,7 @@ import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.createDatabase
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
+import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.playback.LocalPlayerHandler
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
@@ -61,10 +62,12 @@ object JrrDependencies {
             facade ?: run {
                 val db = getDatabase(context)
                 val engine = getLocalPlayerHandler(context)
+                val serverRepo = getServerRepository(context)
                 val prefs = context.applicationContext.getSharedPreferences("jrr_settings", Context.MODE_PRIVATE)
                 AudioPlayerFacade(
                     database = db,
                     localPlayerEngine = engine,
+                    serverRepository = serverRepo,
                     saveLastActiveZoneId = { zoneId ->
                         prefs.edit().putString("last_active_zone_id", zoneId).apply()
                     },
@@ -78,7 +81,10 @@ object JrrDependencies {
 
     fun getServerRepository(context: Context): ServerRepository {
         return serverRepository ?: synchronized(this) {
-            serverRepository ?: ServerRepository(getDatabase(context)).also { serverRepository = it }
+            serverRepository ?: ServerRepository(getDatabase(context)).also {
+                serverRepository = it
+                McwsClient.initialize(it.activeServer)
+            }
         }
     }
 

@@ -12,12 +12,17 @@ import io.ktor.http.URLBuilder
 import io.ktor.http.appendPathSegments
 import com.jrr.jrrkmp_native_ui.domain.model.*
 
+import kotlinx.coroutines.flow.StateFlow
+import com.jrr.jrrkmp_native_ui.data.repository.McwsServerData
+
 object McwsClient {
-    var currentHost: String? = null
-    var currentPort: Int = 52199
-    var currentUseSsl: Boolean = false
-    var currentSslPort: Int = 52200
-    var currentToken: String? = null
+    private var activeServerFlow: StateFlow<McwsServerData?>? = null
+
+    fun initialize(flow: StateFlow<McwsServerData?>) {
+        this.activeServerFlow = flow
+    }
+
+    private fun getActiveServer(): McwsServerData? = activeServerFlow?.value
 
     private val jsonConfiguration = Json {
         ignoreUnknownKeys = true
@@ -32,15 +37,17 @@ object McwsClient {
     }
 
     fun getBaseUrl(): String? {
-        val host = currentHost ?: return null
-        val scheme = if (currentUseSsl) "https" else "http"
-        val port = if (currentUseSsl) currentSslPort else currentPort
+        val server = getActiveServer() ?: return null
+        val host = server.host
+        val scheme = if (server.useSsl) "https" else "http"
+        val port = if (server.useSsl) server.sslPort else server.port
         return "$scheme://$host:$port/MCWS/v1"
     }
 
     fun buildImageUrl(fileKey: String): String {
         val base = getBaseUrl() ?: return ""
-        val token = currentToken ?: return ""
+        val server = getActiveServer() ?: return ""
+        val token = server.token ?: return ""
         return "$base/File/GetImage?File=$fileKey&Type=Thumbnail&Width=300&Height=300&Square=1&Token=$token"
     }
 
@@ -60,7 +67,8 @@ object McwsClient {
 
     private suspend fun getMcwsJson(endpoint: String, params: Map<String, String> = emptyMap()): String? {
         val base = getBaseUrl() ?: return null
-        val token = currentToken ?: return null
+        val server = getActiveServer() ?: return null
+        val token = server.token ?: return null
         
         val url = URLBuilder(base).apply {
             val cleanEndpoint = if (endpoint.startsWith("/")) endpoint.substring(1) else endpoint
@@ -77,7 +85,8 @@ object McwsClient {
 
     private suspend fun getMcwsXml(endpoint: String, params: Map<String, String> = emptyMap()): String? {
         val base = getBaseUrl() ?: return null
-        val token = currentToken
+        val server = getActiveServer()
+        val token = server?.token
         
         val url = URLBuilder(base).apply {
             val cleanEndpoint = if (endpoint.startsWith("/")) endpoint.substring(1) else endpoint
