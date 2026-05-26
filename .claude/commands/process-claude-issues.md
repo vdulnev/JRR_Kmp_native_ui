@@ -64,7 +64,16 @@ From the main worktree:
 git fetch origin
 git worktree add -b fix/issue-<N> ../JRR_Kmp_native_ui-issue-<N> origin/main
 cd ../JRR_Kmp_native_ui-issue-<N>
+cp ../JRR_kmp_native_ui/local.properties ./local.properties
 ```
+
+> `local.properties` holds the Android SDK path and is gitignored, so worktrees
+> don't inherit it. Without this copy the Gradle build fails with
+> "SDK location not found".
+
+> If `git status` on the main repo shows `main` ahead of `origin/main`, push
+> `main` first with `git push origin main:main` from the main worktree. Otherwise
+> the PR diff will include all the unpushed commits, not just your fix.
 
 ### 5. Fix phase
 
@@ -113,5 +122,5 @@ cd ../JRR_Kmp_native_ui-issue-<N>
 - **One issue per tick.** If you finish one, stop. Don't loop inside a tick.
 - **Never force-push** to a branch that has an open PR — the user may be reviewing.
 - **Never close issues directly.** The PR's `Closes #N` does it on merge.
-- **Don't touch issues not assigned to `app/claude`.** Even if you spot something fixable.
+- **Don't touch issues without the `claude` label.** Even if you spot something fixable.
 - If anything goes wrong mid-tick (build failure you can't fix, ambiguous issue), comment on the issue explaining what blocked you, remove the `claude-working` label, and stop. Don't open a half-baked PR.
