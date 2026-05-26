@@ -6,19 +6,21 @@ import SharedLogic
 class CorePlayer: NSObject, ObservableObject, NativePlayerController {
     private let engine: IosLocalPlayerEngine
     private let database: JrrDatabase
-    
+    private let facade: AudioPlayerFacade
+
     private var queuePlayer: AVQueuePlayer?
     private var playerItems: [AVPlayerItem] = []
-    
+
     private var localQueue: [Track] = []
     private var localCurrentIndex: Int32 = -1
-    
+
     private var timeObserver: Any?
     private var cancellables = Set<AnyCancellable>()
-    
-    init(engine: IosLocalPlayerEngine, database: JrrDatabase) {
+
+    init(engine: IosLocalPlayerEngine, database: JrrDatabase, facade: AudioPlayerFacade) {
         self.engine = engine
         self.database = database
+        self.facade = facade
         super.init()
         self.engine.setController(controller: self)
         setupAudioSession()
@@ -179,11 +181,11 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
             if let localPath = getLocalFilePath(fileKey: track.fileKey) {
                 url = URL(fileURLWithPath: localPath)
             } else {
-                let host = JrrDependencies.shared.facade.currentServerHost ?? ""
-                let useSsl = JrrDependencies.shared.facade.currentServerUseSsl
-                let port = useSsl ? JrrDependencies.shared.facade.currentServerSslPort : JrrDependencies.shared.facade.currentServerPort
+                let host = facade.currentServerHost ?? ""
+                let useSsl = facade.currentServerUseSsl
+                let port = useSsl ? facade.currentServerSslPort : facade.currentServerPort
                 let scheme = useSsl ? "https" : "http"
-                let token = JrrDependencies.shared.facade.currentServerToken ?? ""
+                let token = facade.currentServerToken ?? ""
                 let encodedUrl = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(track.fileKey)&Playback=1&Token=\(token)"
                 url = URL(string: encodedUrl) ?? URL(fileURLWithPath: "")
             }
@@ -271,11 +273,11 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
             if let localPath = getLocalFilePath(fileKey: t.fileKey) {
                 url = URL(fileURLWithPath: localPath)
             } else {
-                let host = JrrDependencies.shared.facade.currentServerHost ?? ""
-                let useSsl = JrrDependencies.shared.facade.currentServerUseSsl
-                let port = useSsl ? JrrDependencies.shared.facade.currentServerSslPort : JrrDependencies.shared.facade.currentServerPort
+                let host = facade.currentServerHost ?? ""
+                let useSsl = facade.currentServerUseSsl
+                let port = useSsl ? facade.currentServerSslPort : facade.currentServerPort
                 let scheme = useSsl ? "https" : "http"
-                let token = JrrDependencies.shared.facade.currentServerToken ?? ""
+                let token = facade.currentServerToken ?? ""
                 let encodedUrl = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(t.fileKey)&Playback=1&Token=\(token)"
                 url = URL(string: encodedUrl) ?? URL(fileURLWithPath: "")
             }

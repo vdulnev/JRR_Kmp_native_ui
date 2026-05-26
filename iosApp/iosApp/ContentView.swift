@@ -86,30 +86,31 @@ class MainShellObservable {
 }
 
 struct ContentView: View {
+    @Environment(AppContainer.self) private var container
+
     @State private var libraryViewModel: LibraryViewModel
     @State private var nowPlayingViewModel: NowPlayingViewModel
     @State private var queueViewModel: QueueViewModel
     @State private var zonesViewModel: ZonesViewModel
     @State private var nowPlayingObservable: NowPlayingObservable
-    
+
     @State private var mainShellViewModel: MainShellViewModel
     @State private var mainShellObservable: MainShellObservable
     
-    init() {
-        let deps = JrrDependencies.shared
-        let libVM = LibraryViewModel(libraryRepository: deps.libraryRepository, facade: deps.facade)
-        let npVM = NowPlayingViewModel(facade: deps.facade, mcwsClient: deps.mcwsClient)
-        let qVM = QueueViewModel(facade: deps.facade, libraryRepository: deps.libraryRepository)
-        let zVM = ZonesViewModel(facade: deps.facade, libraryRepository: deps.libraryRepository)
-        
+    init(container: AppContainer) {
+        let libVM = LibraryViewModel(libraryRepository: container.libraryRepository, facade: container.facade)
+        let npVM = NowPlayingViewModel(facade: container.facade, mcwsClient: container.mcwsClient)
+        let qVM = QueueViewModel(facade: container.facade, libraryRepository: container.libraryRepository)
+        let zVM = ZonesViewModel(facade: container.facade, libraryRepository: container.libraryRepository)
+
         self._libraryViewModel = State(initialValue: libVM)
         self._nowPlayingViewModel = State(initialValue: npVM)
         self._queueViewModel = State(initialValue: qVM)
         self._zonesViewModel = State(initialValue: zVM)
         self._nowPlayingObservable = State(initialValue: NowPlayingObservable(viewModel: npVM))
-        
+
         let settings = SwiftMainShellSettings()
-        let shellVM = MainShellViewModel(facade: deps.facade, serverRepository: deps.serverRepository, settings: settings)
+        let shellVM = MainShellViewModel(facade: container.facade, serverRepository: container.serverRepository, settings: settings)
         self._mainShellViewModel = State(initialValue: shellVM)
         self._mainShellObservable = State(initialValue: MainShellObservable(viewModel: shellVM))
         
@@ -205,10 +206,10 @@ struct ContentView: View {
                     // Tab 4: Settings
                     SettingsView(
                         isOfflineMode: (zonesViewModel.state.value as! ZonesViewState).isOfflineMode,
-                        serverHost: JrrDependencies.shared.facade.currentServerHost,
-                        useSsl: JrrDependencies.shared.facade.currentServerUseSsl,
-                        serverPort: JrrDependencies.shared.facade.currentServerPort,
-                        serverSslPort: JrrDependencies.shared.facade.currentServerSslPort,
+                        serverHost: container.facade.currentServerHost,
+                        useSsl: container.facade.currentServerUseSsl,
+                        serverPort: container.facade.currentServerPort,
+                        serverSslPort: container.facade.currentServerSslPort,
                         onBackClick: {
                             withAnimation {
                                 mainShellObservable.selectTab(2)
@@ -338,7 +339,9 @@ struct ContentView: View {
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        let container = AppContainer()
+        ContentView(container: container)
+            .environment(container)
     }
 }
 
@@ -357,17 +360,18 @@ struct PlayerTabContainerView: View {
 }
 
 struct LibraryTabContainerView: View {
+    @Environment(AppContainer.self) private var container
     @Binding var selectedAlbum: Album?
     let libraryViewModel: LibraryViewModel
-    
+
     var body: some View {
         if let album = selectedAlbum {
             let kmpAlbum = album
             let albumDetailViewModel = AlbumDetailViewModel(
                 album: kmpAlbum,
-                libraryRepository: JrrDependencies.shared.libraryRepository,
-                facade: JrrDependencies.shared.facade,
-                database: JrrDependencies.shared.database
+                libraryRepository: container.libraryRepository,
+                facade: container.facade,
+                database: container.database
             )
             AlbumDetailView(
                 viewModel: albumDetailViewModel,

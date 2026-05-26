@@ -2,17 +2,17 @@ import Foundation
 import SharedLogic
 
 class DownloadManager: NSObject, URLSessionDownloadDelegate {
-    static let shared = DownloadManager()
-    
+
     private var session: URLSession!
     private var activeDownloads: [URLSessionDownloadTask: (String, Int32)] = [:] // Task to (fileKey, jobId) mapping
     private let queue = DispatchQueue(label: "com.jrr.download.manager", qos: .background)
-    
-    private var database: JrrDatabase {
-        return JrrDependencies.shared.database
-    }
-    
-    private override init() {
+
+    private let database: JrrDatabase
+    private let facade: AudioPlayerFacade
+
+    init(database: JrrDatabase, facade: AudioPlayerFacade) {
+        self.database = database
+        self.facade = facade
         super.init()
         let config = URLSessionConfiguration.background(withIdentifier: "com.jrr.jrr-ios.download")
         let wifiOnly = UserDefaults.standard.bool(forKey: "wifi_only_downloads")
@@ -61,16 +61,16 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
     }
     
     private func triggerDownload(fileKey: String, jobId: Int32) {
-        // Resolve connection settings from McwsClient
-        guard let host = JrrDependencies.shared.facade.currentServerHost else {
+        // Resolve connection settings from the injected facade
+        guard let host = facade.currentServerHost else {
             print("[DownloadManager] Download failed: Server not configured.")
             return
         }
-        
-        let useSsl = JrrDependencies.shared.facade.currentServerUseSsl
-        let port = useSsl ? JrrDependencies.shared.facade.currentServerSslPort : JrrDependencies.shared.facade.currentServerPort
+
+        let useSsl = facade.currentServerUseSsl
+        let port = useSsl ? facade.currentServerSslPort : facade.currentServerPort
         let scheme = useSsl ? "https" : "http"
-        let token = JrrDependencies.shared.facade.currentServerToken ?? ""
+        let token = facade.currentServerToken ?? ""
         
         let urlString = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(fileKey)&Token=\(token)"
         guard let url = URL(string: urlString) else { return }

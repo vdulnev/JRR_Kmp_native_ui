@@ -2,8 +2,9 @@ import SwiftUI
 import SharedLogic
 
 struct ServerManagerView: View {
-    @ObservedObject var stateObserver = PlaybackStateObserver.shared
-    
+    @Environment(AppContainer.self) private var container
+    @EnvironmentObject private var stateObserver: PlaybackStateObserver
+
     let onConnectSuccess: () -> Void
     
     @State private var savedServers: [SavedServerEntity] = []
@@ -38,7 +39,7 @@ struct ServerManagerView: View {
                 // Connection Status Card if connected
                 if let status = stateObserver.playerStatus, !stateObserver.activeZone.isOffline {
                     activeServerCard(friendlyName: status.zoneName)
-                } else if !stateObserver.activeZone.isOffline && JrrDependencies.shared.facade.currentServerHost != nil {
+                } else if !stateObserver.activeZone.isOffline && container.facade.currentServerHost != nil {
                     activeServerCard(friendlyName: "JRiver Server")
                 }
                 
@@ -216,8 +217,8 @@ struct ServerManagerView: View {
                 .font(AppFont.inter(size: 17, weight: .bold))
                 .foregroundColor(.textPrimary)
             
-            if let host = JrrDependencies.shared.facade.currentServerHost {
-                let port = JrrDependencies.shared.facade.currentServerUseSsl ? JrrDependencies.shared.facade.currentServerSslPort : JrrDependencies.shared.facade.currentServerPort
+            if let host = container.facade.currentServerHost {
+                let port = container.facade.currentServerUseSsl ? container.facade.currentServerSslPort : container.facade.currentServerPort
                 Text("\(host):\(port)")
                     .font(AppFont.ibmPlexMono(size: 11.5, weight: .regular))
                     .foregroundColor(.textSecondary)
@@ -226,11 +227,11 @@ struct ServerManagerView: View {
             HStack(spacing: 20) {
                 Button(action: {
                     // Fill input fields with current connection info
-                    if let host = JrrDependencies.shared.facade.currentServerHost {
+                    if let host = container.facade.currentServerHost {
                         self.host = host
-                        self.port = String(JrrDependencies.shared.facade.currentServerPort)
-                        self.useSsl = JrrDependencies.shared.facade.currentServerUseSsl
-                        self.sslPort = String(JrrDependencies.shared.facade.currentServerSslPort)
+                        self.port = String(container.facade.currentServerPort)
+                        self.useSsl = container.facade.currentServerUseSsl
+                        self.sslPort = String(container.facade.currentServerSslPort)
                         self.activeTab = 1
                     }
                 }) {
@@ -326,7 +327,7 @@ struct ServerManagerView: View {
     private func loadServers() {
         Task {
             do {
-                let servers = try await JrrDependencies.shared.serverRepository.getAllServers()
+                let servers = try await container.serverRepository.getAllServers()
                 let sorted = servers.sorted { s1, s2 in
                     let t1 = s1.lastUsedAt?.int64Value ?? 0
                     let t2 = s2.lastUsedAt?.int64Value ?? 0
@@ -359,7 +360,7 @@ struct ServerManagerView: View {
                         throw NSError(domain: "jrr", code: 1, userInfo: [NSLocalizedDescriptionKey: "Please enter a valid 6-digit access key"])
                     }
                     
-                    guard let result = try await JrrDependencies.shared.serverRepository.lookupAccessKey(key: accessKey) else {
+                    guard let result = try await container.serverRepository.lookupAccessKey(key: accessKey) else {
                         throw NSError(domain: "jrr", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to look up Access Key"])
                     }
                     
@@ -375,7 +376,7 @@ struct ServerManagerView: View {
                 }
                 
                 // Authenticate
-                guard let token = try await JrrDependencies.shared.serverRepository.authenticate(
+                guard let token = try await container.serverRepository.authenticate(
                     host: resolvedHost,
                     port: Int32(resolvedPort),
                     useSsl: resolvedUseSsl,
@@ -387,7 +388,7 @@ struct ServerManagerView: View {
                 }
                 
                 // Check Alive
-                if let name = try await JrrDependencies.shared.serverRepository.checkAlive(
+                if let name = try await container.serverRepository.checkAlive(
                     host: resolvedHost,
                     port: Int32(resolvedPort),
                     useSsl: resolvedUseSsl,
@@ -399,7 +400,7 @@ struct ServerManagerView: View {
                 
                 // Save Server to Room Database
                 let serverId = "\(resolvedHost):\(resolvedUseSsl ? resolvedSslPort : resolvedPort)"
-                let servers = try await JrrDependencies.shared.serverRepository.getAllServers()
+                let servers = try await container.serverRepository.getAllServers()
                 let existing = servers.first(where: { $0.host == resolvedHost && Int($0.port) == resolvedPort })
 
                 let newServer = SavedServerEntity(
@@ -415,11 +416,11 @@ struct ServerManagerView: View {
                     sslPort: Int32(resolvedSslPort)
                 )
                 
-                try await JrrDependencies.shared.serverRepository.saveServer(server: newServer)
+                try await container.serverRepository.saveServer(server: newServer)
                 UserDefaults.standard.set(true, forKey: "has_saved_servers")
                 
                 // Configure handler
-                JrrDependencies.shared.facade.setServerConnection(
+                container.facade.setServerConnection(
                     host: resolvedHost,
                     port: Int32(resolvedPort),
                     useSsl: resolvedUseSsl,
@@ -454,10 +455,10 @@ struct ServerManagerView: View {
     private func deleteServer(_ server: SavedServerEntity) {
         Task {
             do {
-                try await JrrDependencies.shared.serverRepository.deleteServer(server: server)
+                try await container.serverRepository.deleteServer(server: server)
                 loadServers()
                 // Update local storage flag
-                let servers = try await JrrDependencies.shared.serverRepository.getAllServers()
+                let servers = try await container.serverRepository.getAllServers()
                 UserDefaults.standard.set(!servers.isEmpty, forKey: "has_saved_servers")
             } catch {
                 print("Failed to delete server: \(error)")
@@ -466,13 +467,13 @@ struct ServerManagerView: View {
     }
     
     private func enterOfflineMode() {
-        JrrDependencies.shared.facade.setServerConnection(host: "", port: 0, useSsl: false, sslPort: 0, authToken: nil)
-        JrrDependencies.shared.facade.setZone(zone: Zone.companion.Offline, skipLoadQueue: false)
+        container.facade.setServerConnection(host: "", port: 0, useSsl: false, sslPort: 0, authToken: nil)
+        container.facade.setZone(zone: Zone.companion.Offline, skipLoadQueue: false)
         onConnectSuccess()
     }
     
     private func disconnectActiveServer() {
-        JrrDependencies.shared.facade.setServerConnection(host: "", port: 0, useSsl: false, sslPort: 0, authToken: nil)
-        JrrDependencies.shared.facade.setZone(zone: Zone.companion.Offline, skipLoadQueue: false)
+        container.facade.setServerConnection(host: "", port: 0, useSsl: false, sslPort: 0, authToken: nil)
+        container.facade.setZone(zone: Zone.companion.Offline, skipLoadQueue: false)
     }
 }

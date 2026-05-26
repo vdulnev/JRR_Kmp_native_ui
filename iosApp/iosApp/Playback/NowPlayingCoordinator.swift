@@ -3,15 +3,14 @@ import MediaPlayer
 import UIKit
 
 class NowPlayingCoordinator {
-    static let shared = NowPlayingCoordinator()
-    
+
     private var playHandler: (() -> Void)?
     private var pauseHandler: (() -> Void)?
     private var nextHandler: (() -> Void)?
     private var prevHandler: (() -> Void)?
     private var seekHandler: ((Int64) -> Void)?
-    
-    private init() {
+
+    init() {
         setupRemoteCommands()
     }
     

@@ -110,6 +110,8 @@ class LibraryObservable {
 }
 
 struct LibraryView: View {
+    @Environment(AppContainer.self) private var container
+    @EnvironmentObject private var stateObserver: PlaybackStateObserver
     @State private var observable: LibraryObservable
     let onAlbumClick: (Album) -> Void // AlbumName, ArtistName
     @State private var isSearching = false
@@ -406,7 +408,7 @@ struct LibraryView: View {
                     
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(observable.randomAlbums, id: \.name) { album in
-                            let imageUrl = JrrDependencies.shared.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
+                            let imageUrl = container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
                             Button(action: { onAlbumClick(album) }) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     ZStack {
@@ -543,7 +545,7 @@ struct LibraryView: View {
     // MARK: - Favorites Tab View
     @ViewBuilder
     private func favoritesTab() -> some View {
-        let favoritedAlbums = PlaybackStateObserver.shared.favorites.filter { $0.type == "album" }
+        let favoritedAlbums = stateObserver.favorites.filter { $0.type == "album" }
         
         if favoritedAlbums.isEmpty {
             VStack {
@@ -624,7 +626,7 @@ struct LibraryView: View {
     
     // MARK: - List Item Row Templates
     private func trackRowItem(track: Track, action: @escaping () -> Void) -> some View {
-        let trackImageUrl = JrrDependencies.shared.mcwsClient.buildImageUrl(fileKey: track.fileKey)
+        let trackImageUrl = container.mcwsClient.buildImageUrl(fileKey: track.fileKey)
         return HStack {
             ZStack {
                 if !trackImageUrl.isEmpty, let url = URL(string: trackImageUrl) {
@@ -684,7 +686,7 @@ struct LibraryView: View {
     }
     
     private func albumRowItem(album: Album, action: @escaping () -> Void) -> some View {
-        let imageUrl = JrrDependencies.shared.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
+        let imageUrl = container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
         return HStack {
             ZStack {
                 if !imageUrl.isEmpty, let url = URL(string: imageUrl) {

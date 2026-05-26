@@ -11,8 +11,18 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private let artistsTemplate = CPListTemplate(title: "Artists", sections: [])
     private let albumsTemplate = CPListTemplate(title: "Albums", sections: [])
     
+    private var container: AppContainer {
+        // App-scoped container is owned by AppDelegate; CarPlay scenes are a
+        // sibling scene to the SwiftUI window, so we reach it via the app
+        // delegate rather than the SwiftUI environment.
+        guard let container = (UIApplication.shared.delegate as? AppDelegate)?.container else {
+            fatalError("AppContainer not yet initialised when CarPlay scene connected")
+        }
+        return container
+    }
+
     private var database: JrrDatabase {
-        return JrrDependencies.shared.database
+        return container.database
     }
     
     func templateApplicationScene(
@@ -55,17 +65,17 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     }
     
     private func refreshDownloads() {
+        let container = self.container
         Task {
             do {
                 let tracks = try await database.downloadedTrackDao().getAllTracks()
                 let sortedTracks = tracks.sorted { $0.name < $1.name }
-                
+
                 let items = sortedTracks.enumerated().map { index, track in
                     let item = CPListItem(text: track.name, detailText: "\(track.artist) — \(track.album)")
-                    item.handler = { [weak self] _, completion in
-                        guard self != nil else { completion(); return }
+                    item.handler = { _, completion in
                         let tracks = sortedTracks.map { ($0).toTrack() }
-                        JrrDependencies.shared.facade.setQueue(tracks: tracks, startIndex: Int32(index))
+                        container.facade.setQueue(tracks: tracks, startIndex: Int32(index))
                         completion()
                     }
                     return item
@@ -169,6 +179,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     }
     
     private func pushTracksList(artist: String? = nil, album: String) {
+        let container = self.container
         Task {
             do {
                 let allTracks = try await database.downloadedTrackDao().getAllTracks()
@@ -188,10 +199,9 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 
                 let items = sortedTracks.enumerated().map { index, track in
                     let item = CPListItem(text: track.name, detailText: track.artist)
-                    item.handler = { [weak self] _, completion in
-                        guard self != nil else { completion(); return }
+                    item.handler = { _, completion in
                         let tracks = sortedTracks.map { ($0).toTrack() }
-                        JrrDependencies.shared.facade.setQueue(tracks: tracks, startIndex: Int32(index))
+                        container.facade.setQueue(tracks: tracks, startIndex: Int32(index))
                         completion()
                     }
                     return item

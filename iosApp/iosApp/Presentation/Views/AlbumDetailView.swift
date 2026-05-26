@@ -100,6 +100,7 @@ class AlbumDetailObservable {
 }
 
 struct AlbumDetailView: View {
+    @Environment(AppContainer.self) private var container
     @State private var observable: AlbumDetailObservable
     let onBackClick: () -> Void
     
@@ -162,7 +163,7 @@ struct AlbumDetailView: View {
                         // Artwork and details header
                         VStack(alignment: .center, spacing: 16) {
                             ZStack {
-                                let artworkUrl = observable.tracks.first.map { JrrDependencies.shared.mcwsClient.buildImageUrl(fileKey: $0.fileKey) } ?? ""
+                                let artworkUrl = observable.tracks.first.map { container.mcwsClient.buildImageUrl(fileKey: $0.fileKey) } ?? ""
                                 if !artworkUrl.isEmpty,
                                    let url = URL(string: artworkUrl) {
                                     JrrAsyncImage(url: url) { image in
