@@ -35,6 +35,7 @@ import kotlinx.serialization.json.Json
 class AudioPlayerFacade(
     private val database: JrrDatabase?,
     private val localPlayerEngine: LocalPlayerEngine,
+    private val mcwsClient: McwsClient,
     private val serverRepository: ServerRepository? = null,
     private val saveLastActiveZoneId: (String) -> Unit = {},
     private val loadLastActiveZoneId: () -> String? = { null },
@@ -59,7 +60,7 @@ class AudioPlayerFacade(
         get() = serverRepository?.activeServer?.value?.token
 
     // Remote Playback Handler
-    private val remoteHandler = McwsRemotePlayerHandler()
+    private val remoteHandler = McwsRemotePlayerHandler(mcwsClient)
 
     // State Flows
     private val _activeZone = MutableStateFlow<Zone>(Zone.Offline)
@@ -263,13 +264,13 @@ class AudioPlayerFacade(
         } else {
             coroutineScope.launch(ioDispatcher) {
                 // Clear the remote queue first to ensure a clean queue
-                McwsClient.executeCommand("Playback/ClearPlaylist", mapOf(
+                mcwsClient.executeCommand("Playback/ClearPlaylist", mapOf(
                     "Zone" to zone.id,
                     "ZoneType" to "ID"
                 ))
                 val keys = tracks.joinToString(",") { it.fileKey }
                 remoteHandler.seekTo(zone.id, 0L)
-                val success = McwsClient.executeCommand("Playback/PlayByKey", mapOf(
+                val success = mcwsClient.executeCommand("Playback/PlayByKey", mapOf(
                     "Key" to keys,
                     "Zone" to zone.id,
                     "ZoneType" to "ID",
@@ -277,7 +278,7 @@ class AudioPlayerFacade(
                 ))
                 if (success) {
                     if (startIndex > 0) {
-                        McwsClient.executeCommand("Playback/PlayByIndex", mapOf(
+                        mcwsClient.executeCommand("Playback/PlayByIndex", mapOf(
                             "Index" to startIndex.toString(),
                             "Zone" to zone.id,
                             "ZoneType" to "ID"
@@ -399,7 +400,7 @@ class AudioPlayerFacade(
             localPlayerEngine.playByIndex(index)
         } else {
             coroutineScope.launch(ioDispatcher) {
-                McwsClient.executeCommand("Playback/PlayByIndex", mapOf(
+                mcwsClient.executeCommand("Playback/PlayByIndex", mapOf(
                     "Index" to index.toString(),
                     "Zone" to zone.id,
                     "ZoneType" to "ID"
@@ -415,7 +416,7 @@ class AudioPlayerFacade(
             saveQueueState(zone.id)
         } else {
             coroutineScope.launch(ioDispatcher) {
-                McwsClient.executeCommand("Playback/EditPlaylist", mapOf(
+                mcwsClient.executeCommand("Playback/EditPlaylist", mapOf(
                     "Action" to "Remove",
                     "Source" to index.toString(),
                     "Zone" to zone.id
@@ -431,7 +432,7 @@ class AudioPlayerFacade(
             saveQueueState(zone.id)
         } else {
             coroutineScope.launch(ioDispatcher) {
-                McwsClient.executeCommand("Playback/EditPlaylist", mapOf(
+                mcwsClient.executeCommand("Playback/EditPlaylist", mapOf(
                     "Action" to "Move",
                     "Source" to from.toString(),
                     "Target" to to.toString(),
@@ -448,7 +449,7 @@ class AudioPlayerFacade(
             saveQueueState(zone.id)
         } else {
             coroutineScope.launch(ioDispatcher) {
-                McwsClient.executeCommand("Playback/ClearPlaylist", mapOf(
+                mcwsClient.executeCommand("Playback/ClearPlaylist", mapOf(
                     "Zone" to zone.id,
                     "ZoneType" to "ID"
                 ))

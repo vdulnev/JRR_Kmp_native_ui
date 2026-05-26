@@ -162,7 +162,8 @@ struct AlbumDetailView: View {
                         // Artwork and details header
                         VStack(alignment: .center, spacing: 16) {
                             ZStack {
-                                if let artworkUrl = observable.tracks.first(where: { !$0.imageUrl.isEmpty })?.imageUrl,
+                                let artworkUrl = observable.tracks.first.map { JrrDependencies.shared.mcwsClient.buildImageUrl(fileKey: $0.fileKey) } ?? ""
+                                if !artworkUrl.isEmpty,
                                    let url = URL(string: artworkUrl) {
                                     JrrAsyncImage(url: url) { image in
                                         image

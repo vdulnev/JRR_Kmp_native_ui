@@ -98,7 +98,7 @@ struct ContentView: View {
     init() {
         let deps = JrrDependencies.shared
         let libVM = LibraryViewModel(libraryRepository: deps.libraryRepository, facade: deps.facade)
-        let npVM = NowPlayingViewModel(facade: deps.facade)
+        let npVM = NowPlayingViewModel(facade: deps.facade, mcwsClient: deps.mcwsClient)
         let qVM = QueueViewModel(facade: deps.facade, libraryRepository: deps.libraryRepository)
         let zVM = ZonesViewModel(facade: deps.facade, libraryRepository: deps.libraryRepository)
         

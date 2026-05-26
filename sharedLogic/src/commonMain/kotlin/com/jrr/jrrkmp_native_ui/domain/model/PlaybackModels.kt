@@ -159,13 +159,6 @@ data class Track(
         } else {
             "${album.lowercase()}|${folderPath.lowercase()}"
         }
-
-    val imageUrl: String
-        get() = if (fileKey.isNotEmpty()) {
-            com.jrr.jrrkmp_native_ui.data.api.McwsClient.buildImageUrl(fileKey)
-        } else {
-            ""
-        }
 }
 
 @Serializable

@@ -26,9 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
-import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.AlbumDetailContentState
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.AlbumDetailViewModel
@@ -125,7 +125,7 @@ fun AlbumDetailScreen(
                                     .background(AppColors.bg2)
                                     .border(1.dp, AppColors.line2, RoundedCornerShape(8.dp))
                             ) {
-                                val artworkUrl = tracks.firstOrNull()?.let { McwsClient.buildImageUrl(it.fileKey) }
+                                val artworkUrl = tracks.firstOrNull()?.let { LocalMcwsClient.current.buildImageUrl(it.fileKey) }
                                 if (!artworkUrl.isNullOrEmpty()) {
                                     AsyncImage(
                                         model = artworkUrl,

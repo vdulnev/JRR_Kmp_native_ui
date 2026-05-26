@@ -29,7 +29,8 @@ data class NowPlayingViewState(
 )
 
 class NowPlayingViewModel(
-    private val facade: AudioPlayerFacade
+    private val facade: AudioPlayerFacade,
+    private val mcwsClient: McwsClient,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(NowPlayingViewState())
@@ -56,7 +57,7 @@ class NowPlayingViewModel(
                     sampleRate = status.sampleRate,
                     activeZoneName = activeZone.name,
                     imageUrl = if (status.trackFileKey.isNotEmpty()) {
-                        McwsClient.buildImageUrl(status.trackFileKey)
+                        mcwsClient.buildImageUrl(status.trackFileKey)
                     } else {
                         ""
                     }

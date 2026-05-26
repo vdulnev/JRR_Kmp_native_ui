@@ -1,10 +1,10 @@
 package com.jrr.jrrkmp_native_ui.data.repository
 
-import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.api.McwsXmlParser
 import com.jrr.jrrkmp_native_ui.data.api.WebPlayLookup
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.SavedServerEntity
+import io.ktor.client.HttpClient
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.util.encodeBase64
@@ -24,7 +24,10 @@ data class McwsServerData(
     val token: String?
 )
 
-class ServerRepository(private val database: JrrDatabase) {
+class ServerRepository(
+    private val database: JrrDatabase,
+    private val httpClient: HttpClient,
+) {
     private val serverDao = database.savedServerDao()
 
     private val _activeServer = MutableStateFlow<McwsServerData?>(null)
@@ -35,7 +38,7 @@ class ServerRepository(private val database: JrrDatabase) {
     }
 
     suspend fun lookupAccessKey(key: String): WebPlayLookup.LookupResult? = withContext(Dispatchers.IO) {
-        WebPlayLookup.lookup(key)
+        WebPlayLookup.lookup(httpClient, key)
     }
 
     suspend fun authenticate(
@@ -53,7 +56,7 @@ class ServerRepository(private val database: JrrDatabase) {
         try {
             val authValue = "$username:$passwordVal"
             val credential = "Basic ${authValue.encodeBase64()}"
-            val response: HttpResponse = McwsClient.httpClient.get(url) {
+            val response: HttpResponse = httpClient.get(url) {
                 header("Authorization", credential)
                 header("No-Auth", "true")
             }
@@ -82,7 +85,7 @@ class ServerRepository(private val database: JrrDatabase) {
         val url = "$scheme://$host:$actualPort/MCWS/v1/Alive?Token=$token"
         
         try {
-            val response: HttpResponse = McwsClient.httpClient.get(url) {
+            val response: HttpResponse = httpClient.get(url) {
                 header("No-Auth", "true")
             }
             if (response.status.value in 200..299) {

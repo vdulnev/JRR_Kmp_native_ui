@@ -406,7 +406,7 @@ struct LibraryView: View {
                     
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(observable.randomAlbums, id: \.name) { album in
-                            let imageUrl = McwsClient.shared.buildImageUrl(fileKey: album.artworkFileKey)
+                            let imageUrl = JrrDependencies.shared.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
                             Button(action: { onAlbumClick(album) }) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     ZStack {
@@ -624,9 +624,10 @@ struct LibraryView: View {
     
     // MARK: - List Item Row Templates
     private func trackRowItem(track: Track, action: @escaping () -> Void) -> some View {
-        HStack {
+        let trackImageUrl = JrrDependencies.shared.mcwsClient.buildImageUrl(fileKey: track.fileKey)
+        return HStack {
             ZStack {
-                if !track.imageUrl.isEmpty, let url = URL(string: track.imageUrl) {
+                if !trackImageUrl.isEmpty, let url = URL(string: trackImageUrl) {
                     JrrAsyncImage(url: url) { image in
                         image
                             .resizable()
@@ -683,7 +684,7 @@ struct LibraryView: View {
     }
     
     private func albumRowItem(album: Album, action: @escaping () -> Void) -> some View {
-        let imageUrl = McwsClient.shared.buildImageUrl(fileKey: album.artworkFileKey)
+        let imageUrl = JrrDependencies.shared.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
         return HStack {
             ZStack {
                 if !imageUrl.isEmpty, let url = URL(string: imageUrl) {

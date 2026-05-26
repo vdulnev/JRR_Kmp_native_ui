@@ -1,22 +1,23 @@
 package com.jrr.jrrkmp_native_ui
 
 import android.content.Context
+import com.jrr.jrrkmp_native_ui.data.api.McwsClient
+import com.jrr.jrrkmp_native_ui.data.api.McwsCore
 import com.jrr.jrrkmp_native_ui.data.db.DatabaseBuilder
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.createDatabase
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
-import com.jrr.jrrkmp_native_ui.data.api.McwsClient
+import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.playback.LocalPlayerHandler
-import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import kotlinx.coroutines.runBlocking
 
 object JrrDependencies {
     private var database: JrrDatabase? = null
+    private var mcwsCore: McwsCore? = null
     private var localPlayerHandler: LocalPlayerHandler? = null
     private var facade: AudioPlayerFacade? = null
-    private var serverRepository: ServerRepository? = null
     private var libraryRepository: LibraryRepository? = null
 
     fun getDatabase(context: Context): JrrDatabase {
@@ -24,6 +25,16 @@ object JrrDependencies {
             database ?: createDatabase(DatabaseBuilder(context.applicationContext).createBuilder()).also { database = it }
         }
     }
+
+    private fun getMcwsCore(context: Context): McwsCore {
+        return mcwsCore ?: synchronized(this) {
+            mcwsCore ?: McwsCore.create(getDatabase(context)).also { mcwsCore = it }
+        }
+    }
+
+    fun getMcwsClient(context: Context): McwsClient = getMcwsCore(context).mcwsClient
+
+    fun getServerRepository(context: Context): ServerRepository = getMcwsCore(context).serverRepository
 
     fun getLocalPlayerHandler(context: Context): LocalPlayerHandler {
         return localPlayerHandler ?: synchronized(this) {
@@ -49,10 +60,12 @@ object JrrDependencies {
                 val db = getDatabase(context)
                 val engine = getLocalPlayerHandler(context)
                 val serverRepo = getServerRepository(context)
+                val mcws = getMcwsClient(context)
                 val prefs = context.applicationContext.getSharedPreferences("jrr_settings", Context.MODE_PRIVATE)
                 AudioPlayerFacade(
                     database = db,
                     localPlayerEngine = engine,
+                    mcwsClient = mcws,
                     serverRepository = serverRepo,
                     saveLastActiveZoneId = { zoneId ->
                         prefs.edit().putString("last_active_zone_id", zoneId).apply()
@@ -65,21 +78,14 @@ object JrrDependencies {
         }
     }
 
-    fun getServerRepository(context: Context): ServerRepository {
-        return serverRepository ?: synchronized(this) {
-            serverRepository ?: ServerRepository(getDatabase(context)).also {
-                serverRepository = it
-                McwsClient.initialize(it.activeServer)
-            }
-        }
-    }
-
     fun getLibraryRepository(context: Context): LibraryRepository {
         return libraryRepository ?: synchronized(this) {
             libraryRepository ?: run {
                 val db = getDatabase(context)
+                val mcws = getMcwsClient(context)
                 LibraryRepository(
                     database = db,
+                    mcwsClient = mcws,
                     isOfflineProvider = {
                         getAudioPlayerFacade(context).activeZone.value == Zone.Offline
                     }

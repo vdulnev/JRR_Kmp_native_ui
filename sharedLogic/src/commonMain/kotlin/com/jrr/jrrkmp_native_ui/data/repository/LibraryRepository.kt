@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 
 class LibraryRepository(
     private val database: JrrDatabase?,
+    private val mcwsClient: McwsClient,
     private val isOfflineProvider: () -> Boolean
 ) {
     var onDownloadQueued: ((track: Track, jobId: Int) -> Unit)? = null
@@ -35,7 +36,7 @@ class LibraryRepository(
         }
         val mcwsQuery =
             "[Media Type]=Audio ([Name] contains \"$query\" OR [Artist] contains \"$query\" OR [Album] contains \"$query\")"
-        McwsClient.searchTracks(mcwsQuery)
+        mcwsClient.searchTracks(mcwsQuery)
     }
 
     suspend fun getArtists(): List<String> = withContext(Dispatchers.IO) {
@@ -52,7 +53,7 @@ class LibraryRepository(
         }
         val mcwsQuery =
             "[Media Type]=Audio ~limit=-1,1,[Album Artist (auto)] ~sort=[Album Artist (auto)]"
-        McwsClient.searchTracks(mcwsQuery).map { track -> track.albumArtist }
+        mcwsClient.searchTracks(mcwsQuery).map { track -> track.albumArtist }
     }
 
     suspend fun getAlbumsByArtist(artistName: String): List<Album> = withContext(Dispatchers.IO) {
@@ -73,7 +74,7 @@ class LibraryRepository(
         }
         val mcwsQuery =
             "[Album Artist (auto)]=[${esc(artistName)}] ~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
-        McwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
+        mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
     }
 
     suspend fun getAlbumTracks(album: Album): List<Track> = withContext(Dispatchers.IO) {
@@ -96,30 +97,30 @@ class LibraryRepository(
             base
         }
         val mcwsQuery = "$filtered ~sort=[Disc #],[Track #]"
-        McwsClient.searchTracks(mcwsQuery)
+        mcwsClient.searchTracks(mcwsQuery)
             .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
     }
 
     suspend fun getRandomAlbums(limit: Int = 10): List<Album> = withContext(Dispatchers.IO) {
         val mcwsQuery = "[Media Type]=Audio ~limit=$limit,-1,[Album],[Filename (path)] ~n=$limit"
-        McwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
+        mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
     }
 
     suspend fun getZones(): List<Zone> = withContext(Dispatchers.IO) {
-        McwsClient.getZones()
+        mcwsClient.getZones()
     }
 
     suspend fun getBrowseChildren(parentId: String): Map<String, String> =
         withContext(Dispatchers.IO) {
-            McwsClient.getBrowseChildren(parentId)
+            mcwsClient.getBrowseChildren(parentId)
         }
 
     suspend fun getBrowseFiles(nodeId: String): List<Track> = withContext(Dispatchers.IO) {
-        McwsClient.getBrowseFiles(nodeId)
+        mcwsClient.getBrowseFiles(nodeId)
     }
 
     suspend fun getRemoteQueue(): List<Track> = withContext(Dispatchers.IO) {
-        McwsClient.getRemoteQueue()
+        mcwsClient.getRemoteQueue()
     }
 
     suspend fun startDownload(track: Track): Int? = withContext(Dispatchers.IO) {

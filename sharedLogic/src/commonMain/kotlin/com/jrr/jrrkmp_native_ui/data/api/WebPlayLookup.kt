@@ -1,5 +1,9 @@
 package com.jrr.jrrkmp_native_ui.data.api
 
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.Serializable
 
 object WebPlayLookup {
@@ -12,10 +16,16 @@ object WebPlayLookup {
         val localIpList: List<String>
     )
 
-    suspend fun lookup(accessKey: String): LookupResult? {
+    suspend fun lookup(httpClient: HttpClient, accessKey: String): LookupResult? {
         val url = "http://webplay.jriver.com/libraryserver/lookup?id=$accessKey"
-        val xml = McwsClient.getRaw(url) ?: return null
-        
+        val xml = try {
+            val response: HttpResponse = httpClient.get(url)
+            if (response.status.value in 200..299) response.bodyAsText() else return null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
+
         return try {
             val parsed = McwsXmlParser.parseWebPlayLookup(xml)
 

@@ -1,11 +1,10 @@
 package com.jrr.jrrkmp_native_ui.data.api
 
+import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.*
 import io.ktor.http.URLBuilder
@@ -15,26 +14,44 @@ import com.jrr.jrrkmp_native_ui.domain.model.*
 import kotlinx.coroutines.flow.StateFlow
 import com.jrr.jrrkmp_native_ui.data.repository.McwsServerData
 
-object McwsClient {
-    private var activeServerFlow: StateFlow<McwsServerData?>? = null
+private val jsonConfiguration = Json {
+    ignoreUnknownKeys = true
+    coerceInputValues = true
+    isLenient = true
+}
 
-    fun initialize(flow: StateFlow<McwsServerData?>) {
-        this.activeServerFlow = flow
+/**
+ * Build the shared MCWS HttpClient. Used both by [McwsClient] (for talking to
+ * the active server) and by [com.jrr.jrrkmp_native_ui.data.repository.ServerRepository]
+ * (for one-off auth / alive checks before any server is active).
+ */
+fun createMcwsHttpClient(): HttpClient = createPlatformHttpClient().config {
+    install(ContentNegotiation) {
+        json(jsonConfiguration)
     }
+}
 
-    private fun getActiveServer(): McwsServerData? = activeServerFlow?.value
-
-    private val jsonConfiguration = Json {
-        ignoreUnknownKeys = true
-        coerceInputValues = true
-        isLenient = true
+/**
+ * Parses an MCWS Files JSON response into a list of domain [Track]s.
+ * Exposed as a top-level fun so it stays testable without needing a configured
+ * [McwsClient] instance.
+ */
+internal fun parseMcwsTracksJson(jsonStr: String?): List<Track> {
+    if (jsonStr.isNullOrEmpty()) return emptyList()
+    return try {
+        val dtos = jsonConfiguration.decodeFromString<List<McwsTrackDto>>(jsonStr)
+        dtos.mapNotNull { it.toDomainTrack() }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        emptyList()
     }
+}
 
-    val httpClient = createPlatformHttpClient().config {
-        install(ContentNegotiation) {
-            json(jsonConfiguration)
-        }
-    }
+class McwsClient(
+    val httpClient: HttpClient,
+    private val activeServerFlow: StateFlow<McwsServerData?>,
+) {
+    private fun getActiveServer(): McwsServerData? = activeServerFlow.value
 
     fun getBaseUrl(): String? {
         val server = getActiveServer() ?: return null
@@ -69,7 +86,7 @@ object McwsClient {
         val base = getBaseUrl() ?: return null
         val server = getActiveServer() ?: return null
         val token = server.token ?: return null
-        
+
         val url = URLBuilder(base).apply {
             val cleanEndpoint = if (endpoint.startsWith("/")) endpoint.substring(1) else endpoint
             appendPathSegments(cleanEndpoint)
@@ -87,7 +104,7 @@ object McwsClient {
         val base = getBaseUrl() ?: return null
         val server = getActiveServer()
         val token = server?.token
-        
+
         val url = URLBuilder(base).apply {
             val cleanEndpoint = if (endpoint.startsWith("/")) endpoint.substring(1) else endpoint
             appendPathSegments(cleanEndpoint)
@@ -102,30 +119,19 @@ object McwsClient {
         return getRaw(url)
     }
 
-    internal fun parseTracksJson(jsonStr: String?): List<Track> {
-        if (jsonStr.isNullOrEmpty()) return emptyList()
-        return try {
-            val dtos = jsonConfiguration.decodeFromString<List<McwsTrackDto>>(jsonStr)
-            dtos.mapNotNull { it.toDomainTrack() }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
-        }
-    }
-
     suspend fun searchTracks(query: String): List<Track> {
         val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated"))
-        return parseTracksJson(json)
+        return parseMcwsTracksJson(json)
     }
 
     suspend fun getBrowseFiles(nodeId: String): List<Track> {
         val json = getMcwsJson("Browse/Files", mapOf("Fields" to "Calculated", "ID" to nodeId))
-        return parseTracksJson(json)
+        return parseMcwsTracksJson(json)
     }
 
     suspend fun getRemoteQueue(): List<Track> {
         val json = getMcwsJson("Playback/Playlist", mapOf("Fields" to "Calculated"))
-        return parseTracksJson(json)
+        return parseMcwsTracksJson(json)
     }
 
     suspend fun getZones(): List<Zone> {
@@ -224,5 +230,3 @@ object McwsClient {
         }
     }
 }
-
-

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.JrrTheme
+import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
@@ -54,6 +55,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var facade: AudioPlayerFacade
     private lateinit var serverRepository: ServerRepository
     private lateinit var libraryRepository: LibraryRepository
+    private lateinit var mcwsClient: McwsClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,6 +63,7 @@ class MainActivity : ComponentActivity() {
         facade = JrrDependencies.getAudioPlayerFacade(this)
         serverRepository = JrrDependencies.getServerRepository(this)
         libraryRepository = JrrDependencies.getLibraryRepository(this)
+        mcwsClient = JrrDependencies.getMcwsClient(this)
 
         val prefs = getSharedPreferences("jrr_settings", Context.MODE_PRIVATE)
         val settings = object : MainShellSettings {
@@ -73,12 +76,15 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             JrrTheme {
-                MainShell(
-                    viewModel = mainShellViewModel,
-                    facade = facade,
-                    serverRepository = serverRepository,
-                    libraryRepository = libraryRepository
-                )
+                CompositionLocalProvider(LocalMcwsClient provides mcwsClient) {
+                    MainShell(
+                        viewModel = mainShellViewModel,
+                        facade = facade,
+                        serverRepository = serverRepository,
+                        libraryRepository = libraryRepository,
+                        mcwsClient = mcwsClient,
+                    )
+                }
             }
         }
     }
@@ -89,7 +95,8 @@ fun MainShell(
     viewModel: MainShellViewModel,
     facade: AudioPlayerFacade,
     serverRepository: ServerRepository,
-    libraryRepository: LibraryRepository
+    libraryRepository: LibraryRepository,
+    mcwsClient: McwsClient,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -97,7 +104,7 @@ fun MainShell(
         LibraryViewModel(libraryRepository, facade)
     }
     val nowPlayingViewModel = remember {
-        NowPlayingViewModel(facade)
+        NowPlayingViewModel(facade, mcwsClient)
     }
     val queueViewModel = remember {
         QueueViewModel(facade, libraryRepository)
@@ -126,7 +133,7 @@ fun MainShell(
     val trackArtist = playerStatus?.trackArtist
     val trackImageUrl = playerStatus?.trackFileKey
         ?.takeIf { it.isNotEmpty() }
-        ?.let { McwsClient.buildImageUrl(it) }
+        ?.let { mcwsClient.buildImageUrl(it) }
         ?.takeIf { it.isNotEmpty() }
     val isPlaying = playerStatus?.state == PlaybackState.PLAYING
     val duration = playerStatus?.durationMs ?: 0L

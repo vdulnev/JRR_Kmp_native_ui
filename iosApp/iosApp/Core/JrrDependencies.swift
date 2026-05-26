@@ -3,30 +3,34 @@ import SharedLogic
 
 class JrrDependencies {
     static let shared = JrrDependencies()
-    
+
     private(set) var database: JrrDatabase
     private(set) var localPlayerEngine: IosLocalPlayerEngine
     private(set) var corePlayer: CorePlayer
     private(set) var facade: AudioPlayerFacade
     private(set) var serverRepository: ServerRepository
     private(set) var libraryRepository: LibraryRepository
-    
+    private(set) var mcwsClient: McwsClient
+
     private init() {
         let builder = DatabaseBuilder().createBuilder()
         let db = DatabaseBuilderKt.createDatabase(builder: builder)
         self.database = db
-        
+
         let engine = IosLocalPlayerEngine()
         self.localPlayerEngine = engine
-        
-        let serverRepo = ServerRepository(database: db)
-        self.serverRepository = serverRepo
-        McwsClient.shared.initialize(flow: serverRepo.activeServer)
-        
+
+        // Construct the MCWS networking stack (HttpClient + ServerRepository + McwsClient
+        // share the same underlying ktor HttpClient).
+        let mcwsCore = McwsCore.companion.create(database: db)
+        self.serverRepository = mcwsCore.serverRepository
+        self.mcwsClient = mcwsCore.mcwsClient
+
         let facadeInstance = AudioPlayerFacadeFactory.shared.create(
             database: db,
             localPlayerEngine: engine,
-            serverRepository: serverRepo,
+            mcwsClient: mcwsCore.mcwsClient,
+            serverRepository: mcwsCore.serverRepository,
             saveLastActiveZoneId: { zoneId in
                 UserDefaults.standard.set(zoneId, forKey: "last_active_zone_id")
             },
@@ -35,14 +39,15 @@ class JrrDependencies {
             }
         )
         self.facade = facadeInstance
-        
+
         self.corePlayer = CorePlayer(
             engine: engine,
             database: db
         )
-        
+
         self.libraryRepository = LibraryRepository(
             database: db,
+            mcwsClient: mcwsCore.mcwsClient,
             isOfflineProvider: {
                 let zone = facadeInstance.activeZone.value as? Zone
                 return KotlinBoolean(value: zone == Zone.companion.Offline)

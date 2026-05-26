@@ -29,10 +29,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.outlinedTextFieldColors
-import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.LibraryViewModel
@@ -345,7 +345,7 @@ fun RandomTab(
                                 .background(AppColors.bg2)
                                 .border(1.dp, AppColors.line2, RoundedCornerShape(8.dp))
                         ) {
-                            val imageUrl = McwsClient.buildImageUrl(album.artworkFileKey)
+                            val imageUrl = LocalMcwsClient.current.buildImageUrl(album.artworkFileKey)
                             if (imageUrl.isNotEmpty()) {
                                 AsyncImage(
                                     model = imageUrl,
@@ -474,7 +474,7 @@ fun TrackRowItem(track: Track, onClick: () -> Unit) {
                 .clip(RoundedCornerShape(4.dp))
                 .background(AppColors.bg3)
         ) {
-            val imageUrl = McwsClient.buildImageUrl(track.fileKey)
+            val imageUrl = LocalMcwsClient.current.buildImageUrl(track.fileKey)
             if (imageUrl.isNotEmpty()) {
                 AsyncImage(
                     model = imageUrl,
@@ -520,7 +520,7 @@ fun AlbumRowItem(album: Album, onClick: () -> Unit) {
                 .clip(RoundedCornerShape(4.dp))
                 .background(AppColors.bg3)
         ) {
-            val imageUrl = McwsClient.buildImageUrl(album.artworkFileKey)
+            val imageUrl = LocalMcwsClient.current.buildImageUrl(album.artworkFileKey)
             if (imageUrl.isNotEmpty()) {
                 AsyncImage(
                     model = imageUrl,

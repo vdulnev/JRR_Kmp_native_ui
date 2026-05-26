@@ -145,9 +145,15 @@ class AudioPlayerFacadeTest {
     fun testAudioPlayerFacade_localPlaybackControl() {
         val mockEngine = MockLocalPlayerEngine(this)
         var savedZoneId: String? = null
+        // Test-only McwsClient — local playback paths never hit it.
+        val mcwsClient = com.jrr.jrrkmp_native_ui.data.api.McwsClient(
+            httpClient = com.jrr.jrrkmp_native_ui.data.api.createMcwsHttpClient(),
+            activeServerFlow = kotlinx.coroutines.flow.MutableStateFlow(null),
+        )
         val facade = AudioPlayerFacade(
             database = null,
             localPlayerEngine = mockEngine,
+            mcwsClient = mcwsClient,
             saveLastActiveZoneId = { savedZoneId = it },
             loadLastActiveZoneId = { Zone.Local.id },
             mainDispatcher = kotlinx.coroutines.Dispatchers.Unconfined,
