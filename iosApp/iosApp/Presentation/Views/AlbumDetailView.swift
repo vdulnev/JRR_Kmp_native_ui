@@ -43,6 +43,13 @@ class AlbumDetailObservable {
 
     deinit {
         observeTask?.cancel()
+        // Tear down the Kotlin viewModelScope so its collectors stop holding
+        // the VM alive. SwiftUI re-evaluates LibraryTabContainerView's body on
+        // every parent invalidation, which creates a fresh AlbumDetailViewModel
+        // each time; only the first reaches the @State wrapper. Without
+        // dispose(), each thrown-away VM leaks its viewModelScope until the
+        // process exits.
+        viewModel.dispose()
     }
 
     private func sync(state: AlbumDetailViewState) {

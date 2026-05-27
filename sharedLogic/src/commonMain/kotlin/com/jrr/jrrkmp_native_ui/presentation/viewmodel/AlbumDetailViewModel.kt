@@ -10,6 +10,7 @@ import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesState
 import io.ktor.util.date.getTimeMillis
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -175,5 +176,21 @@ class AlbumDetailViewModel(
 
     fun retry() {
         refreshTracksAndFavorite()
+    }
+
+    /**
+     * iOS-side teardown. Cancels `viewModelScope` so the collectors started in
+     * `init` and any in-flight `viewModelScope.launch` jobs stop holding the VM
+     * alive via their captured lambdas.
+     *
+     * On Android, `ViewModelStore.clear()` triggers the same cancellation via
+     * `onCleared()`; calling `dispose()` first is a no-op there since the scope
+     * is already inert by then.
+     *
+     * Must be called from the Swift `AlbumDetailObservable.deinit` — SwiftUI's
+     * `@State`-held wrappers go away non-deterministically without this hook.
+     */
+    fun dispose() {
+        viewModelScope.cancel()
     }
 }
