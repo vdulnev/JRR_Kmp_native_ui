@@ -40,8 +40,9 @@ class NowPlayingViewModel(
         // Observe facade state and update ViewModel state
         combine(
             facade.playerStatus,
-            facade.activeZone
-        ) { status, activeZone ->
+            facade.activeZone,
+            mcwsClient.activeServerFlow
+        ) { status, activeZone, _ ->
             if (status != null) {
                 NowPlayingViewState(
                     trackTitle = status.trackName.ifEmpty { "Idle" },
