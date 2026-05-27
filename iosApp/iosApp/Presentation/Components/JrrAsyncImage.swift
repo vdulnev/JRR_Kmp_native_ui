@@ -52,7 +52,19 @@ struct JrrAsyncImage<Content: View, Placeholder: View>: View {
             return
         }
         
-        if let cached = JrrImageCache.shared.object(forKey: url as NSURL) {
+        var resolvedURL = url
+        if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let fileQueryItem = components.queryItems?.first(where: { $0.name == "File" }),
+           let fileKey = fileQueryItem.value {
+            let fileManager = FileManager.default
+            let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let artURL = documentsURL.appendingPathComponent("downloads").appendingPathComponent("art_\(fileKey).jpg")
+            if fileManager.fileExists(atPath: artURL.path) {
+                resolvedURL = artURL
+            }
+        }
+        
+        if let cached = JrrImageCache.shared.object(forKey: resolvedURL as NSURL) {
             self.image = cached
             return
         }
@@ -63,7 +75,13 @@ struct JrrAsyncImage<Content: View, Placeholder: View>: View {
         
         currentTask = Task {
             do {
-                let (data, _) = try await URLSession.sslBypassingSession.data(from: url)
+                let data: Data
+                if resolvedURL.isFileURL {
+                    data = try Data(contentsOf: resolvedURL)
+                } else {
+                    let (fetchedData, _) = try await URLSession.sslBypassingSession.data(from: resolvedURL)
+                    data = fetchedData
+                }
                 try Task.checkCancellation()
                 
                 guard let uiImage = UIImage(data: data) else {
@@ -74,7 +92,7 @@ struct JrrAsyncImage<Content: View, Placeholder: View>: View {
                     return
                 }
                 
-                JrrImageCache.shared.setObject(uiImage, forKey: url as NSURL)
+                JrrImageCache.shared.setObject(uiImage, forKey: resolvedURL as NSURL)
                 
                 await MainActor.run {
                     self.image = uiImage
@@ -82,7 +100,7 @@ struct JrrAsyncImage<Content: View, Placeholder: View>: View {
                 }
             } catch {
                 if !(error is CancellationError) {
-                    print("Failed to load image from \(url): \(error)")
+                    print("Failed to load image from \(resolvedURL): \(error)")
                     await MainActor.run {
                         self.isLoading = false
                         self.loadError = true

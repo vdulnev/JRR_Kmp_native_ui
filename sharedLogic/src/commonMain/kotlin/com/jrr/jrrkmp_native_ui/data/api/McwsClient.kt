@@ -62,7 +62,7 @@ data class BrowseNode(val label: String, val nodeId: String)
 
 class McwsClient(
     val httpClient: HttpClient,
-    private val activeServerFlow: StateFlow<McwsServerData?>,
+    val activeServerFlow: StateFlow<McwsServerData?>,
 ) {
     private fun getActiveServer(): McwsServerData? = activeServerFlow.value
 

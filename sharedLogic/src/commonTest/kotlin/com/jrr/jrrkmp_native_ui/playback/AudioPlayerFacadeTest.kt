@@ -139,6 +139,21 @@ class AudioPlayerFacadeTest {
         override fun playByIndex(index: Int) {
             playByIndexVal = index
         }
+
+        override fun addTracks(tracks: List<Track>) {
+            queueList.addAll(tracks)
+            queue.value = queueList.toList()
+        }
+
+        override fun insertTracksNext(tracks: List<Track>) {
+            val insertIndex = if (currentIndex.value >= 0) currentIndex.value + 1 else 0
+            if (insertIndex in 0..queueList.size) {
+                queueList.addAll(insertIndex, tracks)
+            } else {
+                queueList.addAll(tracks)
+            }
+            queue.value = queueList.toList()
+        }
     }
 
     @Test

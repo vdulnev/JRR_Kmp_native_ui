@@ -162,6 +162,9 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
             // Move the file synchronously before this delegate method returns and iOS deletes the temp file!
             try fileManager.moveItem(at: resolvedLocation, to: destinationURL)
             
+            // Download the album artwork
+            downloadArtwork(fileKey: fileKey)
+            
             Task {
                 do {
                     guard let job = try await database.downloadJobDao().getJobById(id: jobId) else { return }
@@ -344,5 +347,46 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
         } else {
             completionHandler(.performDefaultHandling, nil)
         }
+    }
+    
+    private func downloadArtwork(fileKey: String) {
+        guard let host = facade.currentServerHost else {
+            print("[DownloadManager] Artwork download failed: Host is missing")
+            return
+        }
+        let useSsl = facade.currentServerUseSsl
+        let port = useSsl ? facade.currentServerSslPort : facade.currentServerPort
+        let scheme = useSsl ? "https" : "http"
+        let token = facade.currentServerToken ?? ""
+        
+        let urlString = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetImage?File=\(fileKey)&Type=Thumbnail&Width=300&Height=300&Square=1&Token=\(token)"
+        guard let url = URL(string: urlString) else { return }
+        
+        print("[DownloadManager] Starting artwork download for \(fileKey) from \(url)")
+        
+        URLSession.sslBypassingSession.dataTask(with: url) { data, response, error in
+            guard let data = data, error == nil else {
+                print("[DownloadManager] Failed to download artwork: \(String(describing: error))")
+                return
+            }
+            
+            let fileManager = FileManager.default
+            let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let downloadsDir = documentsURL.appendingPathComponent("downloads")
+            let artURL = downloadsDir.appendingPathComponent("art_\(fileKey).jpg")
+            
+            do {
+                if !fileManager.fileExists(atPath: downloadsDir.path) {
+                    try fileManager.createDirectory(at: downloadsDir, withIntermediateDirectories: true, attributes: nil)
+                }
+                if fileManager.fileExists(atPath: artURL.path) {
+                    try fileManager.removeItem(at: artURL)
+                }
+                try data.write(to: artURL)
+                print("[DownloadManager] Successfully saved artwork to \(artURL.path)")
+            } catch {
+                print("[DownloadManager] Failed to save artwork: \(error)")
+            }
+        }.resume()
     }
 }
