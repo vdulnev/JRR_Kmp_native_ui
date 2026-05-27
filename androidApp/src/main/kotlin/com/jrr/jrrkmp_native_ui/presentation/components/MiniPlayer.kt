@@ -97,8 +97,29 @@ fun MiniPlayer(
                 contentAlignment = Alignment.Center
             ) {
                 if (!imageUrl.isNullOrEmpty()) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val finalImageUrl = androidx.compose.runtime.remember(imageUrl) {
+                        val fileParam = "File="
+                        val index = imageUrl.indexOf(fileParam)
+                        val fileKey = if (index != -1) {
+                            val start = index + fileParam.length
+                            val end = imageUrl.indexOf('&', start)
+                            if (end == -1) imageUrl.substring(start) else imageUrl.substring(start, end)
+                        } else null
+                        
+                        if (fileKey != null) {
+                            val artFile = java.io.File(context.filesDir, "downloads/art_${fileKey}.jpg")
+                            if (artFile.exists()) {
+                                artFile
+                            } else {
+                                imageUrl
+                            }
+                        } else {
+                            imageUrl
+                        }
+                    }
                     AsyncImage(
-                        model = imageUrl,
+                        model = finalImageUrl,
                         contentDescription = "Artwork Thumbnail",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop

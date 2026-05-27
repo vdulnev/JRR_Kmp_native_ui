@@ -59,6 +59,13 @@ class LocalPlayerHandler(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val player = exoPlayer ?: return
+            if (mediaItem == null) {
+                if (_queue.value.isEmpty()) {
+                    _currentIndex.value = -1
+                    _currentTrack.value = null
+                }
+                return
+            }
             val index = player.currentMediaItemIndex
             _currentIndex.value = index
             if (index >= 0 && index < _queue.value.size) {

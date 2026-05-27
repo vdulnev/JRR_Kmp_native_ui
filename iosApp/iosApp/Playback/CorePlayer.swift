@@ -111,8 +111,10 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
     
     private func handleCurrentItemChanged(item: AVPlayerItem?) {
         guard let item = item else {
-            engine.updateCurrentIndex(index: -1)
-            localCurrentIndex = -1
+            if playerItems.isEmpty {
+                engine.updateCurrentIndex(index: -1)
+                localCurrentIndex = -1
+            }
             return
         }
         
