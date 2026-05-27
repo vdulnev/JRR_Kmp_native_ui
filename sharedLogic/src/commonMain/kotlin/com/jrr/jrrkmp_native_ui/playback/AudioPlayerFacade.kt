@@ -316,6 +316,42 @@ class AudioPlayerFacade(
         }
     }
 
+    fun addTracks(tracks: List<Track>) {
+        val zone = _activeZone.value
+        if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
+            localPlayerEngine.addTracks(tracks)
+            saveQueueState(zone.id)
+        } else {
+            coroutineScope.launch(ioDispatcher) {
+                val keys = tracks.joinToString(",") { it.fileKey }
+                mcwsClient.executeCommand("Playback/PlayByKey", mapOf(
+                    "Key" to keys,
+                    "Zone" to zone.id,
+                    "ZoneType" to "ID",
+                    "Location" to "END"
+                ))
+            }
+        }
+    }
+
+    fun playNextTracks(tracks: List<Track>) {
+        val zone = _activeZone.value
+        if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
+            localPlayerEngine.insertTracksNext(tracks)
+            saveQueueState(zone.id)
+        } else {
+            coroutineScope.launch(ioDispatcher) {
+                val keys = tracks.joinToString(",") { it.fileKey }
+                mcwsClient.executeCommand("Playback/PlayByKey", mapOf(
+                    "Key" to keys,
+                    "Zone" to zone.id,
+                    "ZoneType" to "ID",
+                    "Location" to "NEXT"
+                ))
+            }
+        }
+    }
+
     fun play() {
         val zone = _activeZone.value
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {

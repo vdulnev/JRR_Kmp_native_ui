@@ -66,7 +66,17 @@ class AppContainer(context: Context) {
             database = database,
             mcwsClient = mcwsClient,
             isOfflineProvider = { facade.activeZone.value == Zone.Offline },
-        )
+        ).apply {
+            onDownloadQueued = { track, jobId ->
+                val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.jrr.jrrkmp_native_ui.data.api.DownloadWorker>()
+                    .setInputData(androidx.work.workDataOf(
+                        "file_key" to track.fileKey,
+                        "job_id" to jobId
+                    ))
+                    .build()
+                androidx.work.WorkManager.getInstance(appContext).enqueue(workRequest)
+            }
+        }
     }
 }
 

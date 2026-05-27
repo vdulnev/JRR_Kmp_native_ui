@@ -166,6 +166,39 @@ class AlbumDetailViewModel(
         }
     }
 
+    fun addTrackToQueue(track: Track) {
+        facade.addTracks(listOf(track))
+    }
+
+    fun playTrackNext(track: Track) {
+        facade.playNextTracks(listOf(track))
+    }
+
+    fun addAlbumToQueue() {
+        val currentTracks = tracksFlow.value
+        if (currentTracks.isNotEmpty()) {
+            facade.addTracks(currentTracks)
+        }
+    }
+
+    fun playAlbumNext() {
+        val currentTracks = tracksFlow.value
+        if (currentTracks.isNotEmpty()) {
+            facade.playNextTracks(currentTracks)
+        }
+    }
+
+    fun downloadAlbum() {
+        viewModelScope.launch {
+            try {
+                val currentTracks = tracksFlow.value
+                currentTracks.forEach { libraryRepository.startDownload(it) }
+            } catch (e: Exception) {
+                _state.update { it.copy(transientError = "Download failed: ${e.message ?: "unknown error"}") }
+            }
+        }
+    }
+
     fun clearTransientError() {
         _state.update { it.copy(transientError = null) }
     }

@@ -96,6 +96,26 @@ class AlbumDetailObservable {
         viewModel.startDownload(track: track)
     }
     
+    func addTrackToQueue(track: Track) {
+        viewModel.addTrackToQueue(track: track)
+    }
+    
+    func playTrackNext(track: Track) {
+        viewModel.playTrackNext(track: track)
+    }
+
+    func addAlbumToQueue() {
+        viewModel.addAlbumToQueue()
+    }
+
+    func playAlbumNext() {
+        viewModel.playAlbumNext()
+    }
+
+    func downloadAlbum() {
+        viewModel.downloadAlbum()
+    }
+    
     func clearTransientError() {
         viewModel.clearTransientError()
     }
@@ -175,11 +195,35 @@ private struct AlbumDetailContentView: View {
                 
                 Spacer()
                 
-                Button(action: { observable.toggleFavorite() }) {
-                    Image(systemName: observable.isFavorite ? "star.fill" : "star")
-                        .font(.system(size: 18))
-                        .foregroundColor(observable.isFavorite ? .accentColor : .textTertiary)
-                        .frame(width: 44, height: 44)
+                HStack(spacing: 0) {
+                    Button(action: { observable.toggleFavorite() }) {
+                        Image(systemName: observable.isFavorite ? "star.fill" : "star")
+                            .font(.system(size: 18))
+                            .foregroundColor(observable.isFavorite ? .accentColor : .textTertiary)
+                            .frame(width: 44, height: 44)
+                    }
+                    
+                    Menu {
+                        Button(action: { observable.playAlbum() }) {
+                            Label("Play Album", systemImage: "play.fill")
+                        }
+                        Button(action: { observable.playAlbumNext() }) {
+                            Label("Play Next", systemImage: "arrow.right.to.line")
+                        }
+                        Button(action: { observable.addAlbumToQueue() }) {
+                            Label("Add to Queue", systemImage: "plus")
+                        }
+                        if !observable.isOffline {
+                            Button(action: { observable.downloadAlbum() }) {
+                                Label("Download Album", systemImage: "arrow.down.circle")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.textPrimary)
+                            .frame(width: 44, height: 44)
+                    }
                 }
             }
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
@@ -384,6 +428,30 @@ private struct AlbumDetailContentView: View {
             let durationSec = track.durationMs / 1000
             Text(String(format: "%d:%02d", durationSec / 60, durationSec % 60))
                 .styleMonoLabel()
+                .padding(.trailing, 4)
+            
+            Menu {
+                Button(action: { observable.playTrack(track) }) {
+                    Label("Play", systemImage: "play.fill")
+                }
+                Button(action: { observable.playTrackNext(track: track) }) {
+                    Label("Play Next", systemImage: "arrow.right.to.line")
+                }
+                Button(action: { observable.addTrackToQueue(track: track) }) {
+                    Label("Add to Queue", systemImage: "plus")
+                }
+                if !observable.isOffline {
+                    Button(action: { observable.startDownload(track: track) }) {
+                        Label("Download", systemImage: "arrow.down.circle")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.textSecondary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(PlainButtonStyle())
         }
         .contentShape(Rectangle())
         .padding(.vertical, 12)

@@ -17,6 +17,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.MoreVert
+import com.jrr.jrrkmp_native_ui.core.di.appContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -124,6 +126,11 @@ fun LibraryScreen(
                     items(state.searchResults) { track ->
                         TrackRowItem(
                             track = track,
+                            onPlay = { viewModel.playTrack(track) },
+                            onPlayNext = { viewModel.playTrackNext(track) },
+                            onAddToQueue = { viewModel.addTrackToQueue(track) },
+                            onDownload = { viewModel.downloadTrack(track) },
+                            isOffline = state.isOffline,
                             onClick = {
                                 viewModel.playTrack(track)
                             }
@@ -179,12 +186,22 @@ fun LibraryScreen(
                             viewModel.selectArtist(artistName)
                         },
                         onAlbumClick = onAlbumClick,
+                        onPlayAlbum = { viewModel.playAlbum(it) },
+                        onPlayAlbumNext = { viewModel.playAlbumNext(it) },
+                        onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
+                        onDownloadAlbum = { viewModel.downloadAlbum(it) },
+                        isOffline = state.isOffline,
                         onBackClick = { viewModel.selectArtist(null) }
                     )
                     "random" -> RandomTab(
                         albums = state.randomAlbums,
                         isLoading = state.isLoading,
                         onAlbumClick = onAlbumClick,
+                        onPlayAlbum = { viewModel.playAlbum(it) },
+                        onPlayAlbumNext = { viewModel.playAlbumNext(it) },
+                        onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
+                        onDownloadAlbum = { viewModel.downloadAlbum(it) },
+                        isOffline = state.isOffline,
                         onRefresh = {
                             viewModel.retry()
                         }
@@ -201,11 +218,27 @@ fun LibraryScreen(
                             val startIndex = allTracks.indexOf(clickedTrack).coerceAtLeast(0)
                             viewModel.playTracks(allTracks, startIndex)
                         },
+                        onPlayTrack = { viewModel.playTrack(it) },
+                        onPlayTrackNext = { viewModel.playTrackNext(it) },
+                        onAddTrackToQueue = { viewModel.addTrackToQueue(it) },
+                        onDownloadTrack = { viewModel.downloadTrack(it) },
+                        onPlayBrowseItem = { viewModel.playBrowseItem(it) },
+                        onPlayBrowseItemNext = { viewModel.playBrowseItemNext(it) },
+                        onAddBrowseItemToQueue = { viewModel.addBrowseItemToQueue(it) },
+                        onDownloadBrowseItem = { viewModel.downloadBrowseItem(it) },
+                        isOffline = state.isOffline,
                         onBackClick = {
                             viewModel.popBrowseNode()
                         }
                     )
-                    "favorites" -> FavoritesTab(onAlbumClick = onAlbumClick)
+                    "favorites" -> FavoritesTab(
+                        onAlbumClick = onAlbumClick,
+                        onPlayAlbum = { viewModel.playAlbum(it) },
+                        onPlayAlbumNext = { viewModel.playAlbumNext(it) },
+                        onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
+                        onDownloadAlbum = { viewModel.downloadAlbum(it) },
+                        isOffline = state.isOffline
+                    )
                 }
             }
         }
@@ -221,6 +254,11 @@ fun ArtistsTab(
     isLoadingAlbums: Boolean,
     onArtistClick: (String) -> Unit,
     onAlbumClick: (Album) -> Unit,
+    onPlayAlbum: (Album) -> Unit,
+    onPlayAlbumNext: (Album) -> Unit,
+    onAddAlbumToQueue: (Album) -> Unit,
+    onDownloadAlbum: (Album) -> Unit,
+    isOffline: Boolean,
     onBackClick: () -> Unit
 ) {
     if (selectedArtist != null) {
@@ -248,7 +286,15 @@ fun ArtistsTab(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(artistAlbums) { album ->
-                        AlbumRowItem(album = album, onClick = { onAlbumClick(album) })
+                        AlbumRowItem(
+                            album = album,
+                            onPlay = { onPlayAlbum(album) },
+                            onPlayNext = { onPlayAlbumNext(album) },
+                            onAddToQueue = { onAddAlbumToQueue(album) },
+                            onDownload = { onDownloadAlbum(album) },
+                            isOffline = isOffline,
+                            onClick = { onAlbumClick(album) }
+                        )
                     }
                 }
             }
@@ -300,6 +346,11 @@ fun RandomTab(
     albums: List<Album>,
     isLoading: Boolean,
     onAlbumClick: (Album) -> Unit,
+    onPlayAlbum: (Album) -> Unit,
+    onPlayAlbumNext: (Album) -> Unit,
+    onAddAlbumToQueue: (Album) -> Unit,
+    onDownloadAlbum: (Album) -> Unit,
+    isOffline: Boolean,
     onRefresh: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -358,8 +409,66 @@ fun RandomTab(
                             }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(album.name, style = AppTypography.itemTitle, maxLines = 1)
-                        Text(album.albumArtist, style = AppTypography.itemSubtitle, maxLines = 1)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(album.name, style = AppTypography.itemTitle, maxLines = 1)
+                                Text(album.albumArtist, style = AppTypography.itemSubtitle, maxLines = 1)
+                            }
+                            
+                            var showMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(
+                                    onClick = { showMenu = true },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "More options",
+                                        tint = AppColors.text3,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showMenu,
+                                    onDismissRequest = { showMenu = false },
+                                    modifier = Modifier.background(AppColors.bg2)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Play", style = AppTypography.itemTitle) },
+                                        onClick = {
+                                            showMenu = false
+                                            onPlayAlbum(album)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Play Next", style = AppTypography.itemTitle) },
+                                        onClick = {
+                                            showMenu = false
+                                            onPlayAlbumNext(album)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Add to Queue", style = AppTypography.itemTitle) },
+                                        onClick = {
+                                            showMenu = false
+                                            onAddAlbumToQueue(album)
+                                        }
+                                    )
+                                    if (!isOffline) {
+                                        DropdownMenuItem(
+                                            text = { Text("Download", style = AppTypography.itemTitle) },
+                                            onClick = {
+                                                showMenu = false
+                                                onDownloadAlbum(album)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -375,6 +484,15 @@ fun BrowseTab(
     isLoading: Boolean,
     onNodeClick: (String, String) -> Unit,
     onTrackClick: (Track, List<Track>) -> Unit,
+    onPlayTrack: (Track) -> Unit,
+    onPlayTrackNext: (Track) -> Unit,
+    onAddTrackToQueue: (Track) -> Unit,
+    onDownloadTrack: (Track) -> Unit,
+    onPlayBrowseItem: (BrowseItem) -> Unit,
+    onPlayBrowseItemNext: (BrowseItem) -> Unit,
+    onAddBrowseItemToQueue: (BrowseItem) -> Unit,
+    onDownloadBrowseItem: (BrowseItem) -> Unit,
+    isOffline: Boolean,
     onBackClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -411,15 +529,68 @@ fun BrowseTab(
                 ) {
                     children.forEach { (nodeId, nodeLabel) ->
                         item {
+                            val browseItem = BrowseItem(nodeId, nodeLabel)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(AppColors.bg2)
                                     .clickable { onNodeClick(nodeLabel, nodeId) }
-                                    .padding(16.dp)
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(nodeLabel, style = AppTypography.itemTitle)
+                                Text(nodeLabel, style = AppTypography.itemTitle, modifier = Modifier.weight(1f))
+                                
+                                var showMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    IconButton(
+                                        onClick = { showMenu = true },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "More options",
+                                            tint = AppColors.text3,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showMenu,
+                                        onDismissRequest = { showMenu = false },
+                                        modifier = Modifier.background(AppColors.bg2)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Play", style = AppTypography.itemTitle) },
+                                            onClick = {
+                                                showMenu = false
+                                                onPlayBrowseItem(browseItem)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Play Next", style = AppTypography.itemTitle) },
+                                            onClick = {
+                                                showMenu = false
+                                                onPlayBrowseItemNext(browseItem)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Add to Queue", style = AppTypography.itemTitle) },
+                                            onClick = {
+                                                showMenu = false
+                                                onAddBrowseItemToQueue(browseItem)
+                                            }
+                                        )
+                                        if (!isOffline) {
+                                            DropdownMenuItem(
+                                                text = { Text("Download", style = AppTypography.itemTitle) },
+                                                onClick = {
+                                                    showMenu = false
+                                                    onDownloadBrowseItem(browseItem)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -432,7 +603,15 @@ fun BrowseTab(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(tracks) { track ->
-                        TrackRowItem(track = track, onClick = { onTrackClick(track, tracks) })
+                        TrackRowItem(
+                            track = track,
+                            onPlay = { onPlayTrack(track) },
+                            onPlayNext = { onPlayTrackNext(track) },
+                            onAddToQueue = { onAddTrackToQueue(track) },
+                            onDownload = { onDownloadTrack(track) },
+                            isOffline = isOffline,
+                            onClick = { onTrackClick(track, tracks) }
+                        )
                     }
                 }
             }
@@ -442,24 +621,79 @@ fun BrowseTab(
 
 @Composable
 fun FavoritesTab(
-    onAlbumClick: (Album) -> Unit
+    onAlbumClick: (Album) -> Unit,
+    onPlayAlbum: (Album) -> Unit,
+    onPlayAlbumNext: (Album) -> Unit,
+    onAddAlbumToQueue: (Album) -> Unit,
+    onDownloadAlbum: (Album) -> Unit,
+    isOffline: Boolean
 ) {
-    // Basic mock / display for favorites node
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.Star, contentDescription = "Favorites", tint = AppColors.accent, modifier = Modifier.size(48.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Your Favorites", style = AppTypography.itemTitle)
-            Text("Pinned albums & artists will appear here", style = AppTypography.itemSubtitle, color = AppColors.text3)
+    val context = LocalContext.current
+    val database = remember { context.appContainer.database }
+    var favorites by remember { mutableStateOf<List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        favorites = database.favoriteDao().getAllFavorites()
+    }
+    
+    val favoritedAlbums = favorites.filter { it.type == "album" }
+
+    if (favoritedAlbums.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.Star, contentDescription = "Favorites", tint = AppColors.accent, modifier = Modifier.size(48.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Your Favorites", style = AppTypography.itemTitle)
+                Text("Pinned albums will appear here", style = AppTypography.itemSubtitle, color = AppColors.text3)
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(favoritedAlbums) { fav ->
+                val parts = fav.identifier.split("|")
+                val albumName = parts.getOrNull(0) ?: fav.displayName
+                val artist = parts.getOrNull(1) ?: "Unknown Artist"
+                val album = Album(
+                    name = albumName,
+                    albumArtist = artist,
+                    folderPath = "",
+                    parentFolderPath = "",
+                    date = "",
+                    artworkFileKey = "",
+                    totalDiscs = 1,
+                    discNumber = 1
+                )
+                AlbumRowItem(
+                    album = album,
+                    onPlay = { onPlayAlbum(album) },
+                    onPlayNext = { onPlayAlbumNext(album) },
+                    onAddToQueue = { onAddAlbumToQueue(album) },
+                    onDownload = { onDownloadAlbum(album) },
+                    isOffline = isOffline,
+                    onClick = { onAlbumClick(album) }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun TrackRowItem(track: Track, onClick: () -> Unit) {
+fun TrackRowItem(
+    track: Track,
+    onPlay: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddToQueue: () -> Unit,
+    onDownload: () -> Unit,
+    isOffline: Boolean,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -501,11 +735,72 @@ fun TrackRowItem(track: Track, onClick: () -> Unit) {
             text = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60),
             style = AppTypography.monoLabel
         )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        var showMenu by remember { mutableStateOf(false) }
+        Box {
+            IconButton(
+                onClick = { showMenu = true },
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "More options",
+                    tint = AppColors.text3,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+                modifier = Modifier.background(AppColors.bg2)
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Play", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        onPlay()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Play Next", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        onPlayNext()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Add to Queue", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        onAddToQueue()
+                    }
+                )
+                if (!isOffline) {
+                    DropdownMenuItem(
+                        text = { Text("Download", style = AppTypography.itemTitle) },
+                        onClick = {
+                            showMenu = false
+                            onDownload()
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun AlbumRowItem(album: Album, onClick: () -> Unit) {
+fun AlbumRowItem(
+    album: Album,
+    onPlay: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddToQueue: () -> Unit,
+    onDownload: () -> Unit,
+    isOffline: Boolean,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -538,6 +833,59 @@ fun AlbumRowItem(album: Album, onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(album.name, style = AppTypography.itemTitle, maxLines = 1)
             Text(album.date.ifEmpty { "Unknown Year" }, style = AppTypography.itemSubtitle, color = AppColors.text2)
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        var showMenu by remember { mutableStateOf(false) }
+        Box {
+            IconButton(
+                onClick = { showMenu = true },
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "More options",
+                    tint = AppColors.text3,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+                modifier = Modifier.background(AppColors.bg2)
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Play", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        onPlay()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Play Next", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        onPlayNext()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Add to Queue", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        onAddToQueue()
+                    }
+                )
+                if (!isOffline) {
+                    DropdownMenuItem(
+                        text = { Text("Download", style = AppTypography.itemTitle) },
+                        onClick = {
+                            showMenu = false
+                            onDownload()
+                        }
+                    )
+                }
+            }
         }
     }
 }

@@ -185,6 +185,126 @@ class LibraryViewModel(
         }
     }
 
+    fun addTrackToQueue(track: Track) {
+        facade.addTracks(listOf(track))
+    }
+
+    fun playTrackNext(track: Track) {
+        facade.playNextTracks(listOf(track))
+    }
+
+    fun downloadTrack(track: Track) {
+        viewModelScope.launch {
+            try {
+                libraryRepository.startDownload(track)
+            } catch (e: Exception) {
+                _state.update { it.copy(transientError = "Download failed: ${e.message ?: "unknown error"}") }
+            }
+        }
+    }
+
+    fun playAlbum(album: Album) {
+        viewModelScope.launch {
+            try {
+                val tracks = libraryRepository.getAlbumTracks(album)
+                if (tracks.isNotEmpty()) {
+                    facade.setQueue(tracks, 0)
+                    facade.play()
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(transientError = "Playback failed: ${e.message ?: "unknown error"}") }
+            }
+        }
+    }
+
+    fun addAlbumToQueue(album: Album) {
+        viewModelScope.launch {
+            try {
+                val tracks = libraryRepository.getAlbumTracks(album)
+                if (tracks.isNotEmpty()) {
+                    facade.addTracks(tracks)
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(transientError = "Failed to add album: ${e.message ?: "unknown error"}") }
+            }
+        }
+    }
+
+    fun playAlbumNext(album: Album) {
+        viewModelScope.launch {
+            try {
+                val tracks = libraryRepository.getAlbumTracks(album)
+                if (tracks.isNotEmpty()) {
+                    facade.playNextTracks(tracks)
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(transientError = "Failed to play album next: ${e.message ?: "unknown error"}") }
+            }
+        }
+    }
+
+    fun downloadAlbum(album: Album) {
+        viewModelScope.launch {
+            try {
+                val tracks = libraryRepository.getAlbumTracks(album)
+                tracks.forEach { libraryRepository.startDownload(it) }
+            } catch (e: Exception) {
+                _state.update { it.copy(transientError = "Download failed: ${e.message ?: "unknown error"}") }
+            }
+        }
+    }
+
+    fun playBrowseItem(item: BrowseItem) {
+        viewModelScope.launch {
+            try {
+                val tracks = libraryRepository.getBrowseFiles(item.key)
+                if (tracks.isNotEmpty()) {
+                    facade.setQueue(tracks, 0)
+                    facade.play()
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(transientError = "Playback failed: ${e.message ?: "unknown error"}") }
+            }
+        }
+    }
+
+    fun addBrowseItemToQueue(item: BrowseItem) {
+        viewModelScope.launch {
+            try {
+                val tracks = libraryRepository.getBrowseFiles(item.key)
+                if (tracks.isNotEmpty()) {
+                    facade.addTracks(tracks)
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(transientError = "Failed to add playlist: ${e.message ?: "unknown error"}") }
+            }
+        }
+    }
+
+    fun playBrowseItemNext(item: BrowseItem) {
+        viewModelScope.launch {
+            try {
+                val tracks = libraryRepository.getBrowseFiles(item.key)
+                if (tracks.isNotEmpty()) {
+                    facade.playNextTracks(tracks)
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(transientError = "Failed to play playlist next: ${e.message ?: "unknown error"}") }
+            }
+        }
+    }
+
+    fun downloadBrowseItem(item: BrowseItem) {
+        viewModelScope.launch {
+            try {
+                val tracks = libraryRepository.getBrowseFiles(item.key)
+                tracks.forEach { libraryRepository.startDownload(it) }
+            } catch (e: Exception) {
+                _state.update { it.copy(transientError = "Download failed: ${e.message ?: "unknown error"}") }
+            }
+        }
+    }
+
     fun clearTransientError() {
         _state.update { it.copy(transientError = null) }
     }

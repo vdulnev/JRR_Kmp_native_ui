@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -76,12 +77,61 @@ fun AlbumDetailScreen(
             )
 
             val isFav = (state.contentState as? AlbumDetailContentState.Success)?.isFavorite ?: false
-            IconButton(onClick = { viewModel.toggleFavorite() }) {
-                Icon(
-                    imageVector = if (isFav) Icons.Default.Star else Icons.Outlined.Star,
-                    contentDescription = "Favorite",
-                    tint = if (isFav) AppColors.accent else AppColors.text3
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { viewModel.toggleFavorite() }) {
+                    Icon(
+                        imageVector = if (isFav) Icons.Default.Star else Icons.Outlined.Star,
+                        contentDescription = "Favorite",
+                        tint = if (isFav) AppColors.accent else AppColors.text3
+                    )
+                }
+
+                var showAlbumMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { showAlbumMenu = true }) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Album Options",
+                            tint = AppColors.text
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showAlbumMenu,
+                        onDismissRequest = { showAlbumMenu = false },
+                        modifier = Modifier.background(AppColors.bg2)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Play Album", style = AppTypography.itemTitle) },
+                            onClick = {
+                                showAlbumMenu = false
+                                viewModel.playAlbum()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Play Next", style = AppTypography.itemTitle) },
+                            onClick = {
+                                showAlbumMenu = false
+                                viewModel.playAlbumNext()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Add to Queue", style = AppTypography.itemTitle) },
+                            onClick = {
+                                showAlbumMenu = false
+                                viewModel.addAlbumToQueue()
+                            }
+                        )
+                        if (!state.isOfflineMode) {
+                            DropdownMenuItem(
+                                text = { Text("Download Album", style = AppTypography.itemTitle) },
+                                onClick = {
+                                    showAlbumMenu = false
+                                    viewModel.downloadAlbum()
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -266,6 +316,59 @@ fun AlbumDetailScreen(
                                     text = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60),
                                     style = AppTypography.monoLabel
                                 )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                var showMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    IconButton(
+                                        onClick = { showMenu = true },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "More options",
+                                            tint = AppColors.text3,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showMenu,
+                                        onDismissRequest = { showMenu = false },
+                                        modifier = Modifier.background(AppColors.bg2)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Play", style = AppTypography.itemTitle) },
+                                            onClick = {
+                                                showMenu = false
+                                                viewModel.playTrack(track)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Play Next", style = AppTypography.itemTitle) },
+                                            onClick = {
+                                                showMenu = false
+                                                viewModel.playTrackNext(track)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Add to Queue", style = AppTypography.itemTitle) },
+                                            onClick = {
+                                                showMenu = false
+                                                viewModel.addTrackToQueue(track)
+                                            }
+                                        )
+                                        if (!state.isOfflineMode) {
+                                            DropdownMenuItem(
+                                                text = { Text("Download", style = AppTypography.itemTitle) },
+                                                onClick = {
+                                                    showMenu = false
+                                                    viewModel.startDownload(track)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
                             }
                             HorizontalDivider(color = AppColors.line, thickness = 0.5.dp)
                         }

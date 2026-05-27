@@ -85,6 +85,50 @@ class LibraryObservable {
         viewModel.playTracks(tracks: tracks, startIndex: Int32(startIndex))
     }
     
+    func addTrackToQueue(_ track: Track) {
+        viewModel.addTrackToQueue(track: track)
+    }
+    
+    func playTrackNext(_ track: Track) {
+        viewModel.playTrackNext(track: track)
+    }
+    
+    func downloadTrack(_ track: Track) {
+        viewModel.downloadTrack(track: track)
+    }
+    
+    func playAlbum(_ album: Album) {
+        viewModel.playAlbum(album: album)
+    }
+    
+    func addAlbumToQueue(_ album: Album) {
+        viewModel.addAlbumToQueue(album: album)
+    }
+    
+    func playAlbumNext(_ album: Album) {
+        viewModel.playAlbumNext(album: album)
+    }
+    
+    func downloadAlbum(_ album: Album) {
+        viewModel.downloadAlbum(album: album)
+    }
+    
+    func playBrowseItem(_ item: BrowseItem) {
+        viewModel.playBrowseItem(item: item)
+    }
+    
+    func addBrowseItemToQueue(_ item: BrowseItem) {
+        viewModel.addBrowseItemToQueue(item: item)
+    }
+    
+    func playBrowseItemNext(_ item: BrowseItem) {
+        viewModel.playBrowseItemNext(item: item)
+    }
+    
+    func downloadBrowseItem(_ item: BrowseItem) {
+        viewModel.downloadBrowseItem(item: item)
+    }
+    
     func retry() {
         viewModel.retry()
     }
@@ -439,6 +483,22 @@ struct LibraryView: View {
                                 }
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .contextMenu {
+                                Button(action: { observable.playAlbum(album) }) {
+                                    Label("Play", systemImage: "play.fill")
+                                }
+                                Button(action: { observable.playAlbumNext(album) }) {
+                                    Label("Play Next", systemImage: "arrow.right.to.line")
+                                }
+                                Button(action: { observable.addAlbumToQueue(album) }) {
+                                    Label("Add to Queue", systemImage: "plus")
+                                }
+                                if !observable.isOffline {
+                                    Button(action: { observable.downloadAlbum(album) }) {
+                                        Label("Download", systemImage: "arrow.down.circle")
+                                    }
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, AppSpacing.screenHorizontalMargin)
@@ -515,9 +575,34 @@ struct LibraryView: View {
                 .font(AppFont.inter(size: 16, weight: .medium))
                 .foregroundColor(.textPrimary)
             Spacer()
+            
+            Menu {
+                Button(action: { observable.playBrowseItem(browseItem) }) {
+                    Label("Play", systemImage: "play.fill")
+                }
+                Button(action: { observable.playBrowseItemNext(browseItem) }) {
+                    Label("Play Next", systemImage: "arrow.right.to.line")
+                }
+                Button(action: { observable.addBrowseItemToQueue(browseItem) }) {
+                    Label("Add to Queue", systemImage: "plus")
+                }
+                if !observable.isOffline {
+                    Button(action: { observable.downloadBrowseItem(browseItem) }) {
+                        Label("Download", systemImage: "arrow.down.circle")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.textSecondary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
             Image(systemName: "chevron.right")
                 .font(.system(size: 14))
                 .foregroundColor(.textTertiary)
+                .padding(.trailing, 4)
         }
         .padding(16)
         .background(Color.bg2)
@@ -580,6 +665,7 @@ struct LibraryView: View {
                         let parts = fav.identifier.split(separator: "|")
                         let artist = parts.count > 1 ? String(parts[1]) : "Unknown Artist"
                         let albumName = String(parts[0])
+                        let album = Album(name: albumName, albumArtist: artist, folderPath: "", parentFolderPath: "", date: "", artworkFileKey: "", totalDiscs: 1, discNumber: 1)
                         
                         HStack {
                             ZStack {
@@ -614,9 +700,33 @@ struct LibraryView: View {
                             
                             Spacer()
                             
+                            Menu {
+                                Button(action: { observable.playAlbum(album) }) {
+                                    Label("Play", systemImage: "play.fill")
+                                }
+                                Button(action: { observable.playAlbumNext(album) }) {
+                                    Label("Play Next", systemImage: "arrow.right.to.line")
+                                }
+                                Button(action: { observable.addAlbumToQueue(album) }) {
+                                    Label("Add to Queue", systemImage: "plus")
+                                }
+                                if !observable.isOffline {
+                                    Button(action: { observable.downloadAlbum(album) }) {
+                                        Label("Download", systemImage: "arrow.down.circle")
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.textSecondary)
+                                    .frame(width: 32, height: 32)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 14))
                                 .foregroundColor(.textTertiary)
+                                .padding(.trailing, 4)
                         }
                         .padding(8)
                         .background(Color.bg2)
@@ -626,7 +736,7 @@ struct LibraryView: View {
                                 .stroke(Color.line, lineWidth: 1)
                         )
                         .onTapGesture {
-                            onAlbumClick(Album(name: albumName, albumArtist: artist, folderPath: "", parentFolderPath: "", date: "", artworkFileKey: "", totalDiscs: 1, discNumber: 1))
+                            onAlbumClick(album)
                         }
                     }
                 }
@@ -686,6 +796,30 @@ struct LibraryView: View {
             let secs = track.durationMs / 1000
             Text(String(format: "%d:%02d", secs / 60, secs % 60))
                 .styleMonoLabel()
+                .padding(.trailing, 4)
+            
+            Menu {
+                Button(action: { observable.playTrack(track) }) {
+                    Label("Play", systemImage: "play.fill")
+                }
+                Button(action: { observable.playTrackNext(track) }) {
+                    Label("Play Next", systemImage: "arrow.right.to.line")
+                }
+                Button(action: { observable.addTrackToQueue(track) }) {
+                    Label("Add to Queue", systemImage: "plus")
+                }
+                if !observable.isOffline {
+                    Button(action: { observable.downloadTrack(track) }) {
+                        Label("Download", systemImage: "arrow.down.circle")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.textSecondary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(PlainButtonStyle())
         }
         .padding(8)
         .background(Color.bg2)
@@ -742,9 +876,33 @@ struct LibraryView: View {
             
             Spacer()
             
+            Menu {
+                Button(action: { observable.playAlbum(album) }) {
+                    Label("Play", systemImage: "play.fill")
+                }
+                Button(action: { observable.playAlbumNext(album) }) {
+                    Label("Play Next", systemImage: "arrow.right.to.line")
+                }
+                Button(action: { observable.addAlbumToQueue(album) }) {
+                    Label("Add to Queue", systemImage: "plus")
+                }
+                if !observable.isOffline {
+                    Button(action: { observable.downloadAlbum(album) }) {
+                        Label("Download", systemImage: "arrow.down.circle")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.textSecondary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
             Image(systemName: "chevron.right")
                 .font(.system(size: 14))
                 .foregroundColor(.textTertiary)
+                .padding(.trailing, 4)
         }
         .padding(8)
         .background(Color.bg2)
