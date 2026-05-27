@@ -17,8 +17,9 @@ data class DownloadJobEntity(
     val bytesTotal: Long,
     @ColumnInfo(name = "enqueued_at")
     val enqueuedAt: Long,
+    /** Epoch-ms when the download actually began. `0L` = QUEUED, not started. */
     @ColumnInfo(name = "started_at")
-    val startedAt: Long? = null,
+    val startedAt: Long = 0L,
     val name: String,
     val artist: String,
     val album: String,

@@ -329,8 +329,8 @@ struct ServerManagerView: View {
             do {
                 let servers = try await container.serverRepository.getAllServers()
                 let sorted = servers.sorted { s1, s2 in
-                    let t1 = s1.lastUsedAt?.int64Value ?? 0
-                    let t2 = s2.lastUsedAt?.int64Value ?? 0
+                    let t1 = s1.lastUsedAt
+                    let t2 = s2.lastUsedAt
                     return t1 > t2
                 }
                 await MainActor.run {
@@ -410,7 +410,7 @@ struct ServerManagerView: View {
                     username: username,
                     passwordKey: password,
                     friendlyName: friendlyName,
-                    lastUsedAt: KotlinLong(value: Int64(Date().timeIntervalSince1970 * 1000)),
+                    lastUsedAt: Int64(Date().timeIntervalSince1970 * 1000),
                     authToken: token,
                     useSsl: resolvedUseSsl,
                     sslPort: Int32(resolvedSslPort)

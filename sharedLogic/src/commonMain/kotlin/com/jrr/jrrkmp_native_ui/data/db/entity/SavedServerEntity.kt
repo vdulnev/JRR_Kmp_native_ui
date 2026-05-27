@@ -15,8 +15,9 @@ data class SavedServerEntity(
     val passwordKey: String,
     @ColumnInfo(name = "friendly_name")
     val friendlyName: String? = null,
+    /** Epoch-ms of last successful connect. `0L` = never used. */
     @ColumnInfo(name = "last_used_at")
-    val lastUsedAt: Long? = null,
+    val lastUsedAt: Long = 0L,
     @ColumnInfo(name = "auth_token")
     val authToken: String? = null,
     @ColumnInfo(name = "use_ssl")

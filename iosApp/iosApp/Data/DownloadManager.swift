@@ -88,7 +88,7 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                         bytesDownloaded: job.bytesDownloaded,
                         bytesTotal: job.bytesTotal,
                         enqueuedAt: job.enqueuedAt,
-                        startedAt: KotlinLong(value: Int64(Date().timeIntervalSince1970 * 1000)),
+                        startedAt: Int64(Date().timeIntervalSince1970 * 1000),
                         name: job.name,
                         artist: job.artist,
                         album: job.album,
