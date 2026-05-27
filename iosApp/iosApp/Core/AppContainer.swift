@@ -60,7 +60,7 @@ final class AppContainer {
         self.libraryRepository = LibraryRepository(
             database: database,
             mcwsClient: mcwsCore.mcwsClient,
-            isOfflineProvider: { facade.activeZone.value == Zone.offline }
+            isOfflineProvider: FacadeOfflineModeProvider(facade: facade)
         )
 
         let nowPlayingCoordinator = NowPlayingCoordinator()
@@ -84,5 +84,25 @@ final class AppContainer {
             facade: facade
         )
         self.downloadManager.setup(libraryRepository: self.libraryRepository)
+    }
+}
+
+/// Bridges the Kotlin `OfflineModeProvider` SAM interface to the live
+/// `AudioPlayerFacade.activeZone`. Used by `LibraryRepository` to decide
+/// whether to serve from the downloaded-tracks cache or hit MCWS.
+///
+/// Implementing the interface directly (rather than passing a closure) avoids
+/// the `() -> Boolean` -> `() -> KotlinBoolean` boxing that Kotlin/Native
+/// otherwise forces on Swift closures that return primitives. SKIE 0.10.x
+/// does not fix this for closures.
+private final class FacadeOfflineModeProvider: OfflineModeProvider {
+    private let facade: AudioPlayerFacade
+
+    init(facade: AudioPlayerFacade) {
+        self.facade = facade
+    }
+
+    func isOffline() -> Bool {
+        return facade.activeZone.value == Zone.offline
     }
 }
