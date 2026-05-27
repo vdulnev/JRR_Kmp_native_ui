@@ -1,6 +1,5 @@
 import SwiftUI
 import SharedLogic
-import KMPNativeCoroutinesAsync
 
 @Observable
 @MainActor
@@ -20,16 +19,12 @@ class ZonesObservable {
     init(viewModel: ZonesViewModel) {
         self.viewModel = viewModel
 
-        sync(state: viewModel.state)
+        sync(state: viewModel.state.value)
 
         observeTask = Task { @MainActor [weak self] in
-            guard let stateFlow = self?.viewModel.stateFlow else { return }
-            do {
-                for try await state in asyncSequence(for: stateFlow) {
-                    self?.sync(state: state)
-                }
-            } catch {
-                // Flow cancelled
+            guard let stateFlow = self?.viewModel.state else { return }
+            for await state in stateFlow {
+                self?.sync(state: state)
             }
         }
     }
