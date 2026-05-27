@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.jrr.jrrkmp_native_ui.data.db.entity.*
+import com.rickclephas.kmp.nativecoroutines.NativeCoroutines
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -89,6 +90,7 @@ interface DownloadedTrackDao {
     @Query("SELECT * FROM downloaded_tracks")
     suspend fun getAllTracks(): List<DownloadedTrackEntity>
 
+    @NativeCoroutines
     @Query("SELECT * FROM downloaded_tracks")
     fun getAllTracksFlow(): Flow<List<DownloadedTrackEntity>>
 }
@@ -113,6 +115,7 @@ interface DownloadJobDao {
     @Query("SELECT * FROM download_jobs ORDER BY enqueued_at ASC")
     suspend fun getAllJobs(): List<DownloadJobEntity>
 
+    @NativeCoroutines
     @Query("SELECT * FROM download_jobs ORDER BY enqueued_at ASC")
     fun getAllJobsFlow(): Flow<List<DownloadJobEntity>>
 }

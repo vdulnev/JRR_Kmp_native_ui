@@ -1,5 +1,7 @@
 import SwiftUI
 import SharedLogic
+import KMPNativeCoroutinesAsync
+
 class SwiftMainShellSettings: NSObject, MainShellSettings {
     func getLastActiveZoneId() -> String? {
         return UserDefaults.standard.string(forKey: "last_active_zone_id")
@@ -30,21 +32,27 @@ class MainShellObservable {
     var autoConnectServerName: String = ""
     var toastMessage: String? = nil
     
-    private let subscription = FlowSubscription()
-    
+    nonisolated(unsafe) private var observeTask: Task<Void, Never>?
+
     init(viewModel: MainShellViewModel) {
         self.viewModel = viewModel
-        
-        let initial = viewModel.state.value as! MainShellState
-        sync(state: initial)
-        
-        self.subscription.disposable = FlowObserver<MainShellState>(flow: viewModel.state).start { [weak self] state in
-            if let state = state {
-                Task { @MainActor in
+
+        sync(state: viewModel.state)
+
+        observeTask = Task { @MainActor [weak self] in
+            guard let stateFlow = self?.viewModel.stateFlow else { return }
+            do {
+                for try await state in asyncSequence(for: stateFlow) {
                     self?.sync(state: state)
                 }
+            } catch {
+                // Flow cancelled
             }
         }
+    }
+
+    deinit {
+        observeTask?.cancel()
     }
     
     private func sync(state: MainShellState) {
@@ -205,7 +213,7 @@ struct ContentView: View {
                     
                     // Tab 4: Settings
                     SettingsView(
-                        isOfflineMode: (zonesViewModel.state.value as! ZonesViewState).isOfflineMode,
+                        isOfflineMode: zonesViewModel.state.isOfflineMode,
                         serverHost: container.facade.currentServerHost,
                         useSsl: container.facade.currentServerUseSsl,
                         serverPort: container.facade.currentServerPort,

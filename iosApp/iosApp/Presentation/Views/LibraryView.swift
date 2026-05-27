@@ -1,5 +1,6 @@
 import SwiftUI
 import SharedLogic
+import KMPNativeCoroutinesAsync
 
 struct BrowseNode: Hashable, Identifiable {
     var id: String { nodeId }
@@ -27,21 +28,27 @@ class LibraryObservable {
     var isTabLoading: Bool = false
     var transientError: String? = nil
     
-    private let subscription = FlowSubscription()
-    
+    nonisolated(unsafe) private var observeTask: Task<Void, Never>?
+
     init(viewModel: LibraryViewModel) {
         self.viewModel = viewModel
-        
-        let initial = viewModel.state.value as! LibraryViewState
-        sync(state: initial)
-        
-        self.subscription.disposable = FlowObserver<LibraryViewState>(flow: viewModel.state).start { [weak self] state in
-            if let state = state {
-                Task { @MainActor in
+
+        sync(state: viewModel.state)
+
+        observeTask = Task { @MainActor [weak self] in
+            guard let stateFlow = self?.viewModel.stateFlow else { return }
+            do {
+                for try await state in asyncSequence(for: stateFlow) {
                     self?.sync(state: state)
                 }
+            } catch {
+                // Flow cancelled
             }
         }
+    }
+
+    deinit {
+        observeTask?.cancel()
     }
     
     private func sync(state: LibraryViewState) {

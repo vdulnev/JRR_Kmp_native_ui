@@ -1,5 +1,4 @@
 import Foundation
-import SharedLogic
 
 private class TrustDelegate: NSObject, URLSessionDelegate {
     func urlSession(
@@ -22,11 +21,4 @@ extension URLSession {
         configuration.timeoutIntervalForRequest = 10.0
         return URLSession(configuration: configuration, delegate: TrustDelegate(), delegateQueue: nil)
     }()
-}
-
-class FlowSubscription {
-    var disposable: Disposable? = nil
-    deinit {
-        disposable?.dispose()
-    }
 }

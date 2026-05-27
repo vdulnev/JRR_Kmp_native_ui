@@ -1,33 +1,40 @@
 import SwiftUI
 import SharedLogic
+import KMPNativeCoroutinesAsync
 
 @Observable
 @MainActor
 class QueueObservable {
     let viewModel: QueueViewModel
-    
+
     var queueTracks: [Track] = []
     var activeIndex: Int = -1
     var isPlaying: Bool = false
     var isLoading: Bool = false
     var isLocal: Bool = true
     var transientError: String? = nil
-    
-    private let subscription = FlowSubscription()
-    
+
+    nonisolated(unsafe) private var observeTask: Task<Void, Never>?
+
     init(viewModel: QueueViewModel) {
         self.viewModel = viewModel
-        
-        let initial = viewModel.state.value as! QueueViewState
-        sync(state: initial)
-        
-        self.subscription.disposable = FlowObserver<QueueViewState>(flow: viewModel.state).start { [weak self] state in
-            if let state = state {
-                Task { @MainActor in
+
+        sync(state: viewModel.state)
+
+        observeTask = Task { @MainActor [weak self] in
+            guard let stateFlow = self?.viewModel.stateFlow else { return }
+            do {
+                for try await state in asyncSequence(for: stateFlow) {
                     self?.sync(state: state)
                 }
+            } catch {
+                // Flow cancelled
             }
         }
+    }
+
+    deinit {
+        observeTask?.cancel()
     }
     
     private func sync(state: QueueViewState) {

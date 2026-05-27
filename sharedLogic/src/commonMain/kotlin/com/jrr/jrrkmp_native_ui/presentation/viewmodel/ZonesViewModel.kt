@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
+import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesState
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -24,6 +25,7 @@ class ZonesViewModel(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ZonesViewState())
+    @NativeCoroutinesState
     val state: StateFlow<ZonesViewState> = _state.asStateFlow()
 
     private val serverZonesFlow = MutableStateFlow<List<Zone>>(emptyList())

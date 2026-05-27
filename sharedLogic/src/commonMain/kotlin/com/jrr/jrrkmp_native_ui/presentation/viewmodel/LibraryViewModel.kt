@@ -7,6 +7,7 @@ import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
+import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,6 +42,7 @@ class LibraryViewModel(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LibraryViewState())
+    @NativeCoroutinesState
     val state: StateFlow<LibraryViewState> = _state.asStateFlow()
 
     init {
