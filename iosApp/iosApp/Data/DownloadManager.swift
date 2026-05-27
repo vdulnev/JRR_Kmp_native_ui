@@ -129,55 +129,75 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
         guard let (fileKey, jobId) = activeDownloads[downloadTask] else { return }
         activeDownloads.removeValue(forKey: downloadTask)
         
-        Task {
-            do {
-                guard let job = try await database.downloadJobDao().getJobById(id: jobId) else { return }
-                
-                let fileManager = FileManager.default
-                let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                let downloadsDir = documentsURL.appendingPathComponent("downloads")
-                
-                if !fileManager.fileExists(atPath: downloadsDir.path) {
-                    try fileManager.createDirectory(at: downloadsDir, withIntermediateDirectories: true, attributes: nil)
+        let fileManager = FileManager.default
+        
+        var resolvedLocation = location
+        if resolvedLocation.path.hasPrefix("/.nofollow") {
+            let cleanPath = String(resolvedLocation.path.dropFirst("/.nofollow".count))
+            resolvedLocation = URL(fileURLWithPath: cleanPath)
+        } else if resolvedLocation.path.hasPrefix("/.resolve") {
+            let cleanPath = String(resolvedLocation.path.dropFirst("/.resolve".count))
+            resolvedLocation = URL(fileURLWithPath: cleanPath)
+        }
+        
+        print("[DownloadManager] Original download location: \(location.path), exists: \(fileManager.fileExists(atPath: location.path))")
+        print("[DownloadManager] Resolved download location: \(resolvedLocation.path), exists: \(fileManager.fileExists(atPath: resolvedLocation.path))")
+        
+        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let downloadsDir = documentsURL.appendingPathComponent("downloads")
+        
+        do {
+            if !fileManager.fileExists(atPath: downloadsDir.path) {
+                try fileManager.createDirectory(at: downloadsDir, withIntermediateDirectories: true, attributes: nil)
+            }
+            
+            let suggestedFilename = downloadTask.response?.suggestedFilename ?? "\(fileKey).mp3"
+            let ext = (suggestedFilename as NSString).pathExtension
+            let destinationURL = downloadsDir.appendingPathComponent("\(fileKey).\(ext.isEmpty ? "mp3" : ext)")
+            
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                try fileManager.removeItem(at: destinationURL)
+            }
+            
+            // Move the file synchronously before this delegate method returns and iOS deletes the temp file!
+            try fileManager.moveItem(at: resolvedLocation, to: destinationURL)
+            
+            Task {
+                do {
+                    guard let job = try await database.downloadJobDao().getJobById(id: jobId) else { return }
+                    
+                    // Save to DownloadedTrackEntity
+                    let track = DownloadedTrackEntity(
+                        fileKey: fileKey,
+                        name: job.name,
+                        artist: job.artist,
+                        album: job.album, // Saved correctly to job.album instead of job.artist
+                        albumArtist: job.albumArtist,
+                        date: job.date,
+                        genre: job.genre,
+                        durationMs: job.durationMs,
+                        trackNumber: job.trackNumber,
+                        discNumber: job.discNumber,
+                        totalDiscs: job.totalDiscs,
+                        totalTracks: job.totalTracks,
+                        bitrate: job.bitrate,
+                        bitDepth: job.bitDepth,
+                        sampleRate: job.sampleRate,
+                        channels: job.channels,
+                        fileType: job.fileType,
+                        filePath: job.filePath,
+                        folderPath: job.folderPath
+                    )
+                    try await database.downloadedTrackDao().insert(track: track)
+                    try await database.downloadJobDao().delete(job: job)
+                    print("[DownloadManager] Completed and saved track: \(job.name) to \(destinationURL.path)")
+                } catch {
+                    print("[DownloadManager] Error updating database after download: \(error)")
                 }
-                
-                let suggestedFilename = downloadTask.response?.suggestedFilename ?? "\(fileKey).mp3"
-                let ext = (suggestedFilename as NSString).pathExtension
-                let destinationURL = downloadsDir.appendingPathComponent("\(fileKey).\(ext.isEmpty ? "mp3" : ext)")
-                
-                if fileManager.fileExists(atPath: destinationURL.path) {
-                    try fileManager.removeItem(at: destinationURL)
-                }
-                
-                try fileManager.moveItem(at: location, to: destinationURL)
-                
-                // Save to DownloadedTrackEntity
-                let track = DownloadedTrackEntity(
-                    fileKey: fileKey,
-                    name: job.name,
-                    artist: job.artist,
-                    album: job.artist,
-                    albumArtist: job.albumArtist,
-                    date: job.date,
-                    genre: job.genre,
-                    durationMs: job.durationMs,
-                    trackNumber: job.trackNumber,
-                    discNumber: job.discNumber,
-                    totalDiscs: job.totalDiscs,
-                    totalTracks: job.totalTracks,
-                    bitrate: job.bitrate,
-                    bitDepth: job.bitDepth,
-                    sampleRate: job.sampleRate,
-                    channels: job.channels,
-                    fileType: job.fileType,
-                    filePath: job.filePath,
-                    folderPath: job.folderPath
-                )
-                try await database.downloadedTrackDao().insert(track: track)
-                try await database.downloadJobDao().delete(job: job)
-                print("[DownloadManager] Completed and saved track: \(job.name) to \(destinationURL.path)")
-            } catch {
-                print("[DownloadManager] Error saving downloaded file: \(error)")
+            }
+        } catch {
+            print("[DownloadManager] Error saving downloaded file: \(error)")
+            Task {
                 do {
                     if let job = try await database.downloadJobDao().getJobById(id: jobId) {
                         let failedJob = DownloadJobEntity(
