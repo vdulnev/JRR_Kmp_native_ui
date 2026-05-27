@@ -37,7 +37,7 @@ final class AppContainer {
         self.serverRepository = mcwsCore.serverRepository
         self.mcwsClient = mcwsCore.mcwsClient
 
-        let facade = AudioPlayerFacadeFactory.shared.create(
+        let facade = AudioPlayerFacade(
             database: database,
             localPlayerEngine: engine,
             mcwsClient: mcwsCore.mcwsClient,
