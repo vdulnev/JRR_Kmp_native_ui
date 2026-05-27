@@ -32,4 +32,6 @@ interface LocalPlayerEngine {
     fun getQueue(): List<Track>
     fun getQueueSize(): Int
     fun playByIndex(index: Int)
+    fun addTracks(tracks: List<Track>)
+    fun insertTracksNext(tracks: List<Track>)
 }

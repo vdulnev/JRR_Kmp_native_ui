@@ -20,6 +20,8 @@ interface NativePlayerController {
     fun clearQueue()
     fun getCurrentPosition(): Long
     fun getDuration(): Long
+    fun addTracks(tracks: List<Track>)
+    fun insertTracksNext(tracks: List<Track>)
 }
 
 class IosLocalPlayerEngine : LocalPlayerEngine {
@@ -167,5 +169,25 @@ class IosLocalPlayerEngine : LocalPlayerEngine {
     override fun playByIndex(index: Int) {
         _currentIndex.value = index
         controller?.playByIndex(index)
+    }
+
+    override fun addTracks(tracks: List<Track>) {
+        val list = _queue.value.toMutableList()
+        list.addAll(tracks)
+        _queue.value = list
+        controller?.addTracks(tracks)
+    }
+
+    override fun insertTracksNext(tracks: List<Track>) {
+        val list = _queue.value.toMutableList()
+        val currentIdx = _currentIndex.value
+        val insertIndex = if (currentIdx >= 0) currentIdx + 1 else 0
+        if (insertIndex in 0..list.size) {
+            list.addAll(insertIndex, tracks)
+        } else {
+            list.addAll(tracks)
+        }
+        _queue.value = list
+        controller?.insertTracksNext(tracks)
     }
 }

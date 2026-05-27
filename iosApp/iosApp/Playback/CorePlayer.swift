@@ -163,6 +163,22 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         engine.updateVolume(vol: level)
     }
     
+    private func createPlayerItem(for track: Track) -> AVPlayerItem {
+        let url: URL
+        if let localPath = getLocalFilePath(fileKey: track.fileKey) {
+            url = URL(fileURLWithPath: localPath)
+        } else {
+            let host = facade.currentServerHost ?? ""
+            let useSsl = facade.currentServerUseSsl
+            let port = useSsl ? facade.currentServerSslPort : facade.currentServerPort
+            let scheme = useSsl ? "https" : "http"
+            let token = facade.currentServerToken ?? ""
+            let encodedUrl = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(track.fileKey)&Playback=1&Token=\(token)"
+            url = URL(string: encodedUrl) ?? URL(fileURLWithPath: "")
+        }
+        return AVPlayerItem(url: url)
+    }
+
     func setQueue(tracks: [Track], startIndex: Int32) {
         if queuePlayer == nil {
             setupPlayer()
@@ -177,19 +193,7 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         
         var items: [AVPlayerItem] = []
         for track in tracks {
-            let url: URL
-            if let localPath = getLocalFilePath(fileKey: track.fileKey) {
-                url = URL(fileURLWithPath: localPath)
-            } else {
-                let host = facade.currentServerHost ?? ""
-                let useSsl = facade.currentServerUseSsl
-                let port = useSsl ? facade.currentServerSslPort : facade.currentServerPort
-                let scheme = useSsl ? "https" : "http"
-                let token = facade.currentServerToken ?? ""
-                let encodedUrl = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(track.fileKey)&Playback=1&Token=\(token)"
-                url = URL(string: encodedUrl) ?? URL(fileURLWithPath: "")
-            }
-            items.append(AVPlayerItem(url: url))
+            items.append(createPlayerItem(for: track))
         }
         
         self.playerItems = items
@@ -269,19 +273,7 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         
         var items: [AVPlayerItem] = []
         for t in localQueue {
-            let url: URL
-            if let localPath = getLocalFilePath(fileKey: t.fileKey) {
-                url = URL(fileURLWithPath: localPath)
-            } else {
-                let host = facade.currentServerHost ?? ""
-                let useSsl = facade.currentServerUseSsl
-                let port = useSsl ? facade.currentServerSslPort : facade.currentServerPort
-                let scheme = useSsl ? "https" : "http"
-                let token = facade.currentServerToken ?? ""
-                let encodedUrl = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(t.fileKey)&Playback=1&Token=\(token)"
-                url = URL(string: encodedUrl) ?? URL(fileURLWithPath: "")
-            }
-            items.append(AVPlayerItem(url: url))
+            items.append(createPlayerItem(for: t))
         }
         self.playerItems = items
         
@@ -342,6 +334,83 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         guard let item = queuePlayer?.currentItem else { return 0 }
         let sec = CMTimeGetSeconds(item.duration)
         return sec.isNaN ? 0 : Int64(sec * 1000)
+    }
+    
+    func addTracks(tracks: [Track]) {
+        if queuePlayer == nil {
+            setupPlayer()
+        }
+        
+        guard let player = queuePlayer else { return }
+        
+        let wasEmpty = localQueue.isEmpty
+        
+        self.localQueue.append(contentsOf: tracks)
+        
+        var newItems: [AVPlayerItem] = []
+        for track in tracks {
+            let item = createPlayerItem(for: track)
+            newItems.append(item)
+            self.playerItems.append(item)
+        }
+        
+        for item in newItems {
+            if player.canInsert(item, after: nil) {
+                player.insert(item, after: nil)
+            }
+        }
+        
+        if wasEmpty {
+            self.localCurrentIndex = 0
+            engine.updateCurrentIndex(index: 0)
+            play()
+        }
+        
+        objectWillChange.send()
+    }
+    
+    func insertTracksNext(tracks: [Track]) {
+        if queuePlayer == nil {
+            setupPlayer()
+        }
+        
+        guard let player = queuePlayer else { return }
+        
+        let wasEmpty = localQueue.isEmpty
+        
+        let currentIdx = Int(localCurrentIndex)
+        let insertIndex = currentIdx >= 0 ? currentIdx + 1 : 0
+        
+        var newItems: [AVPlayerItem] = []
+        for track in tracks {
+            newItems.append(createPlayerItem(for: track))
+        }
+        
+        // Insert into localQueue and playerItems arrays
+        if insertIndex >= 0 && insertIndex <= localQueue.count {
+            localQueue.insert(contentsOf: tracks, at: insertIndex)
+            playerItems.insert(contentsOf: newItems, at: insertIndex)
+        } else {
+            localQueue.append(contentsOf: tracks)
+            playerItems.append(contentsOf: newItems)
+        }
+        
+        // Insert into queuePlayer
+        var previousItem = player.currentItem
+        for item in newItems {
+            if player.canInsert(item, after: previousItem) {
+                player.insert(item, after: previousItem)
+                previousItem = item
+            }
+        }
+        
+        if wasEmpty {
+            self.localCurrentIndex = 0
+            engine.updateCurrentIndex(index: 0)
+            play()
+        }
+        
+        objectWillChange.send()
     }
     
     private func getLocalFilePath(fileKey: String) -> String? {

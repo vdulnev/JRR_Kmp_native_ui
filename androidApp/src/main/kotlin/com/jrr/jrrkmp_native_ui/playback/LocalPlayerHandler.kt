@@ -100,6 +100,47 @@ class LocalPlayerHandler(
         return exoPlayer!!
     }
 
+    private fun createMediaItem(track: Track): MediaItem {
+        val localPath = checkLocalFileProvider(track.fileKey)
+        val uri = if (localPath != null && File(localPath).exists()) {
+            Uri.fromFile(File(localPath))
+        } else {
+            val active = serverRepository.activeServer.value
+            val (serverUrl, token) = if (active != null) {
+                val host = active.host
+                val scheme = if (active.useSsl) "https" else "http"
+                val port = if (active.useSsl) active.sslPort else active.port
+                Pair("$scheme://$host:$port/MCWS/v1", active.token ?: "")
+            } else {
+                val activeServer = runBlocking {
+                    serverRepository.getLastUsedServer()
+                }
+                if (activeServer != null) {
+                    val host = activeServer.host
+                    val scheme = if (activeServer.useSsl) "https" else "http"
+                    val port = if (activeServer.useSsl) activeServer.sslPort else activeServer.port
+                    Pair("$scheme://$host:$port/MCWS/v1", activeServer.authToken ?: "")
+                } else {
+                    Pair("", "")
+                }
+            }
+            Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&Playback=1&Token=${token}")
+        }
+
+        return MediaItem.Builder()
+            .setUri(uri)
+            .setMediaId(track.fileKey)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(track.name)
+                    .setArtist(track.artist)
+                    .setAlbumTitle(track.album)
+                    .setArtworkUri(Uri.parse("content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_${track.fileKey}.jpg"))
+                    .build()
+            )
+            .build()
+    }
+
     override fun setQueue(tracks: List<Track>, startIndex: Int) {
         ensurePlayer()
         _queue.value = tracks
@@ -107,46 +148,7 @@ class LocalPlayerHandler(
         player.stop()
         player.clearMediaItems()
 
-        val mediaItems = tracks.map { track ->
-            val localPath = checkLocalFileProvider(track.fileKey)
-            val uri = if (localPath != null && File(localPath).exists()) {
-                Uri.fromFile(File(localPath))
-            } else {
-                val active = serverRepository.activeServer.value
-                val (serverUrl, token) = if (active != null) {
-                    val host = active.host
-                    val scheme = if (active.useSsl) "https" else "http"
-                    val port = if (active.useSsl) active.sslPort else active.port
-                    Pair("$scheme://$host:$port/MCWS/v1", active.token ?: "")
-                } else {
-                    val activeServer = runBlocking {
-                        serverRepository.getLastUsedServer()
-                    }
-                    if (activeServer != null) {
-                        val host = activeServer.host
-                        val scheme = if (activeServer.useSsl) "https" else "http"
-                        val port = if (activeServer.useSsl) activeServer.sslPort else activeServer.port
-                        Pair("$scheme://$host:$port/MCWS/v1", activeServer.authToken ?: "")
-                    } else {
-                        Pair("", "")
-                    }
-                }
-                Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&Playback=1&Token=${token}")
-            }
-
-            MediaItem.Builder()
-                .setUri(uri)
-                .setMediaId(track.fileKey)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(track.name)
-                        .setArtist(track.artist)
-                        .setAlbumTitle(track.album)
-                        .setArtworkUri(Uri.parse("content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_${track.fileKey}.jpg"))
-                        .build()
-                )
-                .build()
-        }
+        val mediaItems = tracks.map { createMediaItem(it) }
 
         player.setMediaItems(mediaItems)
         if (startIndex >= 0 && startIndex < mediaItems.size) {
@@ -155,6 +157,57 @@ class LocalPlayerHandler(
             _currentTrack.value = tracks[startIndex]
         }
         player.prepare()
+    }
+
+    override fun addTracks(tracks: List<Track>) {
+        ensurePlayer()
+        val player = exoPlayer ?: return
+        
+        val mediaItems = tracks.map { createMediaItem(it) }
+        
+        val currentQueue = _queue.value.toMutableList()
+        val wasEmpty = currentQueue.isEmpty()
+        currentQueue.addAll(tracks)
+        _queue.value = currentQueue
+        
+        player.addMediaItems(mediaItems)
+        
+        if (wasEmpty && currentQueue.isNotEmpty()) {
+            player.seekTo(0, 0L)
+            _currentIndex.value = 0
+            _currentTrack.value = tracks[0]
+            player.prepare()
+            player.play()
+        }
+    }
+
+    override fun insertTracksNext(tracks: List<Track>) {
+        ensurePlayer()
+        val player = exoPlayer ?: return
+        
+        val currentQueue = _queue.value.toMutableList()
+        val wasEmpty = currentQueue.isEmpty()
+        val currentIndex = player.currentMediaItemIndex
+        val insertIndex = if (currentIndex >= 0) currentIndex + 1 else 0
+        
+        val mediaItems = tracks.map { createMediaItem(it) }
+        
+        if (insertIndex in 0..currentQueue.size) {
+            currentQueue.addAll(insertIndex, tracks)
+        } else {
+            currentQueue.addAll(tracks)
+        }
+        _queue.value = currentQueue
+        
+        player.addMediaItems(insertIndex, mediaItems)
+        
+        if (wasEmpty && currentQueue.isNotEmpty()) {
+            player.seekTo(0, 0L)
+            _currentIndex.value = 0
+            _currentTrack.value = tracks[0]
+            player.prepare()
+            player.play()
+        }
     }
 
     override fun play() {
