@@ -3,7 +3,7 @@ import SharedLogic
 
 class PlaybackStateObserver: ObservableObject {
 
-    @Published var activeZone: Zone = Zone.offline
+    @Published var activeZone: Zone = Zone.Offline
     @Published var playerStatus: PlayerStatus? = nil
     @Published var localQueue: [Track] = []
 
