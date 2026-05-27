@@ -182,4 +182,11 @@ data class Album(
         totalDiscs = track.totalDiscs,
         discNumber = track.discNumber
     )
+
+    val albumGroupId: String
+        get() = if (totalDiscs > 1 && discNumber > 0) {
+            "${name.lowercase()}|${parentFolderPath.lowercase()}"
+        } else {
+            "${name.lowercase()}|${folderPath.lowercase()}"
+        }
 }
