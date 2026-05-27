@@ -368,23 +368,20 @@ struct PlayerTabContainerView: View {
 }
 
 struct LibraryTabContainerView: View {
-    @Environment(AppContainer.self) private var container
     @Binding var selectedAlbum: Album?
     let libraryViewModel: LibraryViewModel
 
     var body: some View {
         if let album = selectedAlbum {
-            let kmpAlbum = album
-            let albumDetailViewModel = AlbumDetailViewModel(
-                album: kmpAlbum,
-                libraryRepository: container.libraryRepository,
-                facade: container.facade,
-                database: container.database
-            )
             AlbumDetailView(
-                viewModel: albumDetailViewModel,
+                album: album,
                 onBackClick: { selectedAlbum = nil }
             )
+            // SwiftUI keys the inner @State on view identity; this id makes the
+            // identity change when the user navigates to a different album, so
+            // the lazy-initialised AlbumDetailObservable is rebuilt for the new
+            // album rather than reusing the previous one.
+            .id("\(album.name)|\(album.albumArtist)|\(album.folderPath)")
         } else {
             LibraryView(
                 viewModel: libraryViewModel,

@@ -92,16 +92,54 @@ class AlbumDetailObservable {
     }
 }
 
+/// Public wrapper. Takes the album as a value; constructs the underlying
+/// `AlbumDetailViewModel` exactly once per view identity, then mounts the
+/// real content. Parents pass a `.id(...)` so identity changes when the
+/// selected album changes.
 struct AlbumDetailView: View {
     @Environment(AppContainer.self) private var container
-    @State private var observable: AlbumDetailObservable
+
+    let album: Album
     let onBackClick: () -> Void
-    
-    init(viewModel: AlbumDetailViewModel, onBackClick: @escaping () -> Void) {
-        self._observable = State(initialValue: AlbumDetailObservable(viewModel: viewModel))
-        self.onBackClick = onBackClick
+
+    /// Optional + `.task` is the iOS 17+ pattern for lazy `@State` init when
+    /// the wrapped type isn't an `ObservableObject` (so `@StateObject` doesn't
+    /// apply). SwiftUI invokes the closure exactly once per view identity.
+    @State private var observable: AlbumDetailObservable?
+
+    var body: some View {
+        Group {
+            if let observable {
+                AlbumDetailContentView(
+                    observable: observable,
+                    onBackClick: onBackClick
+                )
+            } else {
+                Color.bg1.ignoresSafeArea()
+            }
+        }
+        .task {
+            if observable == nil {
+                observable = AlbumDetailObservable(
+                    viewModel: AlbumDetailViewModel(
+                        album: album,
+                        libraryRepository: container.libraryRepository,
+                        facade: container.facade,
+                        database: container.database
+                    )
+                )
+            }
+        }
     }
-    
+}
+
+/// All the actual rendering. Held inside [AlbumDetailView] which guarantees a
+/// non-nil observable by the time this view mounts.
+private struct AlbumDetailContentView: View {
+    @Environment(AppContainer.self) private var container
+    let observable: AlbumDetailObservable
+    let onBackClick: () -> Void
+
     var body: some View {
         VStack(spacing: 0) {
             // Top Bar
