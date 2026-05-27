@@ -9,10 +9,9 @@ class AlbumDetailObservable {
 
     var albumName: String
     var artistName: String
-    var contentState: AlbumDetailContentState
     var transientError: String?
 
-    // UI reactive values
+    // UI reactive values — mirrored from AlbumDetailViewState (flat shape, no sealed casts)
     var tracks: [Track] = []
     var downloadedTrackKeys: Set<String> = []
     var activeDownloadJobs: [String: String] = [:]
@@ -28,10 +27,7 @@ class AlbumDetailObservable {
         self.albumName = viewModel.album.name
         self.artistName = viewModel.album.albumArtist
 
-        let initial = viewModel.state
-        self.contentState = initial.contentState
-        self.isOffline = initial.isOfflineMode
-        sync(state: initial)
+        sync(state: viewModel.state)
 
         observeTask = Task { @MainActor [weak self] in
             guard let stateFlow = self?.viewModel.stateFlow else { return }
@@ -48,34 +44,16 @@ class AlbumDetailObservable {
     deinit {
         observeTask?.cancel()
     }
-    
+
     private func sync(state: AlbumDetailViewState) {
-        self.contentState = state.contentState
         self.isOffline = state.isOfflineMode
         self.transientError = state.transientError
-        
-        if let success = state.contentState as? AlbumDetailContentStateSuccess {
-            self.tracks = success.tracks
-            self.downloadedTrackKeys = success.downloadedTrackKeys
-            self.activeDownloadJobs = success.activeDownloadJobs
-            self.isFavorite = success.isFavorite
-            self.isLoading = false
-            self.errorMessage = nil
-        } else if let error = state.contentState as? AlbumDetailContentStateError {
-            self.tracks = []
-            self.downloadedTrackKeys = []
-            self.activeDownloadJobs = [:]
-            self.isFavorite = false
-            self.isLoading = false
-            self.errorMessage = error.message
-        } else {
-            self.tracks = []
-            self.downloadedTrackKeys = []
-            self.activeDownloadJobs = [:]
-            self.isFavorite = false
-            self.isLoading = true
-            self.errorMessage = nil
-        }
+        self.isLoading = state.isLoading
+        self.errorMessage = state.errorMessage
+        self.tracks = state.tracks
+        self.downloadedTrackKeys = state.downloadedTrackKeys
+        self.activeDownloadJobs = state.activeDownloadJobs
+        self.isFavorite = state.isFavorite
     }
     
     func playTrack(_ track: Track) {

@@ -13,24 +13,28 @@ import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-sealed interface AlbumDetailContentState {
-    data object Loading : AlbumDetailContentState
-    data class Success(
-        val tracks: List<Track> = emptyList(),
-        val downloadedTrackKeys: Set<String> = emptySet(),
-        val activeDownloadJobs: Map<String, String> = emptyMap(), // Map of FileKey to job state
-        val isFavorite: Boolean = false
-    ) : AlbumDetailContentState
-
-    data class Error(val message: String) : AlbumDetailContentState
-}
-
+/**
+ * Flat view state — was previously a `sealed interface AlbumDetailContentState`
+ * of (Loading, Success, Error). The sealed shape forced `as?` casts on the
+ * Swift side and a silent "else means Loading" branch that would silently
+ * misbehave if a fourth case were added. The shape below is exhaustive by
+ * construction:
+ *
+ * - Loading      => isLoading = true, errorMessage = null
+ * - Loaded       => isLoading = false, errorMessage = null, tracks/... populated
+ * - Error        => isLoading = false, errorMessage != null
+ */
 data class AlbumDetailViewState(
     val albumName: String,
     val artistName: String,
-    val contentState: AlbumDetailContentState = AlbumDetailContentState.Loading,
+    val isLoading: Boolean = true,
+    val errorMessage: String? = null,
+    val tracks: List<Track> = emptyList(),
+    val downloadedTrackKeys: Set<String> = emptySet(),
+    val activeDownloadJobs: Map<String, String> = emptyMap(),
+    val isFavorite: Boolean = false,
     val isOfflineMode: Boolean = true,
-    val transientError: String? = null
+    val transientError: String? = null,
 )
 
 class AlbumDetailViewModel(
@@ -62,19 +66,20 @@ class AlbumDetailViewModel(
             val isOffline = activeZone.isOffline || facade.currentServerHost.isNullOrEmpty()
 
             _state.update { currentState ->
-                val nextState = if (currentState.contentState is AlbumDetailContentState.Error) {
-                    currentState
+                // Don't overwrite an error state with fresh data — the user
+                // needs to retry first.
+                if (currentState.errorMessage != null) {
+                    currentState.copy(isOfflineMode = isOffline)
                 } else {
                     currentState.copy(
-                        contentState = AlbumDetailContentState.Success(
-                            tracks = tracks,
-                            downloadedTrackKeys = downloadedKeys,
-                            activeDownloadJobs = activeJobs,
-                            isFavorite = favorite
-                        )
+                        isLoading = false,
+                        tracks = tracks,
+                        downloadedTrackKeys = downloadedKeys,
+                        activeDownloadJobs = activeJobs,
+                        isFavorite = favorite,
+                        isOfflineMode = isOffline,
                     )
                 }
-                nextState.copy(isOfflineMode = isOffline)
             }
         }.launchIn(viewModelScope)
 
@@ -83,7 +88,7 @@ class AlbumDetailViewModel(
 
     private fun refreshTracksAndFavorite() {
         viewModelScope.launch {
-            _state.update { it.copy(contentState = AlbumDetailContentState.Loading) }
+            _state.update { it.copy(isLoading = true, errorMessage = null) }
             try {
                 // Fetch tracks from repository
                 val albumTracks = libraryRepository.getAlbumTracks(album)
@@ -96,9 +101,8 @@ class AlbumDetailViewModel(
             } catch (e: Exception) {
                 _state.update {
                     it.copy(
-                        contentState = AlbumDetailContentState.Error(
-                            e.message ?: "Failed to load album tracks"
-                        )
+                        isLoading = false,
+                        errorMessage = e.message ?: "Failed to load album tracks",
                     )
                 }
             }
