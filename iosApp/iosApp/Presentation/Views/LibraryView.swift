@@ -347,7 +347,7 @@ struct LibraryView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 8) {
-                            ForEach(observable.artistAlbums, id: \.name) { album in
+                            ForEach(observable.artistAlbums, id: \.albumGroupId) { album in
                                 albumRowItem(album: album) {
                                     onAlbumClick(album)
                                 }
