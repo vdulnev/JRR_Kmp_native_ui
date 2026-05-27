@@ -1,6 +1,7 @@
 import Foundation
 import SharedLogic
 import Combine
+import KMPNativeCoroutinesCombine
 
 class PlaybackStateObserver: ObservableObject {
 
@@ -15,57 +16,77 @@ class PlaybackStateObserver: ObservableObject {
     private let database: JrrDatabase
     private let nowPlayingCoordinator: NowPlayingCoordinator
 
-    private var activeZoneDisposable: Disposable?
-    private var playerStatusDisposable: Disposable?
-    private var localQueueDisposable: Disposable?
-    private var downloadedTracksDisposable: Disposable?
-    private var downloadJobsDisposable: Disposable?
+    private var cancellables = Set<AnyCancellable>()
 
     init(facade: AudioPlayerFacade, database: JrrDatabase, nowPlayingCoordinator: NowPlayingCoordinator) {
         self.database = database
         self.nowPlayingCoordinator = nowPlayingCoordinator
 
-        activeZoneDisposable = FlowObserver<Zone>(flow: facade.activeZone).start { [weak self] zone in
-            if let zone = zone {
-                self?.activeZone = zone
-            }
-        }
-
-        playerStatusDisposable = FlowObserver<PlayerStatus>(flow: facade.playerStatus).start { [weak self] status in
-            let status = status
-            self?.playerStatus = status
-
-            // Update lock screen controls when playing on local/offline zone
-            if let status = status, let self = self {
-                let isActiveZoneLocalOrOffline = self.activeZone.isLocal || self.activeZone.isOffline
-                if isActiveZoneLocalOrOffline {
-                    self.nowPlayingCoordinator.updateNowPlaying(
-                        title: status.trackName,
-                        artist: status.trackArtist,
-                        album: status.trackAlbum,
-                        positionMs: status.positionMs,
-                        durationMs: status.durationMs,
-                        isPlaying: status.state == .playing
-                    )
+        createPublisher(for: facade.activeZoneFlow)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { [weak self] zone in
+                    self?.activeZone = zone
                 }
-            }
-        }
+            )
+            .store(in: &cancellables)
 
-        localQueueDisposable = FlowObserver<NSArray>(flow: facade.localQueue).start { [weak self] queue in
-            self?.localQueue = queue as? [Track] ?? []
-        }
+        createPublisher(for: facade.playerStatusFlow)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { [weak self] status in
+                    guard let self = self else { return }
+                    self.playerStatus = status
 
-        downloadedTracksDisposable = FlowObserver<NSArray>(flow: database.downloadedTrackDao().getAllTracksFlow()).start { [weak self] list in
-            if let list = list as? [DownloadedTrackEntity] {
-                self?.downloadedTracks = list
-            }
-        }
+                    // Update lock screen controls when playing on local/offline zone
+                    if let status = status {
+                        let isActiveZoneLocalOrOffline = self.activeZone.isLocal || self.activeZone.isOffline
+                        if isActiveZoneLocalOrOffline {
+                            self.nowPlayingCoordinator.updateNowPlaying(
+                                title: status.trackName,
+                                artist: status.trackArtist,
+                                album: status.trackAlbum,
+                                positionMs: status.positionMs,
+                                durationMs: status.durationMs,
+                                isPlaying: status.state == .playing
+                            )
+                        }
+                    }
+                }
+            )
+            .store(in: &cancellables)
 
-        downloadJobsDisposable = FlowObserver<NSArray>(flow: database.downloadJobDao().getAllJobsFlow()).start { [weak self] list in
-            if let list = list as? [DownloadJobEntity] {
-                self?.downloadJobs = list
-            }
-        }
+        createPublisher(for: facade.localQueueFlow)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { [weak self] queue in
+                    self?.localQueue = queue
+                }
+            )
+            .store(in: &cancellables)
+
+        createPublisher(for: database.downloadedTrackDao().getAllTracksFlow())
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { [weak self] list in
+                    self?.downloadedTracks = list
+                }
+            )
+            .store(in: &cancellables)
+
+        createPublisher(for: database.downloadJobDao().getAllJobsFlow())
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { [weak self] list in
+                    self?.downloadJobs = list
+                }
+            )
+            .store(in: &cancellables)
 
         refreshFavorites()
     }
@@ -81,13 +102,5 @@ class PlaybackStateObserver: ObservableObject {
                 print("Failed to load favorites: \(error)")
             }
         }
-    }
-
-    deinit {
-        activeZoneDisposable?.dispose()
-        playerStatusDisposable?.dispose()
-        localQueueDisposable?.dispose()
-        downloadedTracksDisposable?.dispose()
-        downloadJobsDisposable?.dispose()
     }
 }

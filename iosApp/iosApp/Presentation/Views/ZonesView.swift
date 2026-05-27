@@ -1,11 +1,12 @@
 import SwiftUI
 import SharedLogic
+import KMPNativeCoroutinesAsync
 
 @Observable
 @MainActor
 class ZonesObservable {
     let viewModel: ZonesViewModel
-    
+
     var serverZones: [Zone] = []
     var deviceZones: [Zone] = []
     var activeZoneId: String = ""
@@ -13,22 +14,28 @@ class ZonesObservable {
     var isLoading: Bool = false
     var isOfflineMode: Bool = true
     var transientError: String? = nil
-    
-    private let subscription = FlowSubscription()
-    
+
+    nonisolated(unsafe) private var observeTask: Task<Void, Never>?
+
     init(viewModel: ZonesViewModel) {
         self.viewModel = viewModel
-        
-        let initial = viewModel.state.value as! ZonesViewState
-        sync(state: initial)
-        
-        self.subscription.disposable = FlowObserver<ZonesViewState>(flow: viewModel.state).start { [weak self] state in
-            if let state = state {
-                Task { @MainActor in
+
+        sync(state: viewModel.state)
+
+        observeTask = Task { @MainActor [weak self] in
+            guard let stateFlow = self?.viewModel.stateFlow else { return }
+            do {
+                for try await state in asyncSequence(for: stateFlow) {
                     self?.sync(state: state)
                 }
+            } catch {
+                // Flow cancelled
             }
         }
+    }
+
+    deinit {
+        observeTask?.cancel()
     }
     
     private func sync(state: ZonesViewState) {

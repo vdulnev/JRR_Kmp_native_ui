@@ -8,6 +8,7 @@ import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
+import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesState
 import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -40,6 +41,7 @@ class AlbumDetailViewModel(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AlbumDetailViewState(album.name, album.albumArtist))
+    @NativeCoroutinesState
     val state: StateFlow<AlbumDetailViewState> = _state.asStateFlow()
 
     // Internal state updates

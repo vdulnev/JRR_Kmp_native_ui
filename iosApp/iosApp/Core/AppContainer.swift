@@ -61,7 +61,7 @@ final class AppContainer {
             database: database,
             mcwsClient: mcwsCore.mcwsClient,
             isOfflineProvider: {
-                let zone = facade.activeZone.value as? Zone
+                let zone = facade.activeZone
                 return KotlinBoolean(value: zone == Zone.companion.Offline)
             }
         )
