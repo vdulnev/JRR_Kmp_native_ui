@@ -51,6 +51,11 @@ class LibraryRepository(
         mcwsClient.searchTracks(mcwsQuery)
     }
 
+    suspend fun getDownloadedTracks(): List<Track> = withContext(Dispatchers.IO) {
+        val db = database ?: return@withContext emptyList()
+        db.downloadedTrackDao().getAllTracks().map { it.toTrack() }
+    }
+
     suspend fun getArtists(): List<String> = withContext(Dispatchers.IO) {
         if (isOfflineProvider.isOffline()) {
             val artistsSet = mutableSetOf<String>()

@@ -16,6 +16,7 @@ class LibraryObservable {
     var browseStack: [BrowseNode] = []
     var browseChildren: [BrowseItem] = []
     var browseTracks: [Track] = []
+    var downloadedTracks: [Track] = []
     var isOffline: Bool = false
     var isLoading: Bool = false
     var isTabLoading: Bool = false
@@ -51,6 +52,7 @@ class LibraryObservable {
         self.browseStack = state.browseStack
         self.browseChildren = state.browseChildren
         self.browseTracks = state.browseTracks
+        self.downloadedTracks = state.downloadedTracks
         self.isOffline = state.isOffline
         self.isLoading = state.isLoading
         self.isTabLoading = state.isTabLoading
@@ -253,6 +255,7 @@ struct LibraryView: View {
                         tabButton(title: "Random", id: "random")
                         tabButton(title: "Browse", id: "browse")
                     }
+                    tabButton(title: "Downloads", id: "downloads")
                     tabButton(title: "Favorites", id: "favorites")
                 }
                 .background(Color.bg1)
@@ -266,6 +269,8 @@ struct LibraryView: View {
                         randomTab()
                     case "browse":
                         browseTab()
+                    case "downloads":
+                        downloadsTab()
                     case "favorites":
                         favoritesTab()
                     default:
@@ -742,6 +747,41 @@ struct LibraryView: View {
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                 .padding(.top, 12)
+            }
+        }
+    }
+    
+    // MARK: - Downloads Tab View
+    @ViewBuilder
+    private func downloadsTab() -> some View {
+        if observable.isLoading {
+            VStack {
+                Spacer()
+                ProgressView().tint(.accentColor)
+                Spacer()
+            }
+        } else {
+            if observable.downloadedTracks.isEmpty {
+                VStack {
+                    Spacer()
+                    Text("No downloaded tracks")
+                        .font(AppFont.inter(size: 14, weight: .regular))
+                        .foregroundColor(.textSecondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(observable.downloadedTracks, id: \.fileKey) { track in
+                            trackRowItem(track: track) {
+                                observable.playTracks(observable.downloadedTracks, startIndex: observable.downloadedTracks.firstIndex(of: track) ?? 0)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                    .padding(.top, 12)
+                }
             }
         }
     }
