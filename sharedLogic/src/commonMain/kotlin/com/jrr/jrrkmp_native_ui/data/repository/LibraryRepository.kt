@@ -13,20 +13,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 
-/**
- * Resolves whether the app is currently in offline mode. Modelled as a SAM
- * interface so Swift can implement it directly without the
- * `() -> Boolean` -> `() -> KotlinBoolean` boxing dance the closure form
- * forces over the Kotlin/Native boundary.
- */
-fun interface OfflineModeProvider {
-    fun isOffline(): Boolean
-}
-
 class LibraryRepository(
     private val database: JrrDatabase?,
     private val mcwsClient: McwsClient,
-    private val isOfflineProvider: OfflineModeProvider,
+    private val isOfflineProvider: () -> Boolean,
 ) {
     var onDownloadQueued: ((track: Track, jobId: Int) -> Unit)? = null
 
@@ -35,7 +25,7 @@ class LibraryRepository(
         value.replace(ESC_REGEX) { "/${it.value}" }
 
     suspend fun searchFiles(query: String): List<Track> = withContext(Dispatchers.IO) {
-        if (isOfflineProvider.isOffline()) {
+        if (isOfflineProvider()) {
             val db = database ?: return@withContext emptyList()
             return@withContext db.downloadedTrackDao().getAllTracks()
                 .filter {
@@ -51,7 +41,7 @@ class LibraryRepository(
     }
 
     suspend fun getArtists(): List<String> = withContext(Dispatchers.IO) {
-        if (isOfflineProvider.isOffline()) {
+        if (isOfflineProvider()) {
             val artistsSet = mutableSetOf<String>()
             val db = database ?: return@withContext emptyList()
             db.downloadedTrackDao().getAllTracks().forEach {
@@ -68,7 +58,7 @@ class LibraryRepository(
     }
 
     suspend fun getAlbumsByArtist(artistName: String): List<Album> = withContext(Dispatchers.IO) {
-        if (isOfflineProvider.isOffline()) {
+        if (isOfflineProvider()) {
             val albumsMap = mutableMapOf<String, DownloadedTrackEntity>()
             val db = database ?: return@withContext emptyList()
             db.downloadedTrackDao().getAllTracks().forEach {
@@ -89,7 +79,7 @@ class LibraryRepository(
     }
 
     suspend fun getAlbumTracks(album: Album): List<Track> = withContext(Dispatchers.IO) {
-        if (isOfflineProvider.isOffline()) {
+        if (isOfflineProvider()) {
             val db = database ?: return@withContext emptyList()
             return@withContext db.downloadedTrackDao().getAllTracks()
                 .filter {
