@@ -114,6 +114,20 @@ fun MainShell(
     val zonesViewModel = remember {
         ZonesViewModel(facade, libraryRepository)
     }
+    val settingsViewModel = remember {
+        SettingsViewModel(
+            facade = facade,
+            database = context.appContainer.database,
+            clearPhysicalDownloads = {
+                val downloadsDir = java.io.File(context.filesDir, "downloads")
+                if (downloadsDir.exists() && downloadsDir.isDirectory) {
+                    downloadsDir.listFiles()?.forEach { file ->
+                        file.delete()
+                    }
+                }
+            }
+        )
+    }
 
     val playerStatus by facade.playerStatus.collectAsState()
     val activeZone by facade.activeZone.collectAsState()
@@ -336,7 +350,7 @@ fun MainShell(
                 }
                 4 -> {
                     SettingsScreen(
-                        facade = facade,
+                        viewModel = settingsViewModel,
                         onBackClick = { viewModel.selectTab(2) },
                         onDisconnectClick = {
                             viewModel.disconnect()

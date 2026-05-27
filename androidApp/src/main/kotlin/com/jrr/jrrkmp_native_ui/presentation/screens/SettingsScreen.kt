@@ -1,9 +1,7 @@
 package com.jrr.jrrkmp_native_ui.presentation.screens
 
-import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,25 +14,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
-import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
-import com.jrr.jrrkmp_native_ui.domain.model.Zone
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    facade: AudioPlayerFacade,
+    viewModel: SettingsViewModel,
     onBackClick: () -> Unit,
     onDisconnectClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val activeZone by facade.activeZone.collectAsState()
+    val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
 
-    val serverHost = facade.currentServerHost
-    val isOfflineMode = activeZone.isOffline || serverHost.isNullOrEmpty()
+    LaunchedEffect(state.transientError) {
+        state.transientError?.let { error ->
+            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            viewModel.clearTransientError()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -90,7 +91,7 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            if (isOfflineMode) {
+                            if (state.isOfflineMode) {
                                 Text(
                                     text = "OFFLINE MODE",
                                     style = AppTypography.itemTitle,
@@ -116,12 +117,12 @@ fun SettingsScreen(
                                     color = AppColors.text3
                                 )
                                 Text(
-                                    text = "Host: $serverHost",
+                                    text = "Host: ${state.serverHost ?: ""}",
                                     style = AppTypography.itemTitle,
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
                                 Text(
-                                    text = "Port: ${if (facade.currentServerUseSsl) facade.currentServerSslPort else facade.currentServerPort} (${if (facade.currentServerUseSsl) "SSL" else "HTTP"})",
+                                    text = "Port: ${if (state.useSsl) state.serverSslPort else state.serverPort} (${if (state.useSsl) "SSL" else "HTTP"})",
                                     style = AppTypography.itemSubtitle,
                                     color = AppColors.text2,
                                     modifier = Modifier.padding(bottom = 12.dp)
@@ -133,6 +134,129 @@ fun SettingsScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text("DISCONNECT / CHANGE SERVER", style = AppTypography.chipMono, color = AppColors.error)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Storage and Downloads Section
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Storage & Downloads".uppercase(),
+                        style = AppTypography.sectionHeading,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = AppColors.bg2),
+                        border = BoxBorder(AppColors.line),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Downloaded Tracks",
+                                style = AppTypography.monoLabel,
+                                color = AppColors.text3
+                            )
+                            Text(
+                                text = "${state.downloadedTracksCount} Tracks cached",
+                                style = AppTypography.itemTitle,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            Text(
+                                text = "Occupies space offline for lag-free playback",
+                                style = AppTypography.itemSubtitle,
+                                color = AppColors.text2,
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+                            Button(
+                                onClick = {
+                                    viewModel.clearDownloads()
+                                },
+                                enabled = state.downloadedTracksCount > 0,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = AppColors.bg0,
+                                    disabledContainerColor = AppColors.bg3
+                                ),
+                                border = if (state.downloadedTracksCount > 0) BoxBorder(AppColors.error) else BoxBorder(AppColors.line),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "CLEAR DOWNLOADS",
+                                    style = AppTypography.chipMono,
+                                    color = if (state.downloadedTracksCount > 0) AppColors.error else AppColors.text3
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Active Downloads Section
+            if (state.downloadJobs.isNotEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "Active Downloads".uppercase(),
+                            style = AppTypography.sectionHeading,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = AppColors.bg2),
+                            border = BoxBorder(AppColors.line),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                state.downloadJobs.forEachIndexed { index, job ->
+                                    if (index > 0) {
+                                        HorizontalDivider(
+                                            color = AppColors.line2,
+                                            modifier = Modifier.padding(vertical = 8.dp)
+                                        )
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(job.name, style = AppTypography.itemTitle, maxLines = 1)
+                                            val stateText = when (job.state) {
+                                                "QUEUED" -> "Queued"
+                                                "DOWNLOADING" -> "Downloading"
+                                                "FAILED" -> "Failed"
+                                                else -> job.state
+                                            }
+                                            Text(
+                                                text = "${job.artist} · $stateText",
+                                                style = AppTypography.itemSubtitle,
+                                                color = AppColors.text2
+                                            )
+                                            if (job.state == "DOWNLOADING" && job.bytesTotal > 0) {
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                LinearProgressIndicator(
+                                                    progress = job.bytesDownloaded.toFloat() / job.bytesTotal.toFloat(),
+                                                    color = AppColors.accent,
+                                                    trackColor = AppColors.bg3,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(4.dp)
+                                                        .clip(RoundedCornerShape(2.dp))
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

@@ -96,6 +96,7 @@ struct ContentView: View {
     @State private var queueViewModel: QueueViewModel
     @State private var zonesViewModel: ZonesViewModel
     @State private var nowPlayingObservable: NowPlayingObservable
+    @State private var settingsViewModel: SettingsViewModel
 
     @State private var mainShellViewModel: MainShellViewModel
     @State private var mainShellObservable: MainShellObservable
@@ -105,12 +106,33 @@ struct ContentView: View {
         let npVM = NowPlayingViewModel(facade: container.facade, mcwsClient: container.mcwsClient)
         let qVM = QueueViewModel(facade: container.facade, libraryRepository: container.libraryRepository)
         let zVM = ZonesViewModel(facade: container.facade, libraryRepository: container.libraryRepository)
+        let settingsVM = SettingsViewModel(
+            facade: container.facade,
+            database: container.database,
+            clearPhysicalDownloads: {
+                let fileManager = FileManager.default
+                let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let downloadsDir = documentsURL.appendingPathComponent("downloads")
+                if fileManager.fileExists(atPath: downloadsDir.path) {
+                    do {
+                        let filePaths = try fileManager.contentsOfDirectory(atPath: downloadsDir.path)
+                        for filePath in filePaths {
+                            let fullPath = downloadsDir.appendingPathComponent(filePath).path
+                            try fileManager.removeItem(atPath: fullPath)
+                        }
+                    } catch {
+                        print("Failed to delete files: \(error)")
+                    }
+                }
+            }
+        )
 
         self._libraryViewModel = State(initialValue: libVM)
         self._nowPlayingViewModel = State(initialValue: npVM)
         self._queueViewModel = State(initialValue: qVM)
         self._zonesViewModel = State(initialValue: zVM)
         self._nowPlayingObservable = State(initialValue: NowPlayingObservable(viewModel: npVM))
+        self._settingsViewModel = State(initialValue: settingsVM)
 
         let settings = SwiftMainShellSettings()
         let shellVM = MainShellViewModel(facade: container.facade, serverRepository: container.serverRepository, settings: settings)
@@ -208,11 +230,7 @@ struct ContentView: View {
                     
                     // Tab 4: Settings
                     SettingsView(
-                        isOfflineMode: zonesViewModel.state.value.isOfflineMode,
-                        serverHost: container.facade.currentServerHost,
-                        useSsl: container.facade.currentServerUseSsl,
-                        serverPort: container.facade.currentServerPort,
-                        serverSslPort: container.facade.currentServerSslPort,
+                        viewModel: settingsViewModel,
                         onBackClick: {
                             withAnimation {
                                 mainShellObservable.selectTab(2)

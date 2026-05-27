@@ -91,6 +91,9 @@ interface DownloadedTrackDao {
 
     @Query("SELECT * FROM downloaded_tracks")
     fun getAllTracksFlow(): Flow<List<DownloadedTrackEntity>>
+
+    @Query("DELETE FROM downloaded_tracks")
+    suspend fun deleteAll()
 }
 
 @Dao
