@@ -12,7 +12,6 @@ import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
-import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesState
 import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -89,18 +88,14 @@ class AudioPlayerFacade(
 
     // State Flows
     private val _activeZone = MutableStateFlow<Zone>(Zone.Offline)
-    @NativeCoroutinesState
     val activeZone: StateFlow<Zone> = _activeZone
 
     private val _playerStatus = MutableStateFlow<PlayerStatus?>(null)
-    @NativeCoroutinesState
     val playerStatus: StateFlow<PlayerStatus?> = _playerStatus
 
     private val _connectionToken = MutableStateFlow<String?>(serverRepository?.activeServer?.value?.token)
-    @NativeCoroutinesState
     val connectionToken: StateFlow<String?> = _connectionToken
 
-    @NativeCoroutinesState
     val localQueue: StateFlow<List<Track>> = localPlayerEngine.queue
 
     private var isPollingEnabled = true

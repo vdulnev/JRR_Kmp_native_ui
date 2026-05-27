@@ -6,7 +6,6 @@ import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
-import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesState
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
@@ -37,7 +36,6 @@ class MainShellViewModel(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MainShellState())
-    @NativeCoroutinesState
     val state: StateFlow<MainShellState> = _state.asStateFlow()
 
     private var autoConnectJob: Job? = null

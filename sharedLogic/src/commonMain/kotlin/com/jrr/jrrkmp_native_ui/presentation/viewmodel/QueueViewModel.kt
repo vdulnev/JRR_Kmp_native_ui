@@ -6,7 +6,6 @@ import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
-import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesState
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -25,7 +24,6 @@ class QueueViewModel(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(QueueViewState())
-    @NativeCoroutinesState
     val state: StateFlow<QueueViewState> = _state.asStateFlow()
 
     private val remoteQueueFlow = MutableStateFlow<List<Track>>(emptyList())

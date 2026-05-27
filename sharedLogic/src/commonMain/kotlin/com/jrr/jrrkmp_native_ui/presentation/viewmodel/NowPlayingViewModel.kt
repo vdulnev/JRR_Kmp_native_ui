@@ -8,7 +8,6 @@ import com.jrr.jrrkmp_native_ui.domain.model.PlayerStatus
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
-import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesState
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -35,7 +34,6 @@ class NowPlayingViewModel(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(NowPlayingViewState())
-    @NativeCoroutinesState
     val state: StateFlow<NowPlayingViewState> = _state.asStateFlow()
 
     init {
