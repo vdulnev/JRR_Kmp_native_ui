@@ -87,6 +87,18 @@ data class Zone(
     }
 }
 
+/*
+ * Swift-friendly aliases. Kotlin/Native exports companion-object properties
+ * as `Zone.companion.Offline`, which reads awkwardly. Top-level vals export
+ * as bare global Swift accessors (`ZoneOffline`), so Swift call sites can
+ * write `ZoneOffline` instead of `Zone.companion.Offline`.
+ *
+ * The Kotlin side keeps using the idiomatic `Zone.Offline` form.
+ */
+val ZoneLocal: Zone = Zone.Local
+val ZoneOffline: Zone = Zone.Offline
+val ZoneAndroidAuto: Zone = Zone.AndroidAuto
+
 @Serializable
 data class ServerInfo(
     val id: String,
