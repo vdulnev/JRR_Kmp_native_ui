@@ -13,26 +13,22 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-/**
- * Flat view state — was previously a `sealed interface AlbumDetailContentState`
- * of (Loading, Success, Error). The sealed shape forced `as?` casts on the
- * Swift side and a silent "else means Loading" branch that would silently
- * misbehave if a fourth case were added. The shape below is exhaustive by
- * construction:
- *
- * - Loading      => isLoading = true, errorMessage = null
- * - Loaded       => isLoading = false, errorMessage = null, tracks/... populated
- * - Error        => isLoading = false, errorMessage != null
- */
+sealed interface AlbumDetailContentState {
+    data object Loading : AlbumDetailContentState
+    data class Success(
+        val tracks: List<Track> = emptyList(),
+        val downloadedTrackKeys: Set<String> = emptySet(),
+        val activeDownloadJobs: Map<String, String> = emptyMap(),
+        val isFavorite: Boolean = false,
+    ) : AlbumDetailContentState
+
+    data class Error(val message: String) : AlbumDetailContentState
+}
+
 data class AlbumDetailViewState(
     val albumName: String,
     val artistName: String,
-    val isLoading: Boolean = true,
-    val errorMessage: String? = null,
-    val tracks: List<Track> = emptyList(),
-    val downloadedTrackKeys: Set<String> = emptySet(),
-    val activeDownloadJobs: Map<String, String> = emptyMap(),
-    val isFavorite: Boolean = false,
+    val contentState: AlbumDetailContentState = AlbumDetailContentState.Loading,
     val isOfflineMode: Boolean = true,
     val transientError: String? = null,
 )
@@ -67,15 +63,16 @@ class AlbumDetailViewModel(
             _state.update { currentState ->
                 // Don't overwrite an error state with fresh data — the user
                 // needs to retry first.
-                if (currentState.errorMessage != null) {
+                if (currentState.contentState is AlbumDetailContentState.Error) {
                     currentState.copy(isOfflineMode = isOffline)
                 } else {
                     currentState.copy(
-                        isLoading = false,
-                        tracks = tracks,
-                        downloadedTrackKeys = downloadedKeys,
-                        activeDownloadJobs = activeJobs,
-                        isFavorite = favorite,
+                        contentState = AlbumDetailContentState.Success(
+                            tracks = tracks,
+                            downloadedTrackKeys = downloadedKeys,
+                            activeDownloadJobs = activeJobs,
+                            isFavorite = favorite,
+                        ),
                         isOfflineMode = isOffline,
                     )
                 }
@@ -87,7 +84,7 @@ class AlbumDetailViewModel(
 
     private fun refreshTracksAndFavorite() {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null) }
+            _state.update { it.copy(contentState = AlbumDetailContentState.Loading) }
             try {
                 // Fetch tracks from repository
                 val albumTracks = libraryRepository.getAlbumTracks(album)
@@ -100,8 +97,9 @@ class AlbumDetailViewModel(
             } catch (e: Exception) {
                 _state.update {
                     it.copy(
-                        isLoading = false,
-                        errorMessage = e.message ?: "Failed to load album tracks",
+                        contentState = AlbumDetailContentState.Error(
+                            message = e.message ?: "Failed to load album tracks",
+                        ),
                     )
                 }
             }

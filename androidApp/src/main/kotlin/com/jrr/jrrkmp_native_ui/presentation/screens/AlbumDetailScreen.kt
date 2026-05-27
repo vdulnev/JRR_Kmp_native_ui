@@ -30,6 +30,7 @@ import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.domain.model.Track
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.AlbumDetailContentState
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.AlbumDetailViewModel
 
 private val DownloadIcon: ImageVector
@@ -74,7 +75,7 @@ fun AlbumDetailScreen(
                 color = AppColors.accent
             )
 
-            val isFav = state.isFavorite
+            val isFav = (state.contentState as? AlbumDetailContentState.Success)?.isFavorite ?: false
             IconButton(onClick = { viewModel.toggleFavorite() }) {
                 Icon(
                     imageVector = if (isFav) Icons.Default.Star else Icons.Outlined.Star,
@@ -84,12 +85,11 @@ fun AlbumDetailScreen(
             }
         }
 
-        val errorMessage = state.errorMessage
-        when {
-            errorMessage != null -> {
+        when (val content = state.contentState) {
+            is AlbumDetailContentState.Error -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Error: $errorMessage", color = AppColors.error, style = AppTypography.itemTitle)
+                        Text("Error: ${content.message}", color = AppColors.error, style = AppTypography.itemTitle)
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(onClick = { viewModel.retry() }) {
                             Text("Retry")
@@ -97,15 +97,15 @@ fun AlbumDetailScreen(
                     }
                 }
             }
-            state.isLoading -> {
+            AlbumDetailContentState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = AppColors.accent)
                 }
             }
-            else -> {
-                val tracks = state.tracks
-                val downloadedTrackKeys = state.downloadedTrackKeys
-                val activeJobs = state.activeDownloadJobs
+            is AlbumDetailContentState.Success -> {
+                val tracks = content.tracks
+                val downloadedTrackKeys = content.downloadedTrackKeys
+                val activeJobs = content.activeDownloadJobs
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),

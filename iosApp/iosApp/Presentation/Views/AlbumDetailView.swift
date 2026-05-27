@@ -50,12 +50,30 @@ class AlbumDetailObservable {
     private func sync(state: AlbumDetailViewState) {
         self.isOffline = state.isOfflineMode
         self.transientError = state.transientError
-        self.isLoading = state.isLoading
-        self.errorMessage = state.errorMessage
-        self.tracks = state.tracks
-        self.downloadedTrackKeys = state.downloadedTrackKeys
-        self.activeDownloadJobs = state.activeDownloadJobs
-        self.isFavorite = state.isFavorite
+
+        switch onEnum(of: state.contentState) {
+        case .loading:
+            self.tracks = []
+            self.downloadedTrackKeys = []
+            self.activeDownloadJobs = [:]
+            self.isFavorite = false
+            self.isLoading = true
+            self.errorMessage = nil
+        case .success(let success):
+            self.tracks = success.tracks
+            self.downloadedTrackKeys = success.downloadedTrackKeys
+            self.activeDownloadJobs = success.activeDownloadJobs
+            self.isFavorite = success.isFavorite
+            self.isLoading = false
+            self.errorMessage = nil
+        case .error(let error):
+            self.tracks = []
+            self.downloadedTrackKeys = []
+            self.activeDownloadJobs = [:]
+            self.isFavorite = false
+            self.isLoading = false
+            self.errorMessage = error.message
+        }
     }
     
     func playTrack(_ track: Track) {
