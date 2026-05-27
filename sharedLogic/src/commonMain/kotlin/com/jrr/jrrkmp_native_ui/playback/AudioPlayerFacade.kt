@@ -42,30 +42,6 @@ class AudioPlayerFacade(
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
-    /**
-     * Six-arg secondary constructor for Swift. Kotlin/Native generates only
-     * one Swift `init` from the primary ctor (all 8 params required), so Swift
-     * can't take advantage of the dispatcher defaults directly. This ctor gives
-     * iOS a clean entry point without needing a separate factory wrapper.
-     */
-    constructor(
-        database: JrrDatabase?,
-        localPlayerEngine: LocalPlayerEngine,
-        mcwsClient: McwsClient,
-        serverRepository: ServerRepository?,
-        saveLastActiveZoneId: (String) -> Unit,
-        loadLastActiveZoneId: () -> String?,
-    ) : this(
-        database = database,
-        localPlayerEngine = localPlayerEngine,
-        mcwsClient = mcwsClient,
-        serverRepository = serverRepository,
-        saveLastActiveZoneId = saveLastActiveZoneId,
-        loadLastActiveZoneId = loadLastActiveZoneId,
-        mainDispatcher = Dispatchers.Main,
-        ioDispatcher = Dispatchers.IO,
-    )
-
     private val coroutineScope = CoroutineScope(mainDispatcher + SupervisorJob())
 
     val currentServerHost: String?
