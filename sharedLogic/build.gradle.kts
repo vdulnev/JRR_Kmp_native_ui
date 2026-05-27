@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.androidx.room)
-    alias(libs.plugins.kmp.nativecoroutines)
+    alias(libs.plugins.skie)
 }
 
 room {
