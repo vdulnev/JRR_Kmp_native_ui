@@ -14,6 +14,13 @@ room {
 }
 
 kotlin {
+    // 'expect'/'actual' classes are still flagged as Beta with a noisy
+    // compiler warning; the feature is stable in practice. This flag quiets
+    // it for every Kotlin compilation in this module.
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     listOf(
         iosArm64(),
         iosSimulatorArm64()

@@ -2,12 +2,6 @@ import SwiftUI
 import SharedLogic
 import KMPNativeCoroutinesAsync
 
-struct BrowseNode: Hashable, Identifiable {
-    var id: String { nodeId }
-    let label: String
-    let nodeId: String
-}
-
 @Observable
 @MainActor
 class LibraryObservable {
@@ -59,18 +53,7 @@ class LibraryObservable {
         self.selectedArtist = state.selectedArtist
         self.artistAlbums = state.artistAlbums
         self.randomAlbums = state.randomAlbums
-        
-        // Map browse stack safely
-        if let kotlinStack = state.browseStack as? [KotlinPair<AnyObject, AnyObject>] {
-            self.browseStack = kotlinStack.map { pair in
-                let label = pair.first as? String ?? ""
-                let id = pair.second as? String ?? ""
-                return BrowseNode(label: label, nodeId: id)
-            }
-        } else {
-            self.browseStack = []
-        }
-        
+        self.browseStack = state.browseStack
         self.browseChildren = state.browseChildren
         self.browseTracks = state.browseTracks
         self.isOffline = state.isOffline

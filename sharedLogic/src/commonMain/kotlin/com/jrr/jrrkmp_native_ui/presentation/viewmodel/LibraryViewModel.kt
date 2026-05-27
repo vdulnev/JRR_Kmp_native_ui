@@ -3,6 +3,7 @@ package com.jrr.jrrkmp_native_ui.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
+import com.jrr.jrrkmp_native_ui.data.api.BrowseNode
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
@@ -27,7 +28,7 @@ data class LibraryViewState(
     val selectedArtist: String? = null,
     val artistAlbums: List<Album> = emptyList(),
     val randomAlbums: List<Album> = emptyList(),
-    val browseStack: List<Pair<String, String>> = listOf(Pair("Library", "-1")),
+    val browseStack: List<BrowseNode> = listOf(BrowseNode("Library", "-1")),
     val browseChildren: List<BrowseItem> = emptyList(),
     val browseTracks: List<Track> = emptyList(),
     val isOffline: Boolean = false,
@@ -120,7 +121,7 @@ class LibraryViewModel(
 
     fun pushBrowseNode(label: String, nodeId: String) {
         val currentStack = _state.value.browseStack.toMutableList()
-        currentStack.add(Pair(label, nodeId))
+        currentStack.add(BrowseNode(label, nodeId))
         _state.update { it.copy(browseStack = currentStack) }
         loadBrowseNodeContent(nodeId)
     }
@@ -130,7 +131,7 @@ class LibraryViewModel(
         if (currentStack.size > 1) {
             currentStack.removeAt(currentStack.size - 1)
             _state.update { it.copy(browseStack = currentStack) }
-            loadBrowseNodeContent(currentStack.last().second)
+            loadBrowseNodeContent(currentStack.last().nodeId)
         }
     }
 
@@ -212,7 +213,7 @@ class LibraryViewModel(
 
                     "browse" -> {
                         val currentNode = currentState.browseStack.last()
-                        val (children, tracks) = getChildrenAndTracks(currentNode.second)
+                        val (children, tracks) = getChildrenAndTracks(currentNode.nodeId)
                         _state.update {
                             it.copy(
                                 browseChildren = children,

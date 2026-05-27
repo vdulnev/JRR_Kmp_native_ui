@@ -34,6 +34,7 @@ import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.outlinedTextFieldColors
 import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
+import com.jrr.jrrkmp_native_ui.data.api.BrowseNode
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.LibraryViewModel
@@ -368,7 +369,7 @@ fun RandomTab(
 
 @Composable
 fun BrowseTab(
-    stack: List<Pair<String, String>>,
+    stack: List<BrowseNode>,
     children: List<BrowseItem>,
     tracks: List<Track>,
     isLoading: Boolean,
@@ -391,7 +392,7 @@ fun BrowseTab(
                 Spacer(modifier = Modifier.width(8.dp))
             }
             Text(
-                text = stack.last().first.uppercase(),
+                text = stack.last().label.uppercase(),
                 style = AppTypography.sectionLabel,
                 maxLines = 1
             )

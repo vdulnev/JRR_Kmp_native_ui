@@ -53,6 +53,13 @@ internal fun parseMcwsTracksJson(jsonStr: String?): List<Track> {
 
 data class BrowseItem(val key: String, val name: String)
 
+/**
+ * One entry on the library "browse" breadcrumb path. Replaces a
+ * `Pair<String, String>` so Swift sees `[BrowseNode]` instead of
+ * `[KotlinPair<AnyObject, AnyObject>]` and avoids unsafe casts.
+ */
+data class BrowseNode(val label: String, val nodeId: String)
+
 class McwsClient(
     val httpClient: HttpClient,
     private val activeServerFlow: StateFlow<McwsServerData?>,
