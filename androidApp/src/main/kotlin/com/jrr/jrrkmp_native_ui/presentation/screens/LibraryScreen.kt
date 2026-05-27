@@ -140,9 +140,9 @@ fun LibraryScreen(
             }
         } else {
             val tabs = if (state.isOffline) {
-                listOf("Artists" to "artists", "Favorites" to "favorites")
+                listOf("Artists" to "artists", "Downloads" to "downloads", "Favorites" to "favorites")
             } else {
-                listOf("Artists" to "artists", "Random" to "random", "Browse" to "browse", "Favorites" to "favorites")
+                listOf("Artists" to "artists", "Random" to "random", "Browse" to "browse", "Downloads" to "downloads", "Favorites" to "favorites")
             }
 
             val selectedIndex = tabs.indexOfFirst { it.second == state.currentTab }.coerceAtLeast(0)
@@ -229,6 +229,14 @@ fun LibraryScreen(
                         isOffline = state.isOffline,
                         onBackClick = {
                             viewModel.popBrowseNode()
+                        }
+                    )
+                    "downloads" -> DownloadsTab(
+                        tracks = state.downloadedTracks,
+                        isLoading = state.isLoading,
+                        onTrackClick = { clickedTrack, allTracks ->
+                            val startIndex = allTracks.indexOf(clickedTrack).coerceAtLeast(0)
+                            viewModel.playTracks(allTracks, startIndex)
                         }
                     )
                     "favorites" -> FavoritesTab(
@@ -417,7 +425,7 @@ fun RandomTab(
                                 Text(album.name, style = AppTypography.itemTitle, maxLines = 1)
                                 Text(album.albumArtist, style = AppTypography.itemSubtitle, maxLines = 1)
                             }
-                            
+
                             var showMenu by remember { mutableStateOf(false) }
                             Box {
                                 IconButton(
@@ -540,7 +548,7 @@ fun BrowseTab(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(nodeLabel, style = AppTypography.itemTitle, modifier = Modifier.weight(1f))
-                                
+
                                 var showMenu by remember { mutableStateOf(false) }
                                 Box {
                                     IconButton(
@@ -620,6 +628,40 @@ fun BrowseTab(
 }
 
 @Composable
+fun DownloadsTab(
+    tracks: List<Track>,
+    isLoading: Boolean,
+    onTrackClick: (Track, List<Track>) -> Unit
+) {
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = AppColors.accent)
+        }
+    } else {
+        if (tracks.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No downloaded tracks", style = AppTypography.itemTitle, color = AppColors.text3)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(tracks) { track ->
+                    TrackRowItem(
+                        track = track,
+                        onClick = {
+                            onTrackClick(track, tracks)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun FavoritesTab(
     onAlbumClick: (Album) -> Unit,
     onPlayAlbum: (Album) -> Unit,
@@ -635,7 +677,7 @@ fun FavoritesTab(
     LaunchedEffect(Unit) {
         favorites = database.favoriteDao().getAllFavorites()
     }
-    
+
     val favoritedAlbums = favorites.filter { it.type == "album" }
 
     if (favoritedAlbums.isEmpty()) {

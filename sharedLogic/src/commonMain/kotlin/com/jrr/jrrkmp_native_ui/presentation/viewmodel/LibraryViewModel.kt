@@ -30,6 +30,7 @@ data class LibraryViewState(
     val browseStack: List<BrowseNode> = listOf(BrowseNode("Library", "-1")),
     val browseChildren: List<BrowseItem> = emptyList(),
     val browseTracks: List<Track> = emptyList(),
+    val downloadedTracks: List<Track> = emptyList(),
     val isOffline: Boolean = false,
     val isLoading: Boolean = false,
     val isTabLoading: Boolean = false,
@@ -336,6 +337,16 @@ class LibraryViewModel(
                             it.copy(
                                 browseChildren = children,
                                 browseTracks = tracks,
+                                isLoading = false
+                            )
+                        }
+                    }
+
+                    "downloads" -> {
+                        val downloaded = libraryRepository.getDownloadedTracks()
+                        _state.update {
+                            it.copy(
+                                downloadedTracks = downloaded,
                                 isLoading = false
                             )
                         }
