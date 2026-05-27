@@ -60,7 +60,7 @@ final class AppContainer {
         self.libraryRepository = LibraryRepository(
             database: database,
             mcwsClient: mcwsCore.mcwsClient,
-            isOfflineProvider: { facade.activeZone.value == Zone.Offline }
+            isOfflineProvider: { facade.activeZone.value == Zone.offline }
         )
 
         let nowPlayingCoordinator = NowPlayingCoordinator()
