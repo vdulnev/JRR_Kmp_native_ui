@@ -42,6 +42,31 @@ class AudioPlayerFacade(
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
+    /**
+     * Six-arg secondary constructor for Swift. SKIE 0.10.x's
+     * DefaultArgumentInterop only generates Swift overloads for top-level
+     * functions, not class constructors, so Swift would otherwise only see
+     * the 8-arg init. This ctor gives iOS a clean entry point that uses the
+     * dispatcher defaults without exposing `Dispatchers` to the Swift side.
+     */
+    constructor(
+        database: JrrDatabase?,
+        localPlayerEngine: LocalPlayerEngine,
+        mcwsClient: McwsClient,
+        serverRepository: ServerRepository?,
+        saveLastActiveZoneId: (String) -> Unit,
+        loadLastActiveZoneId: () -> String?,
+    ) : this(
+        database = database,
+        localPlayerEngine = localPlayerEngine,
+        mcwsClient = mcwsClient,
+        serverRepository = serverRepository,
+        saveLastActiveZoneId = saveLastActiveZoneId,
+        loadLastActiveZoneId = loadLastActiveZoneId,
+        mainDispatcher = Dispatchers.Main,
+        ioDispatcher = Dispatchers.IO,
+    )
+
     private val coroutineScope = CoroutineScope(mainDispatcher + SupervisorJob())
 
     val currentServerHost: String?
