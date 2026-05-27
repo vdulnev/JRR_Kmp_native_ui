@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		KNCB0000000000000000000C /* KMPNativeCoroutinesCore in Frameworks */ = {isa = PBXBuildFile; productRef = KNCD0000000000000000000C /* KMPNativeCoroutinesCore */; };
 		KNCB0000000000000000000A /* KMPNativeCoroutinesAsync in Frameworks */ = {isa = PBXBuildFile; productRef = KNCD0000000000000000000A /* KMPNativeCoroutinesAsync */; };
 		KNCB0000000000000000000B /* KMPNativeCoroutinesCombine in Frameworks */ = {isa = PBXBuildFile; productRef = KNCD0000000000000000000B /* KMPNativeCoroutinesCombine */; };
+		KNCB0000000000000000000C /* KMPNativeCoroutinesCore in Frameworks */ = {isa = PBXBuildFile; productRef = KNCD0000000000000000000C /* KMPNativeCoroutinesCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -126,13 +126,13 @@
 			);
 			mainGroup = 4F3E0C034DDFD9376AF359F6;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				KNCR0000000000000000000A /* XCRemoteSwiftPackageReference "KMP-NativeCoroutines" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 12ACE18A31F49AAB18E1000D /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-			packageReferences = (
-				KNCR0000000000000000000A /* XCRemoteSwiftPackageReference "KMP-NativeCoroutines" */,
-			);
 			targets = (
 				47D6E1DB031EA059DFACBF88 /* iosApp */,
 			);
@@ -396,11 +396,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		KNCD0000000000000000000C /* KMPNativeCoroutinesCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = KNCR0000000000000000000A /* XCRemoteSwiftPackageReference "KMP-NativeCoroutines" */;
-			productName = KMPNativeCoroutinesCore;
-		};
 		KNCD0000000000000000000A /* KMPNativeCoroutinesAsync */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = KNCR0000000000000000000A /* XCRemoteSwiftPackageReference "KMP-NativeCoroutines" */;
@@ -410,6 +405,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = KNCR0000000000000000000A /* XCRemoteSwiftPackageReference "KMP-NativeCoroutines" */;
 			productName = KMPNativeCoroutinesCombine;
+		};
+		KNCD0000000000000000000C /* KMPNativeCoroutinesCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = KNCR0000000000000000000A /* XCRemoteSwiftPackageReference "KMP-NativeCoroutines" */;
+			productName = KMPNativeCoroutinesCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

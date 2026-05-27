@@ -468,12 +468,12 @@ struct ServerManagerView: View {
     
     private func enterOfflineMode() {
         container.facade.setServerConnection(host: "", port: 0, useSsl: false, sslPort: 0, authToken: nil)
-        container.facade.setZone(zone: ZoneOffline, skipLoadQueue: false)
+        container.facade.setZone(zone: Zone.offline, skipLoadQueue: false)
         onConnectSuccess()
     }
     
     private func disconnectActiveServer() {
         container.facade.setServerConnection(host: "", port: 0, useSsl: false, sslPort: 0, authToken: nil)
-        container.facade.setZone(zone: ZoneOffline, skipLoadQueue: false)
+        container.facade.setZone(zone: Zone.offline, skipLoadQueue: false)
     }
 }

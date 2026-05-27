@@ -5,7 +5,7 @@ import KMPNativeCoroutinesCombine
 
 class PlaybackStateObserver: ObservableObject {
 
-    @Published var activeZone: Zone = ZoneOffline
+    @Published var activeZone: Zone = Zone.offline
     @Published var playerStatus: PlayerStatus? = nil
     @Published var localQueue: [Track] = []
 

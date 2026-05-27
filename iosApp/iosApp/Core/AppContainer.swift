@@ -102,6 +102,6 @@ private final class FacadeOfflineModeProvider: OfflineModeProvider {
     }
 
     func isOffline() -> Bool {
-        return facade.activeZone == ZoneOffline
+        return facade.activeZone == Zone.offline
     }
 }
