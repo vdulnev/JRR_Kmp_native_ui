@@ -147,6 +147,8 @@ struct LibraryView: View {
     let onAlbumClick: (Album) -> Void // AlbumName, ArtistName
     @State private var isSearching = false
     @State private var searchQueryText = ""
+    @State private var selectedArtist: String? = nil
+    @State private var selectedAlbumGroupId: String? = nil
     
     init(viewModel: LibraryViewModel, onAlbumClick: @escaping (Album) -> Void) {
         self._observable = State(initialValue: LibraryObservable(viewModel: viewModel))
@@ -284,6 +286,12 @@ struct LibraryView: View {
         .onAppear {
             if observable.artists.isEmpty {
                 observable.retry()
+            }
+        }
+        .onChange(of: observable.currentTab) { oldValue, newValue in
+            if newValue != "downloads" {
+                selectedArtist = nil
+                selectedAlbumGroupId = nil
             }
         }
     }
@@ -771,19 +779,294 @@ struct LibraryView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(observable.downloadedTracks, id: \.fileKey) { track in
-                            trackRowItem(track: track) {
-                                observable.playTracks(observable.downloadedTracks, startIndex: observable.downloadedTracks.firstIndex(of: track) ?? 0)
+                if let artist = selectedArtist {
+                    let artistTracks = observable.downloadedTracks.filter { track in
+                        let artistVal = track.albumArtist.isEmpty ? "Unknown Artist" : track.albumArtist
+                        return artistVal.lowercased() == artist.lowercased()
+                    }
+                    
+                    if let albumGroupId = selectedAlbumGroupId {
+                        // Screen 3: Tracks for the selected album
+                        let albumTracks = artistTracks.filter { $0.albumGroupId == albumGroupId }
+                            .sorted { t1, t2 in
+                                if t1.discNumber != t2.discNumber {
+                                    return t1.discNumber < t2.discNumber
+                                }
+                                return t1.trackNumber < t2.trackNumber
+                            }
+                        let firstTrack = albumTracks.first
+                        
+                        VStack(alignment: .leading, spacing: 0) {
+                            // Back Button / Breadcrumb
+                            Button(action: {
+                                selectedAlbumGroupId = nil
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "chevron.left")
+                                        .foregroundColor(.accentColor)
+                                        .font(.system(size: 16, weight: .bold))
+                                    Text(firstTrack?.album ?? "Unknown Album")
+                                        .styleSubScreenTitle()
+                                    Spacer()
+                                }
+                                .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                                .padding(.vertical, 12)
+                            }
+                            
+                            ScrollView {
+                                LazyVStack(alignment: .leading, spacing: 12) {
+                                    if let firstTrack = firstTrack {
+                                        albumHeaderRow(
+                                            albumName: firstTrack.album,
+                                            artistName: firstTrack.albumArtist,
+                                            artworkFileKey: firstTrack.fileKey
+                                        )
+                                        
+                                        ForEach(0..<albumTracks.count, id: \.self) { idx in
+                                            let track = albumTracks[idx]
+                                            groupedTrackRowItem(track: track, indexInAlbum: idx) {
+                                                observable.playTracks([track], startIndex: 0)
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                                .padding(.top, 12)
+                            }
+                        }
+                    } else {
+                        // Screen 2: Albums for the selected artist
+                        let groupedDict = Dictionary(grouping: artistTracks) { $0.albumGroupId }
+                        let albums = groupedDict.map { groupId, albumTracks -> DownloadAlbum in
+                            let firstTrack = albumTracks.first
+                            let albumName = firstTrack?.album ?? "Unknown Album"
+                            let artworkFileKey = firstTrack?.fileKey ?? ""
+                            return DownloadAlbum(
+                                groupId: groupId,
+                                name: albumName,
+                                artworkFileKey: artworkFileKey,
+                                trackCount: albumTracks.count
+                            )
+                        }.sorted { $0.name.lowercased() < $1.name.lowercased() }
+                        
+                        VStack(alignment: .leading, spacing: 0) {
+                            // Back Button / Breadcrumb
+                            Button(action: {
+                                selectedArtist = nil
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "chevron.left")
+                                        .foregroundColor(.accentColor)
+                                        .font(.system(size: 16, weight: .bold))
+                                    Text(artist)
+                                        .styleSubScreenTitle()
+                                    Spacer()
+                                }
+                                .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                                .padding(.vertical, 12)
+                            }
+                            
+                            ScrollView {
+                                LazyVStack(spacing: 8) {
+                                    ForEach(albums, id: \.self) { album in
+                                        HStack {
+                                            // Artwork
+                                            let imageUrl = container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
+                                            ZStack {
+                                                if !imageUrl.isEmpty, let url = URL(string: imageUrl) {
+                                                    JrrAsyncImage(url: url) { image in
+                                                        image
+                                                            .resizable()
+                                                            .aspectRatio(contentMode: .fill)
+                                                    } placeholder: {
+                                                        Color.bg3
+                                                    }
+                                                } else {
+                                                    Color.bg3
+                                                }
+                                            }
+                                            .frame(width: 60, height: 60)
+                                            .cornerRadius(4)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 4)
+                                                    .stroke(Color.line2, lineWidth: 1)
+                                            )
+                                            
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(album.name)
+                                                    .styleItemTitle()
+                                                    .lineLimit(1)
+                                                
+                                                Text("\(album.trackCount) \(album.trackCount == 1 ? "track" : "tracks")")
+                                                    .styleItemSubtitle()
+                                                    .foregroundColor(.textSecondary)
+                                                    .lineLimit(1)
+                                            }
+                                            .padding(.leading, 8)
+                                            
+                                            Spacer()
+                                            
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 14))
+                                                .foregroundColor(.textTertiary)
+                                        }
+                                        .padding(8)
+                                        .background(Color.bg2)
+                                        .cornerRadius(10)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .stroke(Color.line, lineWidth: 1)
+                                        )
+                                        .onTapGesture {
+                                            selectedAlbumGroupId = album.groupId
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                                .padding(.top, 8)
                             }
                         }
                     }
-                    .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                    .padding(.top, 12)
+                } else {
+                    // Screen 1: List of Artists
+                    let artists = Array(Set(observable.downloadedTracks.map { track in
+                        track.albumArtist.isEmpty ? "Unknown Artist" : track.albumArtist
+                    })).sorted { $0.lowercased() < $1.lowercased() }
+                    
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(artists, id: \.self) { artist in
+                                HStack {
+                                    // Avatar circle with initial
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.bg3)
+                                            .frame(width: 36, height: 36)
+                                        
+                                        Text(artist.prefix(1).uppercased())
+                                            .font(AppFont.ibmPlexMono(size: 14, weight: .medium))
+                                            .foregroundColor(.accentColor)
+                                    }
+                                    
+                                    Text(artist)
+                                        .font(AppFont.inter(size: 16, weight: .medium))
+                                        .foregroundColor(.textPrimary)
+                                        .padding(.leading, 8)
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.textTertiary)
+                                }
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(Color.bg2)
+                                .cornerRadius(10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color.line, lineWidth: 1)
+                                )
+                                .onTapGesture {
+                                    selectedArtist = artist
+                                }
+                            }
+                        }
+                        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                        .padding(.top, 8)
+                    }
                 }
             }
         }
+    }
+    
+    private func albumHeaderRow(albumName: String, artistName: String, artworkFileKey: String) -> some View {
+        let imageUrl = container.mcwsClient.buildImageUrl(fileKey: artworkFileKey)
+        return HStack(spacing: 12) {
+            ZStack {
+                if !imageUrl.isEmpty, let url = URL(string: imageUrl) {
+                    JrrAsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Color.bg3
+                    }
+                } else {
+                    Canvas { context, size in
+                        context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: 0x1E293B)))
+                        var path = Path()
+                        path.move(to: .zero)
+                        path.addLine(to: CGPoint(x: size.width, y: size.height))
+                        context.stroke(
+                            path,
+                            with: .color(Color.accentColor.opacity(0.5)),
+                            style: StrokeStyle(lineWidth: 4)
+                        )
+                    }
+                }
+            }
+            .frame(width: 48, height: 48)
+            .cornerRadius(4)
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(Color.line2, lineWidth: 1)
+            )
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(albumName.isEmpty ? "Unknown Album" : albumName)
+                    .font(AppFont.inter(size: 16, weight: .bold))
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(1)
+                
+                Text(artistName.isEmpty ? "Unknown Artist" : artistName)
+                    .font(AppFont.inter(size: 13, weight: .regular))
+                    .foregroundColor(.textSecondary)
+                    .lineLimit(1)
+            }
+            
+            Spacer()
+        }
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+    }
+
+    private func groupedTrackRowItem(track: Track, indexInAlbum: Int, action: @escaping () -> Void) -> some View {
+        HStack(spacing: 12) {
+            let trackNum = track.trackNumber == 0 ? indexInAlbum + 1 : Int(track.trackNumber)
+            Text(String(format: "%02d", trackNum))
+                .styleMonoLabel()
+                .foregroundColor(.accentColor)
+                .frame(width: 24, alignment: .leading)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(track.name)
+                    .styleItemTitle()
+                    .lineLimit(1)
+                
+                if track.artist != track.albumArtist {
+                    Text(track.artist)
+                        .styleItemSubtitle()
+                        .lineLimit(1)
+                }
+            }
+            .padding(.leading, 4)
+            
+            Spacer()
+            
+            let secs = track.durationMs / 1000
+            Text(String(format: "%d:%02d", secs / 60, secs % 60))
+                .styleMonoLabel()
+        }
+        .padding(8)
+        .background(Color.bg2)
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.line, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: action)
     }
     
     // MARK: - List Item Row Templates
@@ -953,4 +1236,11 @@ struct LibraryView: View {
         )
         .onTapGesture(perform: action)
     }
+}
+
+struct DownloadAlbum: Hashable {
+    let groupId: String
+    let name: String
+    let artworkFileKey: String
+    let trackCount: Int
 }

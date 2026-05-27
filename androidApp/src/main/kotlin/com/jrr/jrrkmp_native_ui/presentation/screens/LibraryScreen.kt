@@ -1,6 +1,7 @@
 package com.jrr.jrrkmp_native_ui.presentation.screens
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
@@ -627,12 +630,30 @@ fun BrowseTab(
     }
 }
 
+data class DownloadAlbum(
+    val groupId: String,
+    val name: String,
+    val artworkFileKey: String,
+    val trackCount: Int
+)
+
 @Composable
 fun DownloadsTab(
     tracks: List<Track>,
     isLoading: Boolean,
     onTrackClick: (Track, List<Track>) -> Unit
 ) {
+    var selectedArtist by remember { mutableStateOf<String?>(null) }
+    var selectedAlbumGroupId by remember { mutableStateOf<String?>(null) }
+
+    BackHandler(enabled = selectedArtist != null) {
+        if (selectedAlbumGroupId != null) {
+            selectedAlbumGroupId = null
+        } else {
+            selectedArtist = null
+        }
+    }
+
     if (isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = AppColors.accent)
@@ -643,21 +664,280 @@ fun DownloadsTab(
                 Text("No downloaded tracks", style = AppTypography.itemTitle, color = AppColors.text3)
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(tracks) { track ->
-                    TrackRowItem(
-                        track = track,
-                        onClick = {
-                            onTrackClick(track, tracks)
+            if (selectedArtist != null) {
+                val artistTracks = remember(tracks, selectedArtist) {
+                    tracks.filter {
+                        val artist = it.albumArtist.ifEmpty { "Unknown Artist" }
+                        artist.equals(selectedArtist, ignoreCase = true)
+                    }
+                }
+
+                if (selectedAlbumGroupId != null) {
+                    // Screen 3: Tracks for the selected album
+                    val albumTracks = remember(artistTracks, selectedAlbumGroupId) {
+                        artistTracks.filter { it.albumGroupId == selectedAlbumGroupId }
+                            .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
+                    }
+                    val firstTrack = albumTracks.firstOrNull()
+
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedAlbumGroupId = null }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(firstTrack?.album ?: "Unknown Album", style = AppTypography.subScreenTitle)
                         }
-                    )
+
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (firstTrack != null) {
+                                item {
+                                    AlbumHeaderItem(
+                                        albumName = firstTrack.album,
+                                        artistName = firstTrack.albumArtist,
+                                        artworkFileKey = firstTrack.fileKey
+                                    )
+                                }
+                            }
+                            itemsIndexed(
+                                items = albumTracks,
+                                key = { _, track -> track.fileKey }
+                            ) { idx, track ->
+                                GroupedTrackRowItem(
+                                    track = track,
+                                    indexInAlbum = idx,
+                                    onClick = {
+                                        onTrackClick(track, listOf(track))
+                                    }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Screen 2: Albums for the selected artist
+                    val albums = remember(artistTracks) {
+                        artistTracks.groupBy { it.albumGroupId }
+                            .map { (groupId, albumTracks) ->
+                                val firstTrack = albumTracks.firstOrNull()
+                                val albumName = firstTrack?.album ?: "Unknown Album"
+                                val artworkFileKey = firstTrack?.fileKey ?: ""
+                                DownloadAlbum(
+                                    groupId = groupId,
+                                    name = albumName,
+                                    artworkFileKey = artworkFileKey,
+                                    trackCount = albumTracks.size
+                                )
+                            }
+                            .sortedWith(compareBy { it.name.lowercase() })
+                    }
+
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedArtist = null }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(selectedArtist ?: "", style = AppTypography.subScreenTitle)
+                        }
+
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(albums) { album ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(AppColors.bg2)
+                                        .border(1.dp, AppColors.line, RoundedCornerShape(8.dp))
+                                        .clickable { selectedAlbumGroupId = album.groupId }
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(60.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(AppColors.bg3)
+                                    ) {
+                                        val imageUrl = LocalMcwsClient.current.buildImageUrl(album.artworkFileKey)
+                                        if (imageUrl.isNotEmpty()) {
+                                            AsyncImage(
+                                                model = imageUrl,
+                                                contentDescription = album.name,
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(album.name, style = AppTypography.itemTitle, maxLines = 1)
+                                        Text("${album.trackCount} ${if (album.trackCount == 1) "track" else "tracks"}", style = AppTypography.itemSubtitle, color = AppColors.text2)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Screen 1: List of Artists
+                val artists = remember(tracks) {
+                    tracks.map { it.albumArtist.ifEmpty { "Unknown Artist" } }
+                        .distinct()
+                        .sortedWith(compareBy { it.lowercase() })
+                }
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(artists) { artist ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AppColors.bg2)
+                                .clickable { selectedArtist = artist }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(AppColors.accentDim),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = artist.take(1).uppercase(),
+                                    style = AppTypography.chipMono.copy(color = AppColors.accent, fontSize = 14.sp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(artist, style = AppTypography.itemTitle)
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun AlbumHeaderItem(
+    albumName: String,
+    artistName: String,
+    artworkFileKey: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(AppColors.bg3)
+        ) {
+            val imageUrl = LocalMcwsClient.current.buildImageUrl(artworkFileKey)
+            if (imageUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = albumName,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(
+                text = albumName.ifEmpty { "Unknown Album" },
+                style = AppTypography.itemTitle.copy(fontWeight = FontWeight.Bold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = artistName.ifEmpty { "Unknown Artist" },
+                style = AppTypography.itemSubtitle,
+                color = AppColors.text2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+fun GroupedTrackRowItem(
+    track: Track,
+    indexInAlbum: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(AppColors.bg2)
+            .border(1.dp, AppColors.line, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val trackNum = if (track.trackNumber == 0) indexInAlbum + 1 else track.trackNumber
+        Text(
+            text = String.format(java.util.Locale.US, "%02d", trackNum),
+            style = AppTypography.monoLabel.copy(color = AppColors.accent),
+            modifier = Modifier.width(36.dp)
+        )
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = track.name,
+                style = AppTypography.itemTitle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (track.artist != track.albumArtist) {
+                Text(
+                    text = track.artist,
+                    style = AppTypography.itemSubtitle,
+                    color = AppColors.text2,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        val durationSec = track.durationMs / 1000
+        Text(
+            text = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60),
+            style = AppTypography.monoLabel
+        )
     }
 }
 
