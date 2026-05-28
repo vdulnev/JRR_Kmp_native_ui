@@ -21,7 +21,7 @@ class NowPlayingObservable {
     var transientError: String? = nil
     var imageUrl: String = ""
 
-    nonisolated(unsafe) private var observeTask: Task<Void, Never>?
+    @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: NowPlayingViewModel) {
         self.viewModel = viewModel

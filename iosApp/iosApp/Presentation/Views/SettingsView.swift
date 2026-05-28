@@ -15,7 +15,7 @@ class SettingsObservable {
     var downloadJobs: [DownloadJobEntity] = []
     var transientError: String? = nil
     
-    nonisolated(unsafe) private var observeTask: Task<Void, Never>?
+    @ObservationIgnored private var observeTask: Task<Void, Never>?
     
     init(viewModel: SettingsViewModel) {
         self.viewModel = viewModel

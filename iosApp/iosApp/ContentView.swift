@@ -31,7 +31,7 @@ class MainShellObservable {
     var autoConnectServerName: String = ""
     var toastMessage: String? = nil
     
-    nonisolated(unsafe) private var observeTask: Task<Void, Never>?
+    @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: MainShellViewModel) {
         self.viewModel = viewModel

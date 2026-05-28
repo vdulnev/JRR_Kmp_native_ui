@@ -336,7 +336,11 @@ class PlaybackService : MediaLibraryService() {
                             withContext(Dispatchers.Main) {
                                 val facade = this@PlaybackService.appContainer.facade
                                 facade.setZone(Zone.AndroidAuto)
-                                val trackInfos = matchedTracks.map { it.toTrack() }
+                                val trackInfos = if (searchResult.forceShuffle) {
+                                    matchedTracks.map { it.toTrack() }.shuffled()
+                                } else {
+                                    matchedTracks.map { it.toTrack() }
+                                }
                                 facade.setQueue(trackInfos, 0)
                                 if (searchResult.forceShuffle) {
                                     facade.setShuffleMode(com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode.ON)

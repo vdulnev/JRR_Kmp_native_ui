@@ -240,7 +240,11 @@ fun LibraryScreen(
                         onTrackClick = { clickedTrack, allTracks ->
                             val startIndex = allTracks.indexOf(clickedTrack).coerceAtLeast(0)
                             viewModel.playTracks(allTracks, startIndex)
-                        }
+                        },
+                        onPlayTracks = { viewModel.playTracks(it, 0) },
+                        onPlayTracksShuffled = { viewModel.playTracksShuffled(it) },
+                        onPlayTracksNext = { viewModel.playTracksNext(it) },
+                        onAddTracksToQueue = { viewModel.addTracksToQueue(it) }
                     )
                     "favorites" -> FavoritesTab(
                         onAlbumClick = onAlbumClick,
@@ -641,7 +645,11 @@ data class DownloadAlbum(
 fun DownloadsTab(
     tracks: List<Track>,
     isLoading: Boolean,
-    onTrackClick: (Track, List<Track>) -> Unit
+    onTrackClick: (Track, List<Track>) -> Unit,
+    onPlayTracks: (List<Track>) -> Unit,
+    onPlayTracksShuffled: (List<Track>) -> Unit,
+    onPlayTracksNext: (List<Track>) -> Unit,
+    onAddTracksToQueue: (List<Track>) -> Unit
 ) {
     var selectedArtist by remember { mutableStateOf<String?>(null) }
     var selectedAlbumGroupId by remember { mutableStateOf<String?>(null) }
@@ -714,9 +722,11 @@ fun DownloadsTab(
                                 GroupedTrackRowItem(
                                     track = track,
                                     indexInAlbum = idx,
-                                    onClick = {
-                                        onTrackClick(track, listOf(track))
-                                    }
+                                    onClick = { onTrackClick(track, albumTracks) },
+                                    onPlayTracks = onPlayTracks,
+                                    onPlayTracksShuffled = onPlayTracksShuffled,
+                                    onPlayTracksNext = onPlayTracksNext,
+                                    onAddTracksToQueue = onAddTracksToQueue
                                 )
                             }
                         }
@@ -758,6 +768,9 @@ fun DownloadsTab(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(albums) { album ->
+                                val albumTracks = remember(artistTracks, album.groupId) {
+                                    artistTracks.filter { it.albumGroupId == album.groupId }
+                                }
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -791,6 +804,13 @@ fun DownloadsTab(
                                         Text(album.name, style = AppTypography.itemTitle, maxLines = 1)
                                         Text("${album.trackCount} ${if (album.trackCount == 1) "track" else "tracks"}", style = AppTypography.itemSubtitle, color = AppColors.text2)
                                     }
+
+                                    TrackActionMenu(
+                                        onPlay = { onPlayTracks(albumTracks) },
+                                        onPlayShuffle = { onPlayTracksShuffled(albumTracks) },
+                                        onPlayNext = { onPlayTracksNext(albumTracks) },
+                                        onAddToQueue = { onAddTracksToQueue(albumTracks) }
+                                    )
                                 }
                             }
                         }
@@ -809,7 +829,51 @@ fun DownloadsTab(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // "All Downloads" header/special item
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AppColors.bg2)
+                                .clickable { onPlayTracks(tracks) }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(AppColors.accentDim),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "↓",
+                                    style = AppTypography.chipMono.copy(color = AppColors.accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("All Downloads", style = AppTypography.itemTitle)
+                                Text("${tracks.size} ${if (tracks.size == 1) "track" else "tracks"}", style = AppTypography.itemSubtitle, color = AppColors.text2)
+                            }
+
+                            TrackActionMenu(
+                                onPlay = { onPlayTracks(tracks) },
+                                onPlayShuffle = { onPlayTracksShuffled(tracks) },
+                                onPlayNext = { onPlayTracksNext(tracks) },
+                                onAddToQueue = { onAddTracksToQueue(tracks) }
+                            )
+                        }
+                    }
+
                     items(artists) { artist ->
+                        val artistTracks = remember(tracks, artist) {
+                            tracks.filter {
+                                val a = it.albumArtist.ifEmpty { "Unknown Artist" }
+                                a.equals(artist, ignoreCase = true)
+                            }
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -832,7 +896,14 @@ fun DownloadsTab(
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(artist, style = AppTypography.itemTitle)
+                            Text(artist, style = AppTypography.itemTitle, modifier = Modifier.weight(1f))
+
+                            TrackActionMenu(
+                                onPlay = { onPlayTracks(artistTracks) },
+                                onPlayShuffle = { onPlayTracksShuffled(artistTracks) },
+                                onPlayNext = { onPlayTracksNext(artistTracks) },
+                                onAddToQueue = { onAddTracksToQueue(artistTracks) }
+                            )
                         }
                     }
                 }
@@ -894,6 +965,10 @@ fun GroupedTrackRowItem(
     track: Track,
     indexInAlbum: Int,
     onClick: () -> Unit,
+    onPlayTracks: (List<Track>) -> Unit,
+    onPlayTracksShuffled: (List<Track>) -> Unit,
+    onPlayTracksNext: (List<Track>) -> Unit,
+    onAddTracksToQueue: (List<Track>) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -938,6 +1013,73 @@ fun GroupedTrackRowItem(
             text = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60),
             style = AppTypography.monoLabel
         )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        TrackActionMenu(
+            onPlay = { onPlayTracks(listOf(track)) },
+            onPlayShuffle = { onPlayTracksShuffled(listOf(track)) },
+            onPlayNext = { onPlayTracksNext(listOf(track)) },
+            onAddToQueue = { onAddTracksToQueue(listOf(track)) }
+        )
+    }
+}
+
+@Composable
+fun TrackActionMenu(
+    onPlay: () -> Unit,
+    onPlayShuffle: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddToQueue: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        IconButton(
+            onClick = { showMenu = true },
+            modifier = Modifier.size(24.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "More options",
+                tint = AppColors.text3,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+            modifier = Modifier.background(AppColors.bg2)
+        ) {
+            DropdownMenuItem(
+                text = { Text("Play", style = AppTypography.itemTitle) },
+                onClick = {
+                    showMenu = false
+                    onPlay()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Play Shuffle", style = AppTypography.itemTitle) },
+                onClick = {
+                    showMenu = false
+                    onPlayShuffle()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Play Next", style = AppTypography.itemTitle) },
+                onClick = {
+                    showMenu = false
+                    onPlayNext()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Add to Playing Queue", style = AppTypography.itemTitle) },
+                onClick = {
+                    showMenu = false
+                    onAddToQueue()
+                }
+            )
+        }
     }
 }
 

@@ -22,7 +22,7 @@ class LibraryObservable {
     var isTabLoading: Bool = false
     var transientError: String? = nil
     
-    nonisolated(unsafe) private var observeTask: Task<Void, Never>?
+    @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: LibraryViewModel) {
         self.viewModel = viewModel
@@ -137,6 +137,18 @@ class LibraryObservable {
     
     func clearTransientError() {
         viewModel.clearTransientError()
+    }
+
+    func playTracksShuffled(_ tracks: [Track]) {
+        viewModel.playTracksShuffled(tracks: tracks)
+    }
+
+    func playTracksNext(_ tracks: [Track]) {
+        viewModel.playTracksNext(tracks: tracks)
+    }
+
+    func addTracksToQueue(_ tracks: [Track]) {
+        viewModel.addTracksToQueue(tracks: tracks)
     }
 }
 
@@ -824,8 +836,48 @@ struct LibraryView: View {
                                         
                                         ForEach(0..<albumTracks.count, id: \.self) { idx in
                                             let track = albumTracks[idx]
-                                            groupedTrackRowItem(track: track, indexInAlbum: idx) {
-                                                observable.playTracks([track], startIndex: 0)
+                                            HStack(spacing: 12) {
+                                                let trackNum = track.trackNumber == 0 ? idx + 1 : Int(track.trackNumber)
+                                                Text(String(format: "%02d", trackNum))
+                                                    .styleMonoLabel()
+                                                    .foregroundColor(.accentColor)
+                                                    .frame(width: 24, alignment: .leading)
+                                                
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(track.name)
+                                                        .styleItemTitle()
+                                                        .lineLimit(1)
+                                                    
+                                                    if track.artist != track.albumArtist {
+                                                        Text(track.artist)
+                                                            .styleItemSubtitle()
+                                                            .lineLimit(1)
+                                                    }
+                                                }
+                                                
+                                                Spacer()
+                                                
+                                                let secs = Int(track.durationMs / 1000)
+                                                Text(String(format: "%d:%02d", secs / 60, secs % 60))
+                                                    .styleMonoLabel()
+                                                    .padding(.trailing, 4)
+                                                
+                                                PlaybackActionMenu(
+                                                    playAction: { observable.playTracks([track], startIndex: 0) },
+                                                    playShuffleAction: { observable.playTracksShuffled([track]) },
+                                                    playNextAction: { observable.playTracksNext([track]) },
+                                                    addToQueueAction: { observable.addTracksToQueue([track]) }
+                                                )
+                                            }
+                                            .padding(8)
+                                            .background(Color.bg2)
+                                            .cornerRadius(10)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .stroke(Color.line, lineWidth: 1)
+                                            )
+                                            .onTapGesture {
+                                                observable.playTracks(albumTracks, startIndex: idx)
                                             }
                                         }
                                     }
@@ -869,6 +921,7 @@ struct LibraryView: View {
                             ScrollView {
                                 LazyVStack(spacing: 8) {
                                     ForEach(albums, id: \.self) { album in
+                                        let albumTracks = artistTracks.filter { $0.albumGroupId == album.groupId }
                                         HStack {
                                             // Artwork
                                             let imageUrl = container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
@@ -906,9 +959,12 @@ struct LibraryView: View {
                                             
                                             Spacer()
                                             
-                                            Image(systemName: "chevron.right")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(.textTertiary)
+                                            PlaybackActionMenu(
+                                                playAction: { observable.playTracks(albumTracks, startIndex: 0) },
+                                                playShuffleAction: { observable.playTracksShuffled(albumTracks) },
+                                                playNextAction: { observable.playTracksNext(albumTracks) },
+                                                addToQueueAction: { observable.addTracksToQueue(albumTracks) }
+                                            )
                                         }
                                         .padding(8)
                                         .background(Color.bg2)
@@ -935,7 +991,54 @@ struct LibraryView: View {
                     
                     ScrollView {
                         LazyVStack(spacing: 8) {
+                            // All Downloads header/special item
+                            HStack {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.bg3)
+                                        .frame(width: 36, height: 36)
+                                    
+                                    Image(systemName: "arrow.down.circle.fill")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundColor(.accentColor)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("All Downloads")
+                                        .font(AppFont.inter(size: 16, weight: .medium))
+                                        .foregroundColor(.textPrimary)
+                                    Text("\(observable.downloadedTracks.count) \(observable.downloadedTracks.count == 1 ? "track" : "tracks")")
+                                        .font(AppFont.inter(size: 13, weight: .regular))
+                                        .foregroundColor(.textSecondary)
+                                }
+                                .padding(.leading, 8)
+                                
+                                Spacer()
+                                
+                                PlaybackActionMenu(
+                                    playAction: { observable.playTracks(observable.downloadedTracks, startIndex: 0) },
+                                    playShuffleAction: { observable.playTracksShuffled(observable.downloadedTracks) },
+                                    playNextAction: { observable.playTracksNext(observable.downloadedTracks) },
+                                    addToQueueAction: { observable.addTracksToQueue(observable.downloadedTracks) }
+                                )
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .background(Color.bg2)
+                            .cornerRadius(10)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.line, lineWidth: 1)
+                            )
+                            .onTapGesture {
+                                observable.playTracks(observable.downloadedTracks, startIndex: 0)
+                            }
+                            
                             ForEach(artists, id: \.self) { artist in
+                                let artistTracks = observable.downloadedTracks.filter { track in
+                                    let artistVal = track.albumArtist.isEmpty ? "Unknown Artist" : track.albumArtist
+                                    return artistVal.lowercased() == artist.lowercased()
+                                }
                                 HStack {
                                     // Avatar circle with initial
                                     ZStack {
@@ -955,9 +1058,12 @@ struct LibraryView: View {
                                     
                                     Spacer()
                                     
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.textTertiary)
+                                    PlaybackActionMenu(
+                                        playAction: { observable.playTracks(artistTracks, startIndex: 0) },
+                                        playShuffleAction: { observable.playTracksShuffled(artistTracks) },
+                                        playNextAction: { observable.playTracksNext(artistTracks) },
+                                        addToQueueAction: { observable.addTracksToQueue(artistTracks) }
+                                    )
                                 }
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
@@ -1243,4 +1349,34 @@ struct DownloadAlbum: Hashable {
     let name: String
     let artworkFileKey: String
     let trackCount: Int
+}
+
+struct PlaybackActionMenu: View {
+    let playAction: () -> Void
+    let playShuffleAction: () -> Void
+    let playNextAction: () -> Void
+    let addToQueueAction: () -> Void
+    
+    var body: some View {
+        Menu {
+            Button(action: playAction) {
+                Label("Play", systemImage: "play.fill")
+            }
+            Button(action: playShuffleAction) {
+                Label("Play Shuffle", systemImage: "shuffle")
+            }
+            Button(action: playNextAction) {
+                Label("Play Next", systemImage: "arrow.right.to.line")
+            }
+            Button(action: addToQueueAction) {
+                Label("Add to Queue", systemImage: "plus")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.textSecondary)
+                .frame(width: 32, height: 32)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
 }
