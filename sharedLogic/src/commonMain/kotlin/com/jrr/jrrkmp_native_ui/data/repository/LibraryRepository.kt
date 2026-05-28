@@ -5,7 +5,6 @@ import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.DownloadJobEntity
-import com.jrr.jrrkmp_native_ui.data.db.entity.DownloadedTrackEntity
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
@@ -15,6 +14,31 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 
 private val log = Logger.withTag("repo:Library")
+
+/**
+ * Collapse a list of disc-level [Album]s into one representative per
+ * `albumGroupId`. The representative is the disc with the lowest
+ * non-zero `discNumber` (typically Disc 1), so its `folderPath` /
+ * `artworkFileKey` come from that disc — and crucially its
+ * `totalDiscs` and `parentFolderPath` carry the multi-disc signal
+ * that [LibraryRepository.getAlbumTracks] later uses to fetch *all*
+ * discs at once.
+ *
+ * Untagged disc numbers (`discNumber == 0`) sort to the end of the
+ * candidate list so a properly-tagged Disc 1 wins when available.
+ *
+ * Exposed as `internal` so unit tests in the same module can drive it
+ * without standing up a full repository instance. The public API is
+ * [LibraryRepository.getAlbumsByArtist], which calls this helper.
+ */
+internal fun groupAlbumsByGroupId(albums: List<Album>): List<Album> =
+    albums
+        .groupBy { it.albumGroupId }
+        .map { (_, discs) ->
+            discs.minByOrNull { disc ->
+                if (disc.discNumber > 0) disc.discNumber else Int.MAX_VALUE
+            } ?: discs.first()
+        }
 
 /**
  * Resolves whether the app is currently in offline mode. Modelled as a SAM
@@ -87,49 +111,63 @@ class LibraryRepository(
         val offline = isOfflineProvider.isOffline()
         log.d { "getAlbumsByArtist($artistName) offline=$offline" }
         if (offline) {
-            val albumsMap = mutableMapOf<String, DownloadedTrackEntity>()
             val db = database ?: return@withContext emptyList()
-            db.downloadedTrackDao().getAllTracks().forEach {
-                if (it.artist.equals(artistName, ignoreCase = true)) {
-                    val albumName = it.album.trim()
-                    if (albumName.isNotEmpty() && !albumsMap.containsKey(albumName.lowercase())) {
-                        albumsMap[albumName.lowercase()] = it
-                    }
-                }
-            }
-            return@withContext albumsMap.values.map {
-                Album(it.toTrack())
-            }.distinct().sortedWith(compareBy { it.name.lowercase() })
+            val albums = db.downloadedTrackDao().getAllTracks()
+                .asSequence()
+                .filter { it.artist.equals(artistName, ignoreCase = true) }
+                .filter { it.album.trim().isNotEmpty() }
+                .map { Album(it.toTrack()) }
+                .toList()
+            return@withContext groupAlbumsByGroupId(albums)
+                .sortedWith(compareBy { it.name.lowercase() })
                 .also { log.d { "getAlbumsByArtist offline → ${it.size} from cache" } }
         }
         val mcwsQuery =
             "[Album Artist (auto)]=[${esc(artistName)}] ~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
-        mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
+        val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
+        groupAlbumsByGroupId(raw)
+            .sortedWith(compareBy { it.name.lowercase() })
+            .also { log.d { "getAlbumsByArtist → ${it.size} groups (from ${raw.size} disc-level entries)" } }
     }
 
     suspend fun getAlbumTracks(album: Album): List<Track> = withContext(Dispatchers.IO) {
         val offline = isOfflineProvider.isOffline()
-        log.d { "getAlbumTracks(${album.name}) offline=$offline" }
+        val isMultiDisc = album.totalDiscs > 1
+        log.d {
+            "getAlbumTracks(${album.name}) offline=$offline multiDisc=$isMultiDisc " +
+                if (isMultiDisc) "parentFolderPath=${album.parentFolderPath}" else "folderPath=${album.folderPath}"
+        }
         if (offline) {
             val db = database ?: return@withContext emptyList()
             return@withContext db.downloadedTrackDao().getAllTracks()
-                .filter {
-                    it.folderPath.equals(
-                        album.folderPath,
-                        ignoreCase = true
-                    ) && it.album.equals(album.name, ignoreCase = true)
+                .filter { entity ->
+                    val sameAlbum = entity.album.equals(album.name, ignoreCase = true)
+                    val folderMatches = if (isMultiDisc) {
+                        // Each disc lives in its own subfolder under
+                        // parentFolderPath — match anything under it.
+                        Track.parentPath(entity.folderPath)
+                            .equals(album.parentFolderPath, ignoreCase = true)
+                    } else {
+                        entity.folderPath.equals(album.folderPath, ignoreCase = true)
+                    }
+                    sameAlbum && folderMatches
                 }
                 .map { it.toTrack() }
                 .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
                 .also { log.d { "getAlbumTracks offline → ${it.size} from cache" } }
         }
-        val base = "[Album]=[${esc(album.name)}]"
-        val filtered = if (album.folderPath.isNotEmpty()) {
-            "$base [Filename (path)]=\"${esc(album.folderPath)}\""
-        } else {
-            base
+        // Online: JRiver's "[Filename (path)]=\"$path\"" form is a prefix
+        // match — a parent folder path matches all files in any subfolder
+        // beneath it, which is exactly what we want for multi-disc.
+        val pathFilter = when {
+            isMultiDisc && album.parentFolderPath.isNotEmpty() ->
+                "[Filename (path)]=\"${esc(album.parentFolderPath)}\""
+            album.folderPath.isNotEmpty() ->
+                "[Filename (path)]=\"${esc(album.folderPath)}\""
+            else -> ""
         }
-        val mcwsQuery = "$filtered ~sort=[Disc #],[Track #]"
+        val mcwsQuery =
+            "[Album]=[${esc(album.name)}] $pathFilter ~sort=[Disc #],[Track #]"
         mcwsClient.searchTracks(mcwsQuery)
             .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
     }
