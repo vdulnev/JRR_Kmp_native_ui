@@ -2,12 +2,25 @@ package com.jrr.jrrkmp_native_ui.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
+import com.jrr.jrrkmp_native_ui.core.logging.logged
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+
+private val log = Logger.withTag("vm:Queue")
+
+private fun QueueViewState.summary(): String = buildString {
+    append("tracks=${queueTracks.size}")
+    append(" active=$activeIndex")
+    append(" playing=$isPlaying")
+    append(if (isLocal) " local" else " remote")
+    if (isLoading) append(" loading")
+    if (transientError != null) append(" err=$transientError")
+}
 
 data class QueueViewState(
     val queueTracks: List<Track> = emptyList(),
@@ -30,6 +43,8 @@ class QueueViewModel(
     private val isRemoteLoadingFlow = MutableStateFlow(false)
 
     init {
+        log.d { "init" }
+        state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
         // Observe local vs remote configuration and build states
         combine(
             facade.activeZone,
@@ -68,11 +83,14 @@ class QueueViewModel(
 
     private fun loadRemoteQueue() {
         viewModelScope.launch {
+            log.d { "loadRemoteQueue()" }
             isRemoteLoadingFlow.value = true
             try {
                 val remoteTracks = libraryRepository.getRemoteQueue()
+                log.d { "loaded ${remoteTracks.size} remote-queue tracks" }
                 remoteQueueFlow.value = remoteTracks
             } catch (e: Exception) {
+                log.e(e) { "loadRemoteQueue failed" }
                 _state.update { it.copy(transientError = "Failed to load remote queue: ${e.message ?: "unknown error"}") }
             } finally {
                 isRemoteLoadingFlow.value = false
@@ -81,14 +99,17 @@ class QueueViewModel(
     }
 
     fun playByIndex(index: Int) {
+        log.d { "playByIndex($index)" }
         try {
             facade.playByIndex(index)
         } catch (e: Exception) {
+            log.e(e) { "playByIndex failed index=$index" }
             _state.update { it.copy(transientError = "Failed to play item: ${e.message ?: "unknown error"}") }
         }
     }
 
     fun removeQueueTrack(index: Int) {
+        log.d { "removeQueueTrack($index)" }
         try {
             val isLocal = _state.value.isLocal
             facade.removeQueueTrack(index)
@@ -101,11 +122,13 @@ class QueueViewModel(
                 }
             }
         } catch (e: Exception) {
+            log.e(e) { "removeQueueTrack failed index=$index" }
             _state.update { it.copy(transientError = "Failed to remove item: ${e.message ?: "unknown error"}") }
         }
     }
 
     fun moveQueueTrack(from: Int, to: Int) {
+        log.d { "moveQueueTrack($from → $to)" }
         try {
             val isLocal = _state.value.isLocal
             val currentTracks = if (isLocal) facade.localQueue.value else remoteQueueFlow.value
@@ -120,17 +143,20 @@ class QueueViewModel(
                 }
             }
         } catch (e: Exception) {
+            log.e(e) { "moveQueueTrack failed from=$from to=$to" }
             _state.update { it.copy(transientError = "Failed to move item: ${e.message ?: "unknown error"}") }
         }
     }
 
     fun clearQueue() {
+        log.d { "clearQueue()" }
         try {
             facade.clearQueue()
             if (!_state.value.isLocal) {
                 remoteQueueFlow.value = emptyList()
             }
         } catch (e: Exception) {
+            log.e(e) { "clearQueue failed" }
             _state.update { it.copy(transientError = "Failed to clear queue: ${e.message ?: "unknown error"}") }
         }
     }

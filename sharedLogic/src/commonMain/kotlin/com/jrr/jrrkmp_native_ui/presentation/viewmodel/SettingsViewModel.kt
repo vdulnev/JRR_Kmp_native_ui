@@ -2,6 +2,8 @@ package com.jrr.jrrkmp_native_ui.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
+import com.jrr.jrrkmp_native_ui.core.logging.logged
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.DownloadJobEntity
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
@@ -17,6 +19,19 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val log = Logger.withTag("vm:Settings")
+
+private fun SettingsViewState.summary(): String = buildString {
+    append("offline=$isOfflineMode")
+    if (serverHost != null) {
+        append(" server=$serverHost:${if (useSsl) serverSslPort else serverPort}")
+        if (useSsl) append("(ssl)")
+    }
+    append(" downloaded=$downloadedTracksCount")
+    append(" jobs=${downloadJobs.size}")
+    if (transientError != null) append(" err=$transientError")
+}
 
 data class SettingsViewState(
     val isOfflineMode: Boolean = true,
@@ -42,6 +57,7 @@ class SettingsViewModel(
     val state: StateFlow<SettingsViewState> = _state.asStateFlow()
 
     init {
+        log.d { "init" }
         combine(
             facade.activeZone,
             // connectionToken is a trigger only — its value is unused, but its
@@ -63,17 +79,22 @@ class SettingsViewModel(
             )
         }
             .distinctUntilChanged()
+            .logged(log, "state") { it.summary() }
             .onEach { _state.value = it }
             .launchIn(viewModelScope)
     }
 
     fun clearDownloads() {
+        log.i { "clearDownloads()" }
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 try {
                     clearPhysicalDownloads()
+                    val before = database.downloadedTrackDao().getAllTracks().size
                     database.downloadedTrackDao().deleteAll()
+                    log.i { "cleared $before downloaded tracks + filesystem" }
                 } catch (e: Exception) {
+                    log.e(e) { "clearDownloads failed" }
                     _state.update {
                         it.copy(
                             transientError = "Failed to clear downloads: ${e.message ?: "unknown error"}",
