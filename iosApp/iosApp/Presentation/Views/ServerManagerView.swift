@@ -1,6 +1,8 @@
 import SwiftUI
 import SharedLogic
 
+private let log = SwiftLog("ui:iOS:ServerManager")
+
 struct ServerManagerView: View {
     @Environment(AppContainer.self) private var container
     @EnvironmentObject private var stateObserver: PlaybackStateObserver
@@ -337,7 +339,7 @@ struct ServerManagerView: View {
                     self.savedServers = sorted
                 }
             } catch {
-                print("Failed to load servers: \(error)")
+                log.e("Failed to load servers: \(error)")
             }
         }
     }
@@ -461,7 +463,7 @@ struct ServerManagerView: View {
                 let servers = try await container.serverRepository.getAllServers()
                 UserDefaults.standard.set(!servers.isEmpty, forKey: "has_saved_servers")
             } catch {
-                print("Failed to delete server: \(error)")
+                log.e("Failed to delete server: \(error)")
             }
         }
     }

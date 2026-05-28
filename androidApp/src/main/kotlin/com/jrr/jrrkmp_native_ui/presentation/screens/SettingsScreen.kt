@@ -1,5 +1,6 @@
 package com.jrr.jrrkmp_native_ui.presentation.screens
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -14,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import co.touchlab.kermit.Severity
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
@@ -193,6 +195,105 @@ fun SettingsScreen(
                                     style = AppTypography.chipMono,
                                     color = if (state.downloadedTracksCount > 0) AppColors.error else AppColors.text3
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Logging Section — Share log button + (debug only) severity selector
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Logging".uppercase(),
+                        style = AppTypography.sectionHeading,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = AppColors.bg2),
+                        border = BoxBorder(AppColors.line),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "DEBUG LOG",
+                                style = AppTypography.monoLabel,
+                                color = AppColors.text3
+                            )
+                            Text(
+                                text = "Recent activity from the in-memory ring buffer.",
+                                style = AppTypography.itemSubtitle,
+                                color = AppColors.text2,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                            )
+                            Button(
+                                onClick = {
+                                    val logText = viewModel.exportLogText()
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, logText)
+                                        putExtra(Intent.EXTRA_SUBJECT, "JRR debug log")
+                                    }
+                                    context.startActivity(
+                                        Intent.createChooser(intent, "Share debug log")
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.bg0),
+                                border = BoxBorder(AppColors.accent),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "SHARE LOG",
+                                    style = AppTypography.chipMono,
+                                    color = AppColors.accent
+                                )
+                            }
+
+                            if (state.isDebugBuild) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "MIN SEVERITY",
+                                    style = AppTypography.monoLabel,
+                                    color = AppColors.text3
+                                )
+                                Text(
+                                    text = "Filter level for all log writers. Dev builds only.",
+                                    style = AppTypography.itemSubtitle,
+                                    color = AppColors.text2,
+                                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                                )
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    listOf(
+                                        Severity.Verbose to "V",
+                                        Severity.Debug to "D",
+                                        Severity.Info to "I",
+                                        Severity.Warn to "W",
+                                        Severity.Error to "E",
+                                    ).forEach { (sev, label) ->
+                                        val selected = state.logSeverity == sev
+                                        Button(
+                                            onClick = { viewModel.setLogSeverity(sev) },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (selected) AppColors.accent else AppColors.bg0
+                                            ),
+                                            border = BoxBorder(if (selected) AppColors.accent else AppColors.line),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(horizontal = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                style = AppTypography.chipMono,
+                                                color = if (selected) AppColors.bg0 else AppColors.text
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

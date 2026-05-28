@@ -2,6 +2,8 @@ import CarPlay
 import UIKit
 import SharedLogic
 
+private let log = SwiftLog("ui:iOS:CarPlay")
+
 final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private var interfaceController: CPInterfaceController?
     private var tabBarTemplate: CPTabBarTemplate?
@@ -85,7 +87,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                     downloadsTemplate.updateSections([CPListSection(items: items)])
                 }
             } catch {
-                print("[CarPlay] Error refreshing downloads: \(error)")
+                log.e("refreshing downloads: \(error)")
             }
         }
     }
@@ -110,7 +112,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                     artistsTemplate.updateSections([CPListSection(items: items)])
                 }
             } catch {
-                print("[CarPlay] Error refreshing artists: \(error)")
+                log.e("refreshing artists: \(error)")
             }
         }
     }
@@ -137,7 +139,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                     self.interfaceController?.pushTemplate(template, animated: true, completion: nil)
                 }
             } catch {
-                print("[CarPlay] Error pushing albums list: \(error)")
+                log.e("pushing albums list: \(error)")
             }
         }
     }
@@ -173,7 +175,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                     albumsTemplate.updateSections([CPListSection(items: items)])
                 }
             } catch {
-                print("[CarPlay] Error refreshing albums: \(error)")
+                log.e("refreshing albums: \(error)")
             }
         }
     }
@@ -212,7 +214,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                     self.interfaceController?.pushTemplate(template, animated: true, completion: nil)
                 }
             } catch {
-                print("[CarPlay] Error pushing tracks list: \(error)")
+                log.e("pushing tracks list: \(error)")
             }
         }
     }

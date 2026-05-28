@@ -58,6 +58,11 @@ kotlin {
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
             implementation(libs.androidx.lifecycle.viewmodel)
+            // `api` so app modules can use Logger.withTag(...) without an
+            // explicit Kermit dep of their own — the logging conventions live
+            // in commonMain so the deps should travel with them.
+            api(libs.kermit)
+            implementation(libs.atomicfu)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)

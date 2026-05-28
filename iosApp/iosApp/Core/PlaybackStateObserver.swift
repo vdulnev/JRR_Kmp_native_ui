@@ -1,6 +1,8 @@
 import Foundation
 import SharedLogic
 
+private let log = SwiftLog("ui:iOS:PlaybackStateObserver")
+
 class PlaybackStateObserver: ObservableObject {
 
     @Published var activeZone: Zone = Zone.offline
@@ -17,6 +19,7 @@ class PlaybackStateObserver: ObservableObject {
     private var observationTasks: Set<Task<Void, Never>> = []
 
     init(facade: AudioPlayerFacade, database: JrrDatabase, nowPlayingCoordinator: NowPlayingCoordinator) {
+        log.d("init")
         self.database = database
         self.nowPlayingCoordinator = nowPlayingCoordinator
 
@@ -70,6 +73,10 @@ class PlaybackStateObserver: ObservableObject {
     }
 
     deinit {
+        // Snapshot to a local so the SwiftLog @autoclosure doesn't capture
+        // self during deinit (Swift's strict-capture rule).
+        let taskCount = observationTasks.count
+        log.d("deinit (cancelling \(taskCount) observation tasks)")
         observationTasks.forEach { $0.cancel() }
     }
 
@@ -79,9 +86,10 @@ class PlaybackStateObserver: ObservableObject {
                 let favs = try await database.favoriteDao().getAllFavorites()
                 await MainActor.run {
                     self.favorites = favs
+                    log.d("favorites refreshed (count=\(favs.count))")
                 }
             } catch {
-                print("Failed to load favorites: \(error)")
+                log.e("refreshFavorites failed: \(error)")
             }
         }
     }

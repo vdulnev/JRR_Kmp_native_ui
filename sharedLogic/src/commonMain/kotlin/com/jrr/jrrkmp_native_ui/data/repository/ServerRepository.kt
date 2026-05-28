@@ -1,5 +1,7 @@
 package com.jrr.jrrkmp_native_ui.data.repository
 
+import co.touchlab.kermit.Logger
+import com.jrr.jrrkmp_native_ui.core.logging.redact
 import com.jrr.jrrkmp_native_ui.data.api.WebPlayLookupResult
 import com.jrr.jrrkmp_native_ui.data.api.parseMcwsResponse
 import com.jrr.jrrkmp_native_ui.data.api.webPlayLookup
@@ -9,6 +11,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.util.encodeBase64
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
@@ -16,6 +19,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+
+private val log = Logger.withTag("repo:Server")
 
 data class McwsServerData(
     val host: String,
@@ -35,10 +40,12 @@ class ServerRepository(
     val activeServer: StateFlow<McwsServerData?> = _activeServer.asStateFlow()
 
     fun setActiveServer(host: String, port: Int, useSsl: Boolean, sslPort: Int, token: String?) {
+        log.i { "setActiveServer(host=$host port=$port ssl=$useSsl sslPort=$sslPort token=${token.redact()})" }
         _activeServer.value = if (host.isEmpty()) null else McwsServerData(host, port, useSsl, sslPort, token)
     }
 
     suspend fun lookupAccessKey(key: String): WebPlayLookupResult? = withContext(Dispatchers.IO) {
+        log.i { "lookupAccessKey(key=${key.redact()})" }
         webPlayLookup(httpClient, key)
     }
 
@@ -53,7 +60,8 @@ class ServerRepository(
         val scheme = if (useSsl) "https" else "http"
         val actualPort = if (useSsl) sslPort else port
         val url = "$scheme://$host:$actualPort/MCWS/v1/Authenticate"
-        
+        log.i { "authenticate(host=$host port=$actualPort ssl=$useSsl user=$username)" }
+
         try {
             val authValue = "$username:$passwordVal"
             val credential = "Basic ${authValue.encodeBase64()}"
@@ -65,11 +73,20 @@ class ServerRepository(
                 val body = response.bodyAsText()
                 val xmlResponse = parseMcwsResponse(body)
                 if (xmlResponse.status == "OK") {
-                    xmlResponse.items["Token"]
-                } else null
-            } else null
+                    val token = xmlResponse.items["Token"]
+                    log.i { "authenticate ok host=$host token=${token.redact()}" }
+                    token
+                } else {
+                    log.w { "authenticate: MCWS responded status=${xmlResponse.status} host=$host" }
+                    null
+                }
+            } else {
+                log.w { "authenticate: HTTP ${response.status.value} host=$host" }
+                null
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (e is CancellationException) throw e
+            log.e(e) { "authenticate failed host=$host" }
             null
         }
     }
@@ -84,7 +101,8 @@ class ServerRepository(
         val scheme = if (useSsl) "https" else "http"
         val actualPort = if (useSsl) sslPort else port
         val url = "$scheme://$host:$actualPort/MCWS/v1/Alive?Token=$token"
-        
+        log.d { "checkAlive(host=$host port=$actualPort ssl=$useSsl)" }
+
         try {
             val response: HttpResponse = httpClient.get(url) {
                 header("No-Auth", "true")
@@ -93,28 +111,41 @@ class ServerRepository(
                 val body = response.bodyAsText()
                 val xmlResponse = parseMcwsResponse(body)
                 if (xmlResponse.status == "OK") {
-                    xmlResponse.items["FriendlyName"] ?: "JRiver Server"
-                } else null
-            } else null
+                    val friendly = xmlResponse.items["FriendlyName"] ?: "JRiver Server"
+                    log.d { "checkAlive ok host=$host friendlyName=$friendly" }
+                    friendly
+                } else {
+                    log.w { "checkAlive: MCWS responded status=${xmlResponse.status} host=$host" }
+                    null
+                }
+            } else {
+                log.w { "checkAlive: HTTP ${response.status.value} host=$host" }
+                null
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (e is CancellationException) throw e
+            log.e(e) { "checkAlive failed host=$host" }
             null
         }
     }
 
     suspend fun getAllServers(): List<SavedServerEntity> = withContext(Dispatchers.IO) {
-        serverDao.getAllServers()
+        serverDao.getAllServers().also { log.d { "getAllServers → ${it.size}" } }
     }
 
     suspend fun getLastUsedServer(): SavedServerEntity? = withContext(Dispatchers.IO) {
-        serverDao.getLastUsedServer()
+        val s = serverDao.getLastUsedServer()
+        log.d { "getLastUsedServer → ${s?.host ?: "none"}" }
+        s
     }
 
     suspend fun saveServer(server: SavedServerEntity) = withContext(Dispatchers.IO) {
+        log.i { "saveServer(host=${server.host} name=${server.friendlyName})" }
         serverDao.insert(server)
     }
 
     suspend fun deleteServer(server: SavedServerEntity) = withContext(Dispatchers.IO) {
+        log.i { "deleteServer(host=${server.host})" }
         serverDao.delete(server)
     }
 }

@@ -1,5 +1,6 @@
 package com.jrr.jrrkmp_native_ui.data.repository
 
+import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
@@ -12,6 +13,8 @@ import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
+
+private val log = Logger.withTag("repo:Library")
 
 /**
  * Resolves whether the app is currently in offline mode. Modelled as a SAM
@@ -36,7 +39,9 @@ class LibraryRepository(
         value.replace(ESC_REGEX) { "/${it.value}" }
 
     suspend fun searchFiles(query: String): List<Track> = withContext(Dispatchers.IO) {
-        if (isOfflineProvider.isOffline()) {
+        val offline = isOfflineProvider.isOffline()
+        log.d { "searchFiles(q='$query') offline=$offline" }
+        if (offline) {
             val db = database ?: return@withContext emptyList()
             return@withContext db.downloadedTrackDao().getAllTracks()
                 .filter {
@@ -45,6 +50,7 @@ class LibraryRepository(
                             it.album.contains(query, ignoreCase = true)
                 }
                 .map { it.toTrack() }
+                .also { log.d { "searchFiles offline → ${it.size} from cache" } }
         }
         val mcwsQuery =
             "[Media Type]=Audio ([Name] contains \"$query\" OR [Artist] contains \"$query\" OR [Album] contains \"$query\")"
@@ -54,10 +60,13 @@ class LibraryRepository(
     suspend fun getDownloadedTracks(): List<Track> = withContext(Dispatchers.IO) {
         val db = database ?: return@withContext emptyList()
         db.downloadedTrackDao().getAllTracks().map { it.toTrack() }
+            .also { log.d { "getDownloadedTracks → ${it.size}" } }
     }
 
     suspend fun getArtists(): List<String> = withContext(Dispatchers.IO) {
-        if (isOfflineProvider.isOffline()) {
+        val offline = isOfflineProvider.isOffline()
+        log.d { "getArtists() offline=$offline" }
+        if (offline) {
             val artistsSet = mutableSetOf<String>()
             val db = database ?: return@withContext emptyList()
             db.downloadedTrackDao().getAllTracks().forEach {
@@ -67,6 +76,7 @@ class LibraryRepository(
                 }
             }
             return@withContext artistsSet.sortedWith(compareBy { it.lowercase() })
+                .also { log.d { "getArtists offline → ${it.size} from cache" } }
         }
         val mcwsQuery =
             "[Media Type]=Audio ~limit=-1,1,[Album Artist (auto)] ~sort=[Album Artist (auto)]"
@@ -74,7 +84,9 @@ class LibraryRepository(
     }
 
     suspend fun getAlbumsByArtist(artistName: String): List<Album> = withContext(Dispatchers.IO) {
-        if (isOfflineProvider.isOffline()) {
+        val offline = isOfflineProvider.isOffline()
+        log.d { "getAlbumsByArtist($artistName) offline=$offline" }
+        if (offline) {
             val albumsMap = mutableMapOf<String, DownloadedTrackEntity>()
             val db = database ?: return@withContext emptyList()
             db.downloadedTrackDao().getAllTracks().forEach {
@@ -88,6 +100,7 @@ class LibraryRepository(
             return@withContext albumsMap.values.map {
                 Album(it.toTrack())
             }.distinct().sortedWith(compareBy { it.name.lowercase() })
+                .also { log.d { "getAlbumsByArtist offline → ${it.size} from cache" } }
         }
         val mcwsQuery =
             "[Album Artist (auto)]=[${esc(artistName)}] ~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
@@ -95,7 +108,9 @@ class LibraryRepository(
     }
 
     suspend fun getAlbumTracks(album: Album): List<Track> = withContext(Dispatchers.IO) {
-        if (isOfflineProvider.isOffline()) {
+        val offline = isOfflineProvider.isOffline()
+        log.d { "getAlbumTracks(${album.name}) offline=$offline" }
+        if (offline) {
             val db = database ?: return@withContext emptyList()
             return@withContext db.downloadedTrackDao().getAllTracks()
                 .filter {
@@ -106,6 +121,7 @@ class LibraryRepository(
                 }
                 .map { it.toTrack() }
                 .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
+                .also { log.d { "getAlbumTracks offline → ${it.size} from cache" } }
         }
         val base = "[Album]=[${esc(album.name)}]"
         val filtered = if (album.folderPath.isNotEmpty()) {
@@ -119,6 +135,7 @@ class LibraryRepository(
     }
 
     suspend fun getRandomAlbums(limit: Int = 10): List<Album> = withContext(Dispatchers.IO) {
+        log.d { "getRandomAlbums(limit=$limit)" }
         val mcwsQuery = "[Media Type]=Audio ~limit=$limit,-1,[Album],[Filename (path)] ~n=$limit"
         mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
     }
@@ -141,12 +158,19 @@ class LibraryRepository(
     }
 
     suspend fun startDownload(track: Track): Int? = withContext(Dispatchers.IO) {
+        log.i { "startDownload(${track.fileKey} / ${track.name})" }
         val db = database ?: return@withContext null
         val jobDao = db.downloadJobDao()
         val trackDao = db.downloadedTrackDao()
 
-        if (trackDao.getTrack(track.fileKey) != null) return@withContext null
-        if (jobDao.getAllJobs().any { it.fileKey == track.fileKey }) return@withContext null
+        if (trackDao.getTrack(track.fileKey) != null) {
+            log.d { "startDownload skipped: track already downloaded fileKey=${track.fileKey}" }
+            return@withContext null
+        }
+        if (jobDao.getAllJobs().any { it.fileKey == track.fileKey }) {
+            log.d { "startDownload skipped: job already queued fileKey=${track.fileKey}" }
+            return@withContext null
+        }
 
         val job = DownloadJobEntity(
             fileKey = track.fileKey,
@@ -174,6 +198,7 @@ class LibraryRepository(
             filePath = track.filePath
         )
         val jobId = jobDao.insert(job).toInt()
+        log.d { "startDownload queued jobId=$jobId fileKey=${track.fileKey}" }
         onDownloadQueued?.invoke(track, jobId)
         jobId
     }

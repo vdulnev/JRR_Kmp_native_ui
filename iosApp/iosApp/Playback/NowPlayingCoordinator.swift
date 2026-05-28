@@ -2,6 +2,8 @@ import Foundation
 import MediaPlayer
 import UIKit
 
+private let log = SwiftLog("playback:NowPlayingCoordinator")
+
 class NowPlayingCoordinator {
 
     private var playHandler: (() -> Void)?
@@ -116,7 +118,7 @@ class NowPlayingCoordinator {
                     completion(image)
                 }
             } catch {
-                print("Failed to fetch artwork: \(error)")
+                log.w("Failed to fetch artwork: \(error)")
                 await MainActor.run {
                     completion(nil)
                 }

@@ -1,5 +1,7 @@
 import SwiftUI
 
+private let log = SwiftLog("ui:iOS:JrrAsyncImage")
+
 // Global Image Cache for UI Images
 class JrrImageCache {
     static let shared = NSCache<NSURL, UIImage>()
@@ -100,7 +102,7 @@ struct JrrAsyncImage<Content: View, Placeholder: View>: View {
                 }
             } catch {
                 if !(error is CancellationError) {
-                    print("Failed to load image from \(resolvedURL): \(error)")
+                    log.w("Failed to load image from \(resolvedURL): \(error)")
                     await MainActor.run {
                         self.isLoading = false
                         self.loadError = true

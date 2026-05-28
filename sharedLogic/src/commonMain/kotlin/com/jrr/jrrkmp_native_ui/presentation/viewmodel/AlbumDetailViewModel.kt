@@ -2,6 +2,8 @@ package com.jrr.jrrkmp_native_ui.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
+import com.jrr.jrrkmp_native_ui.core.logging.logged
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
@@ -12,6 +14,21 @@ import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+
+private val log = Logger.withTag("vm:AlbumDetail")
+
+private fun AlbumDetailViewState.summary(): String = buildString {
+    append("content=")
+    append(
+        when (val c = contentState) {
+            AlbumDetailContentState.Loading -> "Loading"
+            is AlbumDetailContentState.Success -> "Success(tracks=${c.tracks.size} downloaded=${c.downloadedTrackKeys.size} jobs=${c.activeDownloadJobs.size} fav=${c.isFavorite})"
+            is AlbumDetailContentState.Error -> "Error(${c.message})"
+        },
+    )
+    append(" offline=$isOfflineMode")
+    if (transientError != null) append(" err=$transientError")
+}
 
 sealed interface AlbumDetailContentState {
     data object Loading : AlbumDetailContentState
@@ -48,6 +65,8 @@ class AlbumDetailViewModel(
     private val favoriteFlow = MutableStateFlow(false)
 
     init {
+        log.d { "init album=${album.name} artist=${album.albumArtist}" }
+        state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
         // Observe database updates for downloads, jobs, and favorites
         combine(
             tracksFlow,
@@ -84,10 +103,12 @@ class AlbumDetailViewModel(
 
     private fun refreshTracksAndFavorite() {
         viewModelScope.launch {
+            log.d { "refreshTracksAndFavorite()" }
             _state.update { it.copy(contentState = AlbumDetailContentState.Loading) }
             try {
                 // Fetch tracks from repository
                 val albumTracks = libraryRepository.getAlbumTracks(album)
+                log.d { "loaded ${albumTracks.size} tracks" }
                 tracksFlow.value = albumTracks
 
                 // Check favorite status in DB
@@ -95,6 +116,7 @@ class AlbumDetailViewModel(
                 val favorite = database.favoriteDao().getFavorite("album", identifier) != null
                 favoriteFlow.value = favorite
             } catch (e: Exception) {
+                log.e(e) { "refreshTracksAndFavorite failed" }
                 _state.update {
                     it.copy(
                         contentState = AlbumDetailContentState.Error(
@@ -107,6 +129,7 @@ class AlbumDetailViewModel(
     }
 
     fun playTrack(track: Track) {
+        log.d { "playTrack(${track.fileKey} / ${track.name})" }
         val currentTracks = tracksFlow.value
         if (currentTracks.isNotEmpty()) {
             val startIndex = currentTracks.indexOf(track).coerceAtLeast(0)
@@ -116,6 +139,7 @@ class AlbumDetailViewModel(
     }
 
     fun playAlbum() {
+        log.d { "playAlbum() tracks=${tracksFlow.value.size}" }
         val currentTracks = tracksFlow.value
         if (currentTracks.isNotEmpty()) {
             facade.setQueue(currentTracks, 0)
@@ -124,6 +148,7 @@ class AlbumDetailViewModel(
     }
 
     fun shuffleAlbum() {
+        log.d { "shuffleAlbum() tracks=${tracksFlow.value.size}" }
         val currentTracks = tracksFlow.value
         if (currentTracks.isNotEmpty()) {
             facade.setQueue(currentTracks.shuffled(), 0)
@@ -132,6 +157,7 @@ class AlbumDetailViewModel(
     }
 
     fun toggleFavorite() {
+        log.d { "toggleFavorite()" }
         viewModelScope.launch {
             try {
                 val identifier = "${album.name}|${album.albumArtist}"
@@ -140,6 +166,7 @@ class AlbumDetailViewModel(
                 if (existing != null) {
                     dao.delete(existing)
                     favoriteFlow.value = false
+                    log.d { "favorite removed identifier=$identifier" }
                 } else {
                     val newFav = FavoriteEntity(
                         type = "album",
@@ -149,32 +176,39 @@ class AlbumDetailViewModel(
                     )
                     dao.insert(newFav)
                     favoriteFlow.value = true
+                    log.d { "favorite added identifier=$identifier" }
                 }
             } catch (e: Exception) {
+                log.e(e) { "toggleFavorite failed" }
                 _state.update { it.copy(transientError = "Failed to toggle favorite: ${e.message ?: "unknown error"}") }
             }
         }
     }
 
     fun startDownload(track: Track) {
+        log.d { "startDownload(${track.fileKey} / ${track.name})" }
         viewModelScope.launch {
             try {
                 libraryRepository.startDownload(track)
             } catch (e: Exception) {
+                log.e(e) { "startDownload failed fileKey=${track.fileKey}" }
                 _state.update { it.copy(transientError = "Failed to start download: ${e.message ?: "unknown error"}") }
             }
         }
     }
 
     fun addTrackToQueue(track: Track) {
+        log.d { "addTrackToQueue(${track.fileKey} / ${track.name})" }
         facade.addTracks(listOf(track))
     }
 
     fun playTrackNext(track: Track) {
+        log.d { "playTrackNext(${track.fileKey} / ${track.name})" }
         facade.playNextTracks(listOf(track))
     }
 
     fun addAlbumToQueue() {
+        log.d { "addAlbumToQueue() tracks=${tracksFlow.value.size}" }
         val currentTracks = tracksFlow.value
         if (currentTracks.isNotEmpty()) {
             facade.addTracks(currentTracks)
@@ -182,6 +216,7 @@ class AlbumDetailViewModel(
     }
 
     fun playAlbumNext() {
+        log.d { "playAlbumNext() tracks=${tracksFlow.value.size}" }
         val currentTracks = tracksFlow.value
         if (currentTracks.isNotEmpty()) {
             facade.playNextTracks(currentTracks)
@@ -189,11 +224,13 @@ class AlbumDetailViewModel(
     }
 
     fun downloadAlbum() {
+        log.d { "downloadAlbum() tracks=${tracksFlow.value.size}" }
         viewModelScope.launch {
             try {
                 val currentTracks = tracksFlow.value
                 currentTracks.forEach { libraryRepository.startDownload(it) }
             } catch (e: Exception) {
+                log.e(e) { "downloadAlbum failed" }
                 _state.update { it.copy(transientError = "Download failed: ${e.message ?: "unknown error"}") }
             }
         }
@@ -204,6 +241,7 @@ class AlbumDetailViewModel(
     }
 
     fun retry() {
+        log.d { "retry()" }
         refreshTracksAndFavorite()
     }
 
@@ -220,6 +258,7 @@ class AlbumDetailViewModel(
      * `@State`-held wrappers go away non-deterministically without this hook.
      */
     fun dispose() {
+        log.d { "dispose album=${album.name}" }
         viewModelScope.cancel()
     }
 }

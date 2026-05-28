@@ -1,6 +1,8 @@
 import SwiftUI
 import SharedLogic
 
+private let log = SwiftLog("ui:iOS:NowPlaying")
+
 @Observable
 @MainActor
 class NowPlayingObservable {
@@ -24,6 +26,7 @@ class NowPlayingObservable {
     @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: NowPlayingViewModel) {
+        log.d("init")
         self.viewModel = viewModel
 
         sync(state: viewModel.state.value)
@@ -37,6 +40,7 @@ class NowPlayingObservable {
     }
 
     deinit {
+        log.d("deinit")
         observeTask?.cancel()
     }
     

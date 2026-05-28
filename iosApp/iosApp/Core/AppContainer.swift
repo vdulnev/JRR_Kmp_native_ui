@@ -9,6 +9,8 @@ import SharedLogic
 /// SwiftUI views read the container via `@Environment(AppContainer.self)`.
 /// Non-SwiftUI surfaces (CarPlay, scene delegates) reach it via
 /// `(UIApplication.shared.delegate as? AppDelegate)?.container`.
+private let log = SwiftLog("di:AppContainer")
+
 @Observable
 final class AppContainer {
 
@@ -24,6 +26,7 @@ final class AppContainer {
     let downloadManager: DownloadManager
 
     init() {
+        log.i("constructing (iOS)")
         let builder = DatabaseBuilder().createBuilder()
         let database = DatabaseBuilderKt.createDatabase(builder: builder)
         self.database = database
@@ -33,6 +36,7 @@ final class AppContainer {
 
         // Build the MCWS networking stack (httpClient + ServerRepository +
         // McwsClient share the same underlying ktor client).
+        log.d("building McwsCore")
         let mcwsCore = McwsCore.companion.create(database: database)
         self.serverRepository = mcwsCore.serverRepository
         self.mcwsClient = mcwsCore.mcwsClient
@@ -84,6 +88,7 @@ final class AppContainer {
             facade: facade
         )
         self.downloadManager.setup(libraryRepository: self.libraryRepository)
+        log.i("constructed")
     }
 }
 

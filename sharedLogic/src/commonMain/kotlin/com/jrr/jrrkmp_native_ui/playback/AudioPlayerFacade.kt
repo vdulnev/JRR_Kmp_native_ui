@@ -1,5 +1,8 @@
 package com.jrr.jrrkmp_native_ui.playback
- 
+
+import co.touchlab.kermit.Logger
+import com.jrr.jrrkmp_native_ui.core.logging.redact
+import com.jrr.jrrkmp_native_ui.core.logging.runCatchingLogged
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
@@ -31,6 +34,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+
+private val log = Logger.withTag("playback:Facade")
 
 class AudioPlayerFacade(
     private val database: JrrDatabase?,
@@ -110,6 +115,7 @@ class AudioPlayerFacade(
     }
 
     init {
+        log.d { "init" }
         // Collect local state and merge with facade status
         coroutineScope.launch {
             combine(
@@ -163,7 +169,7 @@ class AudioPlayerFacade(
                                 )
                             )
                         } catch (e: Exception) {
-                            e.printStackTrace()
+                            log.e(e) { "persist currentIndex failed zone=${zone.id} index=$index" }
                         }
                     }
                 }
@@ -173,6 +179,7 @@ class AudioPlayerFacade(
         // Restore last active zone ID
         val lastZoneId = loadLastActiveZoneId()
         if (lastZoneId != null) {
+            log.i { "restoring last active zone: $lastZoneId" }
             // Setup default active zone if known
             val defaultZone = when (lastZoneId) {
                 Zone.Local.id -> Zone.Local
@@ -182,6 +189,7 @@ class AudioPlayerFacade(
             }
             setZone(defaultZone)
         } else {
+            log.i { "no last active zone, defaulting to Offline" }
             setZone(Zone.Offline)
         }
     }
@@ -193,19 +201,23 @@ class AudioPlayerFacade(
         sslPort: Int,
         authToken: String?
     ) {
+        log.i { "setServerConnection(host=$host port=$port ssl=$useSsl sslPort=$sslPort token=${authToken.redact()})" }
         serverRepository?.setActiveServer(host, port, useSsl, sslPort, authToken)
         _connectionToken.value = authToken
     }
 
     fun setZone(zone: Zone, skipLoadQueue: Boolean = false) {
         val oldZone = _activeZone.value
+        log.i { "setZone(${zone.id}, skipLoadQueue=$skipLoadQueue) from=${oldZone.id}" }
         if (oldZone.isLocal || oldZone.isOffline || oldZone.isAndroidAuto) {
             saveQueueState(oldZone.id)
             if (!zone.isLocal && !zone.isOffline && !zone.isAndroidAuto) {
+                log.d { "stopping local engine before remote zone switch" }
                 localPlayerEngine.stop()
             }
         } else {
             if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
+                log.d { "stopping remote zone ${oldZone.id} before local switch" }
                 coroutineScope.launch(ioDispatcher) {
                     remoteHandler.stop(oldZone.id)
                 }
@@ -233,6 +245,7 @@ class AudioPlayerFacade(
     }
 
     fun setPollingEnabled(enabled: Boolean) {
+        log.d { "setPollingEnabled($enabled)" }
         isPollingEnabled = enabled
         if (enabled) {
             startPolling()
@@ -246,14 +259,21 @@ class AudioPlayerFacade(
         pollingJob?.cancel()
         val zone = _activeZone.value
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
+            log.v { "startPolling skipped (zone=${zone.id} is local-class)" }
             return
         }
+        log.d { "startPolling zone=${zone.id}" }
         pollingJob = coroutineScope.launch(ioDispatcher) {
             while (isActive) {
                 if (isPollingEnabled) {
-                    val status = remoteHandler.getPlaybackInfo(zone.id)
-                    if (status != null) {
-                        _playerStatus.value = status
+                    try {
+                        val status = remoteHandler.getPlaybackInfo(zone.id)
+                        if (status != null) {
+                            log.v { "poll → state=${status.state} pos=${status.positionMs}ms" }
+                            _playerStatus.value = status
+                        }
+                    } catch (e: Exception) {
+                        log.w(e) { "poll failed zone=${zone.id}" }
                     }
                 }
                 delay(1000L)
@@ -263,6 +283,7 @@ class AudioPlayerFacade(
 
     private fun startLocalProgressPolling() {
         localProgressJob?.cancel()
+        log.v { "startLocalProgressPolling" }
         localProgressJob = coroutineScope.launch {
             while (isActive) {
                 val zone = _activeZone.value
@@ -282,35 +303,42 @@ class AudioPlayerFacade(
 
     fun setQueue(tracks: List<Track>, startIndex: Int) {
         val zone = _activeZone.value
+        log.d { "setQueue(${tracks.size} tracks, startIndex=$startIndex) zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.setQueue(tracks, startIndex)
             localPlayerEngine.play()
             saveQueueState(zone.id)
         } else {
             coroutineScope.launch(ioDispatcher) {
-                // Clear the remote queue first to ensure a clean queue
-                mcwsClient.executeCommand("Playback/ClearPlaylist", mapOf(
-                    "Zone" to zone.id,
-                    "ZoneType" to "ID"
-                ))
-                val keys = tracks.joinToString(",") { it.fileKey }
-                remoteHandler.seekTo(zone.id, 0L)
-                val success = mcwsClient.executeCommand("Playback/PlayByKey", mapOf(
-                    "Key" to keys,
-                    "Zone" to zone.id,
-                    "ZoneType" to "ID",
-                    "Location" to "0"
-                ))
-                if (success) {
-                    if (startIndex > 0) {
-                        mcwsClient.executeCommand("Playback/PlayByIndex", mapOf(
-                            "Index" to startIndex.toString(),
-                            "Zone" to zone.id,
-                            "ZoneType" to "ID"
-                        ))
+                try {
+                    // Clear the remote queue first to ensure a clean queue
+                    mcwsClient.executeCommand("Playback/ClearPlaylist", mapOf(
+                        "Zone" to zone.id,
+                        "ZoneType" to "ID"
+                    ))
+                    val keys = tracks.joinToString(",") { it.fileKey }
+                    remoteHandler.seekTo(zone.id, 0L)
+                    val success = mcwsClient.executeCommand("Playback/PlayByKey", mapOf(
+                        "Key" to keys,
+                        "Zone" to zone.id,
+                        "ZoneType" to "ID",
+                        "Location" to "0"
+                    ))
+                    if (success) {
+                        if (startIndex > 0) {
+                            mcwsClient.executeCommand("Playback/PlayByIndex", mapOf(
+                                "Index" to startIndex.toString(),
+                                "Zone" to zone.id,
+                                "ZoneType" to "ID"
+                            ))
+                        } else {
+                            remoteHandler.play(zone.id)
+                        }
                     } else {
-                        remoteHandler.play(zone.id)
+                        log.w { "remote setQueue: PlayByKey returned false zone=${zone.id}" }
                     }
+                } catch (e: Exception) {
+                    log.e(e) { "remote setQueue failed zone=${zone.id}" }
                 }
             }
         }
@@ -318,42 +346,53 @@ class AudioPlayerFacade(
 
     fun addTracks(tracks: List<Track>) {
         val zone = _activeZone.value
+        log.d { "addTracks(${tracks.size}) zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.addTracks(tracks)
             saveQueueState(zone.id)
         } else {
             coroutineScope.launch(ioDispatcher) {
-                val keys = tracks.joinToString(",") { it.fileKey }
-                mcwsClient.executeCommand("Playback/PlayByKey", mapOf(
-                    "Key" to keys,
-                    "Zone" to zone.id,
-                    "ZoneType" to "ID",
-                    "Location" to "END"
-                ))
+                try {
+                    val keys = tracks.joinToString(",") { it.fileKey }
+                    mcwsClient.executeCommand("Playback/PlayByKey", mapOf(
+                        "Key" to keys,
+                        "Zone" to zone.id,
+                        "ZoneType" to "ID",
+                        "Location" to "END"
+                    ))
+                } catch (e: Exception) {
+                    log.e(e) { "remote addTracks failed zone=${zone.id}" }
+                }
             }
         }
     }
 
     fun playNextTracks(tracks: List<Track>) {
         val zone = _activeZone.value
+        log.d { "playNextTracks(${tracks.size}) zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.insertTracksNext(tracks)
             saveQueueState(zone.id)
         } else {
             coroutineScope.launch(ioDispatcher) {
-                val keys = tracks.joinToString(",") { it.fileKey }
-                mcwsClient.executeCommand("Playback/PlayByKey", mapOf(
-                    "Key" to keys,
-                    "Zone" to zone.id,
-                    "ZoneType" to "ID",
-                    "Location" to "NEXT"
-                ))
+                try {
+                    val keys = tracks.joinToString(",") { it.fileKey }
+                    mcwsClient.executeCommand("Playback/PlayByKey", mapOf(
+                        "Key" to keys,
+                        "Zone" to zone.id,
+                        "ZoneType" to "ID",
+                        "Location" to "NEXT"
+                    ))
+                } catch (e: Exception) {
+                    log.e(e) { "remote playNextTracks failed zone=${zone.id}" }
+                }
             }
         }
     }
 
     fun play() {
         val zone = _activeZone.value
+        log.d { "play() zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.play()
         } else {
@@ -369,6 +408,7 @@ class AudioPlayerFacade(
 
     fun pause() {
         val zone = _activeZone.value
+        log.d { "pause() zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.pause()
         } else {
@@ -380,6 +420,7 @@ class AudioPlayerFacade(
 
     fun stop() {
         val zone = _activeZone.value
+        log.d { "stop() zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.stop()
         } else {
@@ -391,6 +432,7 @@ class AudioPlayerFacade(
 
     fun next() {
         val zone = _activeZone.value
+        log.d { "next() zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.playNext()
         } else {
@@ -402,6 +444,7 @@ class AudioPlayerFacade(
 
     fun previous() {
         val zone = _activeZone.value
+        log.d { "previous() zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.playPrevious()
         } else {
@@ -413,6 +456,7 @@ class AudioPlayerFacade(
 
     fun seekTo(positionMs: Long) {
         val zone = _activeZone.value
+        log.d { "seekTo(${positionMs}ms) zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.seekTo(positionMs)
         } else {
@@ -424,6 +468,7 @@ class AudioPlayerFacade(
 
     fun setVolume(level: Float) {
         val zone = _activeZone.value
+        log.d { "setVolume($level) zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.setVolume(level)
         } else {
@@ -435,6 +480,7 @@ class AudioPlayerFacade(
 
     fun setShuffleMode(mode: ShuffleMode) {
         val zone = _activeZone.value
+        log.d { "setShuffleMode($mode) zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.setShuffleMode(mode)
         } else {
@@ -446,6 +492,7 @@ class AudioPlayerFacade(
 
     fun setRepeatMode(mode: RepeatMode) {
         val zone = _activeZone.value
+        log.d { "setRepeatMode($mode) zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.setRepeatMode(mode)
         } else {
@@ -457,6 +504,7 @@ class AudioPlayerFacade(
 
     fun playByIndex(index: Int) {
         val zone = _activeZone.value
+        log.d { "playByIndex($index) zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.playByIndex(index)
         } else {
@@ -472,6 +520,7 @@ class AudioPlayerFacade(
 
     fun removeQueueTrack(index: Int) {
         val zone = _activeZone.value
+        log.d { "removeQueueTrack($index) zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.removeTrack(index)
             saveQueueState(zone.id)
@@ -488,6 +537,7 @@ class AudioPlayerFacade(
 
     fun moveQueueTrack(from: Int, to: Int) {
         val zone = _activeZone.value
+        log.d { "moveQueueTrack($from → $to) zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.moveTrack(from, to)
             saveQueueState(zone.id)
@@ -505,6 +555,7 @@ class AudioPlayerFacade(
 
     fun clearQueue() {
         val zone = _activeZone.value
+        log.d { "clearQueue() zone=${zone.id}" }
         if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
             localPlayerEngine.clearQueue()
             saveQueueState(zone.id)
@@ -521,9 +572,10 @@ class AudioPlayerFacade(
     fun saveQueueState(zoneId: String) {
         val db = database ?: return
         coroutineScope.launch(ioDispatcher) {
-            try {
+            log.runCatchingLogged("saveQueueState(zone=$zoneId)") {
                 val queueTracks = localPlayerEngine.getQueue()
                 val currentIndex = localPlayerEngine.currentIndex.value
+                log.v { "saveQueueState zone=$zoneId tracks=${queueTracks.size} currentIndex=$currentIndex" }
 
                 db.localQueueTrackDao().clearQueueForZone(zoneId)
                 val entities = queueTracks.mapIndexed { idx, track ->
@@ -542,8 +594,6 @@ class AudioPlayerFacade(
                         currentIndex = currentIndex
                     )
                 )
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
     }
@@ -559,11 +609,13 @@ class AudioPlayerFacade(
                     try {
                         json.decodeFromString<Track>(it.trackJson)
                     } catch (e: Exception) {
+                        log.w(e) { "loadQueueState: failed to decode track, skipping" }
                         null
                     }
                 }
 
                 val currentIndex = dbState?.currentIndex ?: -1
+                log.d { "loadQueueState zone=$zoneId restored=${tracks.size} currentIndex=$currentIndex" }
 
                 withContext(Dispatchers.Main) {
                     if (tracks.isNotEmpty()) {
@@ -576,7 +628,7 @@ class AudioPlayerFacade(
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                log.e(e) { "loadQueueState failed zone=$zoneId" }
             }
         }
     }

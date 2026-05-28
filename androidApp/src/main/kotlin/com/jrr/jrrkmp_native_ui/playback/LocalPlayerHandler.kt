@@ -6,6 +6,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import co.touchlab.kermit.Logger
+import com.jrr.jrrkmp_native_ui.core.logging.redact
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
@@ -15,6 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import kotlinx.coroutines.runBlocking
+
+private val log = Logger.withTag("playback:Local")
 
 class LocalPlayerHandler(
     private val context: Context,
@@ -49,10 +53,12 @@ class LocalPlayerHandler(
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
+            log.v { "ExoPlayer onPlaybackStateChanged(state=$state)" }
             updateState()
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            log.v { "ExoPlayer onIsPlayingChanged($isPlaying)" }
             _isPlaying.value = isPlaying
             updateState()
         }
@@ -61,12 +67,14 @@ class LocalPlayerHandler(
             val player = exoPlayer ?: return
             if (mediaItem == null) {
                 if (_queue.value.isEmpty()) {
+                    log.d { "ExoPlayer onMediaItemTransition(null) — queue empty, reset" }
                     _currentIndex.value = -1
                     _currentTrack.value = null
                 }
                 return
             }
             val index = player.currentMediaItemIndex
+            log.d { "ExoPlayer onMediaItemTransition(reason=$reason) → index=$index" }
             _currentIndex.value = index
             if (index >= 0 && index < _queue.value.size) {
                 _currentTrack.value = _queue.value[index]
@@ -74,10 +82,15 @@ class LocalPlayerHandler(
                 _currentTrack.value = null
             }
         }
+
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            log.e(error) { "ExoPlayer error code=${error.errorCode}" }
+        }
     }
 
     private fun ensurePlayer() {
         if (exoPlayer == null) {
+            log.d { "ensurePlayer: creating ExoPlayer instance" }
             exoPlayer = ExoPlayer.Builder(context.applicationContext).build().apply {
                 addListener(playerListener)
                 volume = this@LocalPlayerHandler._volume.value
@@ -110,6 +123,7 @@ class LocalPlayerHandler(
     private fun createMediaItem(track: Track): MediaItem {
         val localPath = checkLocalFileProvider(track.fileKey)
         val uri = if (localPath != null && File(localPath).exists()) {
+            log.v { "createMediaItem(${track.fileKey}) → local file" }
             Uri.fromFile(File(localPath))
         } else {
             val active = serverRepository.activeServer.value
@@ -131,6 +145,7 @@ class LocalPlayerHandler(
                     Pair("", "")
                 }
             }
+            log.v { "createMediaItem(${track.fileKey}) → remote $serverUrl token=${token.redact()}" }
             Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&Playback=1&Token=${token}")
         }
 
@@ -149,6 +164,7 @@ class LocalPlayerHandler(
     }
 
     override fun setQueue(tracks: List<Track>, startIndex: Int) {
+        log.d { "setQueue(${tracks.size} tracks, startIndex=$startIndex)" }
         ensurePlayer()
         _queue.value = tracks
         val player = exoPlayer ?: return
@@ -167,19 +183,21 @@ class LocalPlayerHandler(
     }
 
     override fun addTracks(tracks: List<Track>) {
+        log.d { "addTracks(${tracks.size})" }
         ensurePlayer()
         val player = exoPlayer ?: return
-        
+
         val mediaItems = tracks.map { createMediaItem(it) }
-        
+
         val currentQueue = _queue.value.toMutableList()
         val wasEmpty = currentQueue.isEmpty()
         currentQueue.addAll(tracks)
         _queue.value = currentQueue
-        
+
         player.addMediaItems(mediaItems)
-        
+
         if (wasEmpty && currentQueue.isNotEmpty()) {
+            log.d { "queue was empty — starting playback at index 0" }
             player.seekTo(0, 0L)
             _currentIndex.value = 0
             _currentTrack.value = tracks[0]
@@ -189,26 +207,28 @@ class LocalPlayerHandler(
     }
 
     override fun insertTracksNext(tracks: List<Track>) {
+        log.d { "insertTracksNext(${tracks.size})" }
         ensurePlayer()
         val player = exoPlayer ?: return
-        
+
         val currentQueue = _queue.value.toMutableList()
         val wasEmpty = currentQueue.isEmpty()
         val currentIndex = player.currentMediaItemIndex
         val insertIndex = if (currentIndex >= 0) currentIndex + 1 else 0
-        
+
         val mediaItems = tracks.map { createMediaItem(it) }
-        
+
         if (insertIndex in 0..currentQueue.size) {
             currentQueue.addAll(insertIndex, tracks)
         } else {
             currentQueue.addAll(tracks)
         }
         _queue.value = currentQueue
-        
+
         player.addMediaItems(insertIndex, mediaItems)
-        
+
         if (wasEmpty && currentQueue.isNotEmpty()) {
+            log.d { "queue was empty — starting playback at index 0" }
             player.seekTo(0, 0L)
             _currentIndex.value = 0
             _currentTrack.value = tracks[0]
@@ -218,34 +238,41 @@ class LocalPlayerHandler(
     }
 
     override fun play() {
+        log.d { "play()" }
         ensurePlayer()
         exoPlayer?.play()
     }
 
     override fun pause() {
+        log.d { "pause()" }
         exoPlayer?.pause()
     }
 
     override fun stop() {
+        log.d { "stop()" }
         exoPlayer?.stop()
         _playbackState.value = PlaybackState.STOPPED
     }
 
     override fun seekTo(positionMs: Long) {
+        log.d { "seekTo(${positionMs}ms)" }
         exoPlayer?.seekTo(positionMs)
     }
 
     override fun setVolume(level: Float) {
+        log.d { "setVolume($level)" }
         _volume.value = level
         exoPlayer?.volume = level
     }
 
     override fun setShuffleMode(mode: ShuffleMode) {
+        log.d { "setShuffleMode($mode)" }
         _shuffleMode.value = mode
         exoPlayer?.shuffleModeEnabled = (mode == ShuffleMode.ON)
     }
 
     override fun setRepeatMode(mode: RepeatMode) {
+        log.d { "setRepeatMode($mode)" }
         _repeatMode.value = mode
         exoPlayer?.repeatMode = when (mode) {
             RepeatMode.OFF -> Player.REPEAT_MODE_OFF
@@ -256,6 +283,7 @@ class LocalPlayerHandler(
 
     override fun playNext() {
         val player = exoPlayer ?: return
+        log.d { "playNext() hasNext=${player.hasNextMediaItem()}" }
         if (player.hasNextMediaItem()) {
             player.seekToNext()
         }
@@ -263,6 +291,7 @@ class LocalPlayerHandler(
 
     override fun playPrevious() {
         val player = exoPlayer ?: return
+        log.d { "playPrevious() hasPrev=${player.hasPreviousMediaItem()}" }
         if (player.hasPreviousMediaItem()) {
             player.seekToPrevious()
         }
@@ -278,6 +307,7 @@ class LocalPlayerHandler(
     }
 
     fun release() {
+        log.i { "release()" }
         exoPlayer?.removeListener(playerListener)
         exoPlayer?.release()
         exoPlayer = null
@@ -288,6 +318,7 @@ class LocalPlayerHandler(
     override fun getQueueSize(): Int = _queue.value.size
 
     override fun playByIndex(index: Int) {
+        log.d { "playByIndex($index)" }
         val player = exoPlayer ?: return
         if (index >= 0 && index < player.mediaItemCount) {
             player.seekTo(index, 0L)
@@ -296,6 +327,7 @@ class LocalPlayerHandler(
     }
 
     override fun removeTrack(index: Int) {
+        log.d { "removeTrack($index)" }
         val player = exoPlayer ?: return
         if (index >= 0 && index < player.mediaItemCount) {
             player.removeMediaItem(index)
@@ -308,6 +340,7 @@ class LocalPlayerHandler(
     }
 
     override fun moveTrack(from: Int, to: Int) {
+        log.d { "moveTrack($from → $to)" }
         val player = exoPlayer ?: return
         if (from >= 0 && from < player.mediaItemCount && to >= 0 && to < player.mediaItemCount) {
             player.moveMediaItem(from, to)
@@ -321,6 +354,7 @@ class LocalPlayerHandler(
     }
 
     override fun clearQueue() {
+        log.d { "clearQueue()" }
         val player = exoPlayer ?: return
         player.clearMediaItems()
         _queue.value = emptyList()

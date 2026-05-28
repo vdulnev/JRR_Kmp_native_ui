@@ -1,6 +1,8 @@
 import SwiftUI
 import SharedLogic
 
+private let log = SwiftLog("ui:iOS:Queue")
+
 @Observable
 @MainActor
 class QueueObservable {
@@ -16,6 +18,7 @@ class QueueObservable {
     @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: QueueViewModel) {
+        log.d("init")
         self.viewModel = viewModel
 
         sync(state: viewModel.state.value)
@@ -29,6 +32,7 @@ class QueueObservable {
     }
 
     deinit {
+        log.d("deinit")
         observeTask?.cancel()
     }
     
