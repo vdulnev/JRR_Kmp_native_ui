@@ -1,5 +1,7 @@
 package com.jrr.jrrkmp_native_ui.data.api
 
+import co.touchlab.kermit.Logger
+import com.jrr.jrrkmp_native_ui.core.logging.KtorLogBridge
 import com.jrr.jrrkmp_native_ui.data.repository.McwsServerData
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.PlayerStatus
@@ -9,14 +11,19 @@ import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.URLBuilder
 import io.ktor.http.appendPathSegments
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
+
+private val log = Logger.withTag("net:Mcws")
 
 private val jsonConfiguration = Json {
     ignoreUnknownKeys = true
@@ -28,10 +35,19 @@ private val jsonConfiguration = Json {
  * Build the shared MCWS HttpClient. Used both by [McwsClient] (for talking to
  * the active server) and by [com.jrr.jrrkmp_native_ui.data.repository.ServerRepository]
  * (for one-off auth / alive checks before any server is active).
+ *
+ * The [Logging] plugin is wired to [KtorLogBridge] so every HTTP call appears
+ * under `net:Ktor` in the application log stream. Tokens in the query string
+ * are redacted before logging.
  */
 fun createMcwsHttpClient(): HttpClient = createPlatformHttpClient().config {
     install(ContentNegotiation) {
         json(jsonConfiguration)
+    }
+    install(Logging) {
+        logger = KtorLogBridge
+        level = LogLevel.HEADERS // URL + headers; bodies omitted to keep volume sane
+        sanitizeHeader { name -> name.equals("Authorization", ignoreCase = true) }
     }
 }
 
@@ -46,7 +62,7 @@ internal fun parseMcwsTracksJson(jsonStr: String?): List<Track> {
         val dtos = jsonConfiguration.decodeFromString<List<McwsTrackDto>>(jsonStr)
         dtos.mapNotNull { it.toDomainTrack() }
     } catch (e: Exception) {
-        e.printStackTrace()
+        log.e(e) { "parseMcwsTracksJson failed (len=${jsonStr.length})" }
         emptyList()
     }
 }
@@ -87,10 +103,12 @@ class McwsClient(
             if (response.status.value in 200..299) {
                 response.bodyAsText()
             } else {
+                log.w { "getRaw: HTTP ${response.status.value} for ${url.redactUrlToken()}" }
                 null
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (e is CancellationException) throw e
+            log.e(e) { "getRaw failed for ${url.redactUrlToken()}" }
             null
         }
     }
@@ -139,21 +157,31 @@ class McwsClient(
     }
 
     suspend fun searchTracks(query: String): List<Track> {
+        log.d { "searchTracks(q='$query')" }
         val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated"))
-        return parseMcwsTracksJson(json)
+        val tracks = parseMcwsTracksJson(json)
+        log.d { "searchTracks → ${tracks.size} results" }
+        return tracks
     }
 
     suspend fun getBrowseFiles(nodeId: String): List<Track> {
+        log.d { "getBrowseFiles(nodeId=$nodeId)" }
         val json = getMcwsJson("Browse/Files", mapOf("Fields" to "Calculated", "ID" to nodeId))
-        return parseMcwsTracksJson(json)
+        val tracks = parseMcwsTracksJson(json)
+        log.d { "getBrowseFiles → ${tracks.size} tracks" }
+        return tracks
     }
 
     suspend fun getRemoteQueue(): List<Track> {
+        log.d { "getRemoteQueue()" }
         val json = getMcwsJson("Playback/Playlist", mapOf("Fields" to "Calculated"))
-        return parseMcwsTracksJson(json)
+        val tracks = parseMcwsTracksJson(json)
+        log.d { "getRemoteQueue → ${tracks.size} tracks" }
+        return tracks
     }
 
     suspend fun getZones(): List<Zone> {
+        log.d { "getZones()" }
         val xml = getMcwsXml("Playback/Zones") ?: return emptyList()
         val list = mutableListOf<Zone>()
         try {
@@ -166,14 +194,18 @@ class McwsClient(
                     val guid = parsed.items["ZoneGUID$i"] ?: ""
                     list.add(Zone(id = id, name = name, guid = guid))
                 }
+            } else {
+                log.w { "getZones: MCWS responded status=${parsed.status}" }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            log.e(e) { "getZones: failed to parse response" }
         }
+        log.d { "getZones → ${list.size} zones" }
         return list
     }
 
     suspend fun getBrowseChildren(parentId: String): List<BrowseItem> {
+        log.d { "getBrowseChildren(parentId=$parentId)" }
         val xml = getMcwsXml(
             "Browse/Children",
             mapOf("ID" to parentId, "Version" to "1", "ErrorOnMissing" to "0")
@@ -182,21 +214,31 @@ class McwsClient(
             val parsed = parseMcwsResponse(xml)
             if (parsed.status == "OK") {
                 parsed.items
-            } else emptyMap()
+            } else {
+                log.w { "getBrowseChildren: MCWS responded status=${parsed.status}" }
+                emptyMap()
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            log.e(e) { "getBrowseChildren: failed to parse response parentId=$parentId" }
             emptyMap()
         }.toList().map { BrowseItem(key = it.second, name = it.first) }.sortedBy { it.name.lowercase() }
+            .also { log.d { "getBrowseChildren → ${it.size} items" } }
     }
 
     suspend fun getPlaybackInfo(zoneId: String): PlayerStatus? {
+        // Called from a 1Hz polling loop — log only on anomaly, not on every tick.
         val xml =
             getMcwsXml("Playback/Info", mapOf("Zone" to zoneId, "ZoneType" to "ID")) ?: return null
         val items = try {
             val parsed = parseMcwsResponse(xml)
-            if (parsed.status == "OK") parsed.items else null
+            if (parsed.status == "OK") {
+                parsed.items
+            } else {
+                log.w { "getPlaybackInfo: MCWS responded status=${parsed.status} zone=$zoneId" }
+                null
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            log.e(e) { "getPlaybackInfo: failed to parse response zone=$zoneId" }
             null
         } ?: return null
 
@@ -243,13 +285,27 @@ class McwsClient(
     }
 
     suspend fun executeCommand(endpoint: String, params: Map<String, String>): Boolean {
-        val xml = getMcwsXml(endpoint, params) ?: return false
+        log.d { "executeCommand($endpoint) params=$params" }
+        val xml = getMcwsXml(endpoint, params) ?: run {
+            log.w { "executeCommand($endpoint): no response body" }
+            return false
+        }
         return try {
             val parsed = parseMcwsResponse(xml)
-            parsed.status == "OK"
+            val ok = parsed.status == "OK"
+            if (!ok) log.w { "executeCommand($endpoint): MCWS responded status=${parsed.status}" }
+            ok
         } catch (e: Exception) {
-            e.printStackTrace()
+            log.e(e) { "executeCommand($endpoint): failed to parse response" }
             false
         }
     }
 }
+
+/**
+ * Redact the `Token=…` query param value for safe logging. Independent of the
+ * Ktor bridge so we can log raw URLs from `getRaw` / repository code without
+ * leaking the bearer.
+ */
+private fun String.redactUrlToken(): String =
+    replace(Regex("([?&]Token=)([^&\\s]+)"), "$1***")
