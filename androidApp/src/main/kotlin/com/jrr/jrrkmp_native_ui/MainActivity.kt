@@ -115,6 +115,8 @@ fun MainShell(
         ZonesViewModel(facade, libraryRepository)
     }
     val settingsViewModel = remember {
+        val isDebug = (context.applicationInfo.flags and
+            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         SettingsViewModel(
             facade = facade,
             database = context.appContainer.database,
@@ -125,7 +127,8 @@ fun MainShell(
                         file.delete()
                     }
                 }
-            }
+            },
+            isDebugBuild = isDebug,
         )
     }
 

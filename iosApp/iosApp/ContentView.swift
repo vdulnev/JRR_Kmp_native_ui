@@ -110,6 +110,11 @@ struct ContentView: View {
         let npVM = NowPlayingViewModel(facade: container.facade, mcwsClient: container.mcwsClient)
         let qVM = QueueViewModel(facade: container.facade, libraryRepository: container.libraryRepository)
         let zVM = ZonesViewModel(facade: container.facade, libraryRepository: container.libraryRepository)
+        #if DEBUG
+        let isDebugBuild = true
+        #else
+        let isDebugBuild = false
+        #endif
         let settingsVM = SettingsViewModel(
             facade: container.facade,
             database: container.database,
@@ -128,7 +133,8 @@ struct ContentView: View {
                         log.e("clearPhysicalDownloads failed: \(error)")
                     }
                 }
-            }
+            },
+            isDebugBuild: isDebugBuild
         )
 
         self._libraryViewModel = State(initialValue: libVM)

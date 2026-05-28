@@ -15,6 +15,8 @@ class SettingsObservable {
     var serverSslPort: Int32 = 52200
     var downloadedTracksCount: Int32 = 0
     var downloadJobs: [DownloadJobEntity] = []
+    var isDebugBuild: Bool = false
+    var logSeverity: Kermit_coreSeverity = .info
     var transientError: String? = nil
     
     @ObservationIgnored private var observeTask: Task<Void, Never>?
@@ -46,6 +48,8 @@ class SettingsObservable {
         self.serverSslPort = state.serverSslPort
         self.downloadedTracksCount = state.downloadedTracksCount
         self.downloadJobs = state.downloadJobs
+        self.isDebugBuild = state.isDebugBuild
+        self.logSeverity = state.logSeverity
         self.transientError = state.transientError
     }
 
@@ -55,6 +59,14 @@ class SettingsObservable {
 
     func clearTransientError() {
         viewModel.clearTransientError()
+    }
+
+    func setLogSeverity(_ severity: Kermit_coreSeverity) {
+        viewModel.setLogSeverity(severity: severity)
+    }
+
+    func exportLogText() -> String {
+        viewModel.exportLogText()
     }
 }
 
@@ -197,7 +209,75 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Color.bg2)
 
-                // Section 3: Active Downloads
+                // Section 3: Logging — share log + (debug-only) severity selector
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("DEBUG LOG")
+                            .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                            .foregroundColor(.textTertiary)
+
+                        Text("Recent activity from the in-memory ring buffer.")
+                            .font(AppFont.inter(size: 13, weight: .regular))
+                            .foregroundColor(.textSecondary)
+
+                        ShareLink(item: observable.exportLogText(),
+                                  subject: Text("JRR debug log"),
+                                  preview: SharePreview("JRR debug log")) {
+                            Text("SHARE LOG")
+                                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                                .foregroundColor(.accentColor)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 38)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.accentColor, lineWidth: 1)
+                                )
+                        }
+
+                        if observable.isDebugBuild {
+                            Text("MIN SEVERITY")
+                                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                                .foregroundColor(.textTertiary)
+                                .padding(.top, 8)
+
+                            Text("Filter level for all log writers. Dev builds only.")
+                                .font(AppFont.inter(size: 13, weight: .regular))
+                                .foregroundColor(.textSecondary)
+
+                            HStack(spacing: 4) {
+                                ForEach([
+                                    (Kermit_coreSeverity.verbose, "V"),
+                                    (Kermit_coreSeverity.debug, "D"),
+                                    (Kermit_coreSeverity.info, "I"),
+                                    (Kermit_coreSeverity.warn, "W"),
+                                    (Kermit_coreSeverity.error, "E"),
+                                ], id: \.0) { (sev, label) in
+                                    let selected = observable.logSeverity == sev
+                                    Button(action: { observable.setLogSeverity(sev) }) {
+                                        Text(label)
+                                            .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                                            .foregroundColor(selected ? .bg0 : .textPrimary)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 38)
+                                            .background(selected ? Color.accentColor : Color.clear)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 6)
+                                                    .stroke(selected ? Color.accentColor : Color.line2, lineWidth: 1)
+                                            )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                } header: {
+                    Text("Logging")
+                        .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
+                        .foregroundColor(.textTertiary)
+                }
+                .listRowBackground(Color.bg2)
+
+                // Section 4: Active Downloads
                 if !observable.downloadJobs.isEmpty {
                     Section {
                         VStack(alignment: .leading, spacing: 12) {
