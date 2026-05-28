@@ -154,19 +154,18 @@ fun LibraryScreen(
 
             // Tabs Row
             SecondaryTabRow(
-                selectedIndex,
-                Modifier,
-                Color.Transparent,
-                AppColors.accent,
-                @Composable {
+                selectedTabIndex = selectedIndex,
+                containerColor = Color.Transparent,
+                contentColor = AppColors.accent,
+                indicator = {
                     if (selectedIndex < tabs.size) {
                         TabRowDefaults.SecondaryIndicator(
                             Modifier.tabIndicatorOffset(selectedIndex)
                         )
                     }
                 },
-                {},
-                {
+                divider = {},
+                tabs = {
                     tabs.forEach { (label, tabId) ->
                         Tab(
                             selected = state.currentTab == tabId,
@@ -181,7 +180,8 @@ fun LibraryScreen(
                             },
                         )
                     }
-                })
+                },
+            )
 
             Box(
                 modifier = Modifier
