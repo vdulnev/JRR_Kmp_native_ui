@@ -170,6 +170,86 @@ When you launch the app from Xcode, the bottom debug console shows the
 same `os_log` stream that `log stream` would. No need to open a separate
 terminal — same data, same predicate filtering via the search bar.
 
+## Controlling message format and wrapping
+
+Three independent layers shape what you see:
+
+### 1. Apple's `log` output style — `--style`
+
+The default style draws a wide table with thread/type/activity/PID/TTL
+columns. Long messages then look chaotic because of column padding.
+Switch to `compact` for grep workflows:
+
+```bash
+# Default — multi-column table
+xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui \
+    2>/dev/null | grep 'jrr:'
+
+# Compact — timestamp + level + message, single line
+xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui \
+    --style compact 2>/dev/null | grep 'jrr:'
+```
+
+| `--style` | When to use |
+|---|---|
+| `default` | When you need thread/PID/activity columns visible — debugging concurrency |
+| `compact` | Day-to-day tailing — narrowest format that still has the message |
+| `syslog` | Pipe into existing syslog-aware tools |
+| `json` / `ndjson` | Programmatic processing via `jq` — also bypasses the 1024-char truncation |
+
+### 2. Terminal wrapping — your shell, not Apple's `log`
+
+Long single lines wrap when the terminal emulator hits the right edge.
+Three options:
+
+**Horizontal scroll instead of wrap** (best for tailing):
+
+```bash
+... | grep 'jrr:' | less -S +F
+```
+
+`less -S` disables wrap (scroll with `→`), `+F` makes `less` follow the
+stream like `tail -f`. Use `Ctrl-C` then `q` to exit.
+
+**Hard truncate to fixed width**:
+
+```bash
+... | grep 'jrr:' | cut -c 1-200
+```
+
+**Soft-wrap at word boundaries**:
+
+```bash
+... | grep 'jrr:' | fold -s -w 120
+```
+
+### 3. Long-message truncation — `--style json` to bypass
+
+Apple's `log` truncates `eventMessage` to ~1024 chars and appends `…`.
+There's no flag to lift the cap directly, but the JSON output gives you
+the full message:
+
+```bash
+xcrun simctl spawn booted log show --last 5m --info --debug \
+    --process JRRKmpnativeui --style json 2>/dev/null \
+    | jq -r 'select(.eventMessage | contains("jrr:")) | .eventMessage'
+```
+
+`jq -r` drops the surrounding quotes so multi-line messages render
+naturally. This is also the cleanest format for grep-replace pipelines.
+
+### 4. Keep messages compact at the source
+
+Kermit doesn't truncate — whatever your lambda returns goes through
+verbatim. So the on-the-wire size is up to you:
+
+- **Use the `.summary()` extension on every `*ViewState`** — they're
+  designed to compress state into a one-liner. Already wired in every VM.
+- **Avoid `log.v { tracks.toString() }`-style dumps.** Truncate at the
+  call site: `tracks.take(3).map { it.name }`.
+- **Avoid logging full HTTP bodies.** `LogLevel.HEADERS` in
+  `KtorLogBridge`'s install block already omits them.
+
 ## Recommended aliases
 
 Drop these in `~/.zshrc` for the iOS equivalent of `adb logcat | grep jrr:`.
@@ -178,21 +258,34 @@ Kermit's NSLog-backed writer doesn't surface a custom subsystem / category,
 and `log` hides Info/Debug by default.
 
 ```bash
-# All app logs, live (iOS simulator)
-alias jrrlog='xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui 2>/dev/null | grep "jrr:"'
+# All app logs, live — compact format, line-buffered grep
+alias jrrlog='xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui --style compact 2>/dev/null | grep --line-buffered "jrr:"'
+
+# Same but with horizontal scroll instead of wrap (best for long lines)
+alias jrrlogs='xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui --style compact 2>/dev/null | grep --line-buffered "jrr:" | less -S +F'
 
 # Just network
-alias jrrnet='xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui 2>/dev/null | grep "jrr:net:"'
+alias jrrnet='xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui --style compact 2>/dev/null | grep --line-buffered "jrr:net:"'
 
 # Just errors
-alias jrrerr='xcrun simctl spawn booted log stream --process JRRKmpnativeui --level error 2>/dev/null | grep "jrr:"'
+alias jrrerr='xcrun simctl spawn booted log stream --process JRRKmpnativeui --level error --style compact 2>/dev/null | grep --line-buffered "jrr:"'
 
 # Last 5 minutes from history (great after reproducing a bug)
-alias jrrtail='xcrun simctl spawn booted log show --last 5m --info --debug --predicate "process == \"JRRKmpnativeui\"" 2>/dev/null | grep "jrr:"'
+alias jrrtail='xcrun simctl spawn booted log show --last 5m --info --debug --process JRRKmpnativeui --style compact 2>/dev/null | grep "jrr:"'
 
 # Android side, for symmetry
 alias jrrlog-android='adb logcat | grep "jrr:"'
 ```
+
+Notes on the flag soup:
+
+- **`--style compact`** — single-line format; the major readability win
+- **`--line-buffered`** (grep) — flush per line instead of in 4 KB chunks,
+  so live tailing doesn't feel bursty
+- **`--info --debug`** — `log` hides these levels by default, suppressing
+  almost every Kermit line
+- **`2>/dev/null`** — swallows the benign `getpwuid_r` warning
+- **`less -S +F`** — disables wrap and follows the stream (Ctrl-C then `q` to exit)
 
 ## Inside the app — share-log button
 
