@@ -58,6 +58,8 @@ kotlin {
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
             implementation(libs.androidx.lifecycle.viewmodel)
+            implementation(libs.kermit)
+            implementation(libs.atomicfu)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
