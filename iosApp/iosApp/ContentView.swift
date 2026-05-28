@@ -1,6 +1,8 @@
 import SwiftUI
 import SharedLogic
 
+private let log = SwiftLog("ui:iOS:MainShell")
+
 class SwiftMainShellSettings: NSObject, MainShellSettings {
     func getLastActiveZoneId() -> String? {
         return UserDefaults.standard.string(forKey: "last_active_zone_id")
@@ -34,6 +36,7 @@ class MainShellObservable {
     @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: MainShellViewModel) {
+        log.d("init")
         self.viewModel = viewModel
 
         sync(state: viewModel.state.value)
@@ -47,6 +50,7 @@ class MainShellObservable {
     }
 
     deinit {
+        log.d("deinit")
         observeTask?.cancel()
     }
     
@@ -121,7 +125,7 @@ struct ContentView: View {
                             try fileManager.removeItem(atPath: fullPath)
                         }
                     } catch {
-                        print("Failed to delete files: \(error)")
+                        log.e("clearPhysicalDownloads failed: \(error)")
                     }
                 }
             }

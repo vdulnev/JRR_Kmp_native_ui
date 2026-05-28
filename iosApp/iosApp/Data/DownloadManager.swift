@@ -1,6 +1,8 @@
 import Foundation
 import SharedLogic
 
+private let log = SwiftLog("playback:DownloadManager")
+
 class DownloadManager: NSObject, URLSessionDownloadDelegate {
 
     private var session: URLSession!
@@ -51,7 +53,7 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                     }
                 }
             } catch {
-                print("[DownloadManager] Error resuming downloads: \(error)")
+                log.e("Error resuming downloads: \(error)")
             }
         }
     }
@@ -63,7 +65,7 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
     private func triggerDownload(fileKey: String, jobId: Int32) {
         // Resolve connection settings from the injected facade
         guard let host = facade.currentServerHost else {
-            print("[DownloadManager] Download failed: Server not configured.")
+            log.w("Download failed: server not configured")
             return
         }
 
@@ -111,7 +113,7 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                     try await database.downloadJobDao().update(job: updatedJob)
                 }
             } catch {
-                print("[DownloadManager] Failed to update job to DOWNLOADING: \(error)")
+                log.e("Failed to update job to DOWNLOADING: \(error)")
             }
         }
         
@@ -140,8 +142,8 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
             resolvedLocation = URL(fileURLWithPath: cleanPath)
         }
         
-        print("[DownloadManager] Original download location: \(location.path), exists: \(fileManager.fileExists(atPath: location.path))")
-        print("[DownloadManager] Resolved download location: \(resolvedLocation.path), exists: \(fileManager.fileExists(atPath: resolvedLocation.path))")
+        log.v("Original download location: \(location.path), exists: \(fileManager.fileExists(atPath: location.path))")
+        log.v("Resolved download location: \(resolvedLocation.path), exists: \(fileManager.fileExists(atPath: resolvedLocation.path))")
         
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let downloadsDir = documentsURL.appendingPathComponent("downloads")
@@ -193,13 +195,13 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                     )
                     try await database.downloadedTrackDao().insert(track: track)
                     try await database.downloadJobDao().delete(job: job)
-                    print("[DownloadManager] Completed and saved track: \(job.name) to \(destinationURL.path)")
+                    log.i("Completed and saved track: \(job.name) to \(destinationURL.path)")
                 } catch {
-                    print("[DownloadManager] Error updating database after download: \(error)")
+                    log.e("Error updating database after download: \(error)")
                 }
             }
         } catch {
-            print("[DownloadManager] Error saving downloaded file: \(error)")
+            log.e("Error saving downloaded file: \(error)")
             Task {
                 do {
                     if let job = try await database.downloadJobDao().getJobById(id: jobId) {
@@ -233,7 +235,7 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                         try await database.downloadJobDao().update(job: failedJob)
                     }
                 } catch {
-                    print("[DownloadManager] Failed to mark job as FAILED: \(error)")
+                    log.e("Failed to mark job as FAILED: \(error)")
                 }
             }
         }
@@ -281,7 +283,7 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                     try await database.downloadJobDao().update(job: updatedJob)
                 }
             } catch {
-                print("[DownloadManager] Error updating progress: \(error)")
+                log.e("Error updating progress: \(error)")
             }
         }
     }
@@ -296,7 +298,7 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
         activeDownloads.removeValue(forKey: downloadTask)
         
         if let error = error {
-            print("[DownloadManager] Download failed with error: \(error)")
+            log.e("Download failed: \(error)")
             Task {
                 do {
                     if let job = try await database.downloadJobDao().getJobById(id: jobId) {
@@ -330,7 +332,7 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                         try await database.downloadJobDao().update(job: failedJob)
                     }
                 } catch {
-                    print("[DownloadManager] Failed to mark job as FAILED: \(error)")
+                    log.e("Failed to mark job as FAILED: \(error)")
                 }
             }
         }
@@ -351,7 +353,7 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
     
     private func downloadArtwork(fileKey: String) {
         guard let host = facade.currentServerHost else {
-            print("[DownloadManager] Artwork download failed: Host is missing")
+            log.w("Artwork download failed: host is missing")
             return
         }
         let useSsl = facade.currentServerUseSsl
@@ -362,11 +364,11 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
         let urlString = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetImage?File=\(fileKey)&Type=Thumbnail&Width=300&Height=300&Square=1&Token=\(token)"
         guard let url = URL(string: urlString) else { return }
         
-        print("[DownloadManager] Starting artwork download for \(fileKey) from \(url)")
+        log.d("Starting artwork download fileKey=\(fileKey)")
         
         URLSession.sslBypassingSession.dataTask(with: url) { data, response, error in
             guard let data = data, error == nil else {
-                print("[DownloadManager] Failed to download artwork: \(String(describing: error))")
+                log.w("Failed to download artwork: \(String(describing: error))")
                 return
             }
             
@@ -383,9 +385,9 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
                     try fileManager.removeItem(at: artURL)
                 }
                 try data.write(to: artURL)
-                print("[DownloadManager] Successfully saved artwork to \(artURL.path)")
+                log.d("Saved artwork to \(artURL.path)")
             } catch {
-                print("[DownloadManager] Failed to save artwork: \(error)")
+                log.e("Failed to save artwork: \(error)")
             }
         }.resume()
     }

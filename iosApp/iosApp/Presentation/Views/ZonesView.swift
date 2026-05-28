@@ -1,6 +1,8 @@
 import SwiftUI
 import SharedLogic
 
+private let log = SwiftLog("ui:iOS:Zones")
+
 @Observable
 @MainActor
 class ZonesObservable {
@@ -17,6 +19,7 @@ class ZonesObservable {
     @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: ZonesViewModel) {
+        log.d("init")
         self.viewModel = viewModel
 
         sync(state: viewModel.state.value)
@@ -30,6 +33,7 @@ class ZonesObservable {
     }
 
     deinit {
+        log.d("deinit")
         observeTask?.cancel()
     }
     

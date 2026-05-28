@@ -3,6 +3,8 @@ import AVFoundation
 import Combine
 import SharedLogic
 
+private let log = SwiftLog("playback:CorePlayer")
+
 class CorePlayer: NSObject, ObservableObject, NativePlayerController {
     private let engine: IosLocalPlayerEngine
     private let database: JrrDatabase
@@ -38,7 +40,7 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
                 }
                 .store(in: &cancellables)
         } catch {
-            print("Failed to setup AVAudioSession: \(error)")
+            log.e("Failed to setup AVAudioSession: \(error)")
         }
     }
     

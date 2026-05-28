@@ -1,6 +1,8 @@
 import SwiftUI
 import SharedLogic
 
+private let log = SwiftLog("ui:iOS:AlbumDetail")
+
 @Observable
 @MainActor
 class AlbumDetailObservable {
@@ -22,6 +24,7 @@ class AlbumDetailObservable {
     @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: AlbumDetailViewModel) {
+        log.d("init")
         self.viewModel = viewModel
         self.albumName = viewModel.album.name
         self.artistName = viewModel.album.albumArtist
@@ -37,6 +40,7 @@ class AlbumDetailObservable {
     }
 
     deinit {
+        log.d("deinit")
         observeTask?.cancel()
         // Tear down the Kotlin viewModelScope so its collectors stop holding
         // the VM alive. SwiftUI re-evaluates LibraryTabContainerView's body on
