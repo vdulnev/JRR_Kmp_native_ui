@@ -14,7 +14,7 @@ class ZonesObservable {
     var isOfflineMode: Bool = true
     var transientError: String? = nil
 
-    nonisolated(unsafe) private var observeTask: Task<Void, Never>?
+    @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: ZonesViewModel) {
         self.viewModel = viewModel

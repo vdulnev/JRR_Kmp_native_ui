@@ -719,100 +719,15 @@ fun DownloadsTab(
                                 items = albumTracks,
                                 key = { _, track -> track.fileKey }
                             ) { idx, track ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(AppColors.bg2)
-                                        .border(1.dp, AppColors.line, RoundedCornerShape(8.dp))
-                                        .clickable { onTrackClick(track, albumTracks) }
-                                        .padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val trackNum = if (track.trackNumber == 0) idx + 1 else track.trackNumber
-                                    Text(
-                                        text = String.format(java.util.Locale.US, "%02d", trackNum),
-                                        style = AppTypography.monoLabel.copy(color = AppColors.accent),
-                                        modifier = Modifier.width(36.dp)
-                                    )
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = track.name,
-                                            style = AppTypography.itemTitle,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        if (track.artist != track.albumArtist) {
-                                            Text(
-                                                text = track.artist,
-                                                style = AppTypography.itemSubtitle,
-                                                color = AppColors.text2,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    val durationSec = track.durationMs / 1000
-                                    Text(
-                                        text = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60),
-                                        style = AppTypography.monoLabel
-                                    )
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    var showMenu by remember { mutableStateOf(false) }
-                                    Box {
-                                        IconButton(
-                                            onClick = { showMenu = true },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.MoreVert,
-                                                contentDescription = "More options",
-                                                tint = AppColors.text3,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                        DropdownMenu(
-                                            expanded = showMenu,
-                                            onDismissRequest = { showMenu = false },
-                                            modifier = Modifier.background(AppColors.bg2)
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = { Text("Play", style = AppTypography.itemTitle) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onPlayTracks(listOf(track))
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Play Shuffle", style = AppTypography.itemTitle) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onPlayTracksShuffled(listOf(track))
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Play Next", style = AppTypography.itemTitle) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onPlayTracksNext(listOf(track))
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Add to Playing Queue", style = AppTypography.itemTitle) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onAddTracksToQueue(listOf(track))
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
+                                GroupedTrackRowItem(
+                                    track = track,
+                                    indexInAlbum = idx,
+                                    onClick = { onTrackClick(track, albumTracks) },
+                                    onPlayTracks = onPlayTracks,
+                                    onPlayTracksShuffled = onPlayTracksShuffled,
+                                    onPlayTracksNext = onPlayTracksNext,
+                                    onAddTracksToQueue = onAddTracksToQueue
+                                )
                             }
                         }
                     }
@@ -890,54 +805,12 @@ fun DownloadsTab(
                                         Text("${album.trackCount} ${if (album.trackCount == 1) "track" else "tracks"}", style = AppTypography.itemSubtitle, color = AppColors.text2)
                                     }
 
-                                    var showMenu by remember { mutableStateOf(false) }
-                                    Box {
-                                        IconButton(
-                                            onClick = { showMenu = true },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.MoreVert,
-                                                contentDescription = "More options",
-                                                tint = AppColors.text3,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                        DropdownMenu(
-                                            expanded = showMenu,
-                                            onDismissRequest = { showMenu = false },
-                                            modifier = Modifier.background(AppColors.bg2)
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = { Text("Play", style = AppTypography.itemTitle) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onPlayTracks(albumTracks)
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Play Shuffle", style = AppTypography.itemTitle) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onPlayTracksShuffled(albumTracks)
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Play Next", style = AppTypography.itemTitle) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onPlayTracksNext(albumTracks)
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Add to Playing Queue", style = AppTypography.itemTitle) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onAddTracksToQueue(albumTracks)
-                                                }
-                                            )
-                                        }
-                                    }
+                                    TrackActionMenu(
+                                        onPlay = { onPlayTracks(albumTracks) },
+                                        onPlayShuffle = { onPlayTracksShuffled(albumTracks) },
+                                        onPlayNext = { onPlayTracksNext(albumTracks) },
+                                        onAddToQueue = { onAddTracksToQueue(albumTracks) }
+                                    )
                                 }
                             }
                         }
@@ -985,54 +858,12 @@ fun DownloadsTab(
                                 Text("${tracks.size} ${if (tracks.size == 1) "track" else "tracks"}", style = AppTypography.itemSubtitle, color = AppColors.text2)
                             }
 
-                            var showMenu by remember { mutableStateOf(false) }
-                            Box {
-                                IconButton(
-                                    onClick = { showMenu = true },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = "More options",
-                                        tint = AppColors.text3,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                DropdownMenu(
-                                    expanded = showMenu,
-                                    onDismissRequest = { showMenu = false },
-                                    modifier = Modifier.background(AppColors.bg2)
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Play", style = AppTypography.itemTitle) },
-                                        onClick = {
-                                            showMenu = false
-                                            onPlayTracks(tracks)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Play Shuffle", style = AppTypography.itemTitle) },
-                                        onClick = {
-                                            showMenu = false
-                                            onPlayTracksShuffled(tracks)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Play Next", style = AppTypography.itemTitle) },
-                                        onClick = {
-                                            showMenu = false
-                                            onPlayTracksNext(tracks)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Add to Playing Queue", style = AppTypography.itemTitle) },
-                                        onClick = {
-                                            showMenu = false
-                                            onAddTracksToQueue(tracks)
-                                        }
-                                    )
-                                }
-                            }
+                            TrackActionMenu(
+                                onPlay = { onPlayTracks(tracks) },
+                                onPlayShuffle = { onPlayTracksShuffled(tracks) },
+                                onPlayNext = { onPlayTracksNext(tracks) },
+                                onAddToQueue = { onAddTracksToQueue(tracks) }
+                            )
                         }
                     }
 
@@ -1067,54 +898,12 @@ fun DownloadsTab(
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(artist, style = AppTypography.itemTitle, modifier = Modifier.weight(1f))
 
-                            var showMenu by remember { mutableStateOf(false) }
-                            Box {
-                                IconButton(
-                                    onClick = { showMenu = true },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = "More options",
-                                        tint = AppColors.text3,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                DropdownMenu(
-                                    expanded = showMenu,
-                                    onDismissRequest = { showMenu = false },
-                                    modifier = Modifier.background(AppColors.bg2)
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Play", style = AppTypography.itemTitle) },
-                                        onClick = {
-                                            showMenu = false
-                                            onPlayTracks(artistTracks)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Play Shuffle", style = AppTypography.itemTitle) },
-                                        onClick = {
-                                            showMenu = false
-                                            onPlayTracksShuffled(artistTracks)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Play Next", style = AppTypography.itemTitle) },
-                                        onClick = {
-                                            showMenu = false
-                                            onPlayTracksNext(artistTracks)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Add to Playing Queue", style = AppTypography.itemTitle) },
-                                        onClick = {
-                                            showMenu = false
-                                            onAddTracksToQueue(artistTracks)
-                                        }
-                                    )
-                                }
-                            }
+                            TrackActionMenu(
+                                onPlay = { onPlayTracks(artistTracks) },
+                                onPlayShuffle = { onPlayTracksShuffled(artistTracks) },
+                                onPlayNext = { onPlayTracksNext(artistTracks) },
+                                onAddToQueue = { onAddTracksToQueue(artistTracks) }
+                            )
                         }
                     }
                 }
@@ -1176,6 +965,10 @@ fun GroupedTrackRowItem(
     track: Track,
     indexInAlbum: Int,
     onClick: () -> Unit,
+    onPlayTracks: (List<Track>) -> Unit,
+    onPlayTracksShuffled: (List<Track>) -> Unit,
+    onPlayTracksNext: (List<Track>) -> Unit,
+    onAddTracksToQueue: (List<Track>) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -1220,6 +1013,73 @@ fun GroupedTrackRowItem(
             text = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60),
             style = AppTypography.monoLabel
         )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        TrackActionMenu(
+            onPlay = { onPlayTracks(listOf(track)) },
+            onPlayShuffle = { onPlayTracksShuffled(listOf(track)) },
+            onPlayNext = { onPlayTracksNext(listOf(track)) },
+            onAddToQueue = { onAddTracksToQueue(listOf(track)) }
+        )
+    }
+}
+
+@Composable
+fun TrackActionMenu(
+    onPlay: () -> Unit,
+    onPlayShuffle: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddToQueue: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        IconButton(
+            onClick = { showMenu = true },
+            modifier = Modifier.size(24.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "More options",
+                tint = AppColors.text3,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+            modifier = Modifier.background(AppColors.bg2)
+        ) {
+            DropdownMenuItem(
+                text = { Text("Play", style = AppTypography.itemTitle) },
+                onClick = {
+                    showMenu = false
+                    onPlay()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Play Shuffle", style = AppTypography.itemTitle) },
+                onClick = {
+                    showMenu = false
+                    onPlayShuffle()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Play Next", style = AppTypography.itemTitle) },
+                onClick = {
+                    showMenu = false
+                    onPlayNext()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Add to Playing Queue", style = AppTypography.itemTitle) },
+                onClick = {
+                    showMenu = false
+                    onAddToQueue()
+                }
+            )
+        }
     }
 }
 

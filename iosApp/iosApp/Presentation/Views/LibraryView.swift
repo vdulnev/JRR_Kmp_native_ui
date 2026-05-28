@@ -22,7 +22,7 @@ class LibraryObservable {
     var isTabLoading: Bool = false
     var transientError: String? = nil
     
-    nonisolated(unsafe) private var observeTask: Task<Void, Never>?
+    @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: LibraryViewModel) {
         self.viewModel = viewModel
@@ -862,26 +862,12 @@ struct LibraryView: View {
                                                     .styleMonoLabel()
                                                     .padding(.trailing, 4)
                                                 
-                                                Menu {
-                                                    Button(action: { observable.playTracks([track], startIndex: 0) }) {
-                                                        Label("Play", systemImage: "play.fill")
-                                                    }
-                                                    Button(action: { observable.playTracksShuffled([track]) }) {
-                                                        Label("Play Shuffle", systemImage: "shuffle")
-                                                    }
-                                                    Button(action: { observable.playTracksNext([track]) }) {
-                                                        Label("Play Next", systemImage: "arrow.right.to.line")
-                                                    }
-                                                    Button(action: { observable.addTracksToQueue([track]) }) {
-                                                        Label("Add to Queue", systemImage: "plus")
-                                                    }
-                                                } label: {
-                                                    Image(systemName: "ellipsis")
-                                                        .font(.system(size: 16, weight: .bold))
-                                                        .foregroundColor(.textSecondary)
-                                                        .frame(width: 32, height: 32)
-                                                }
-                                                .buttonStyle(PlainButtonStyle())
+                                                PlaybackActionMenu(
+                                                    playAction: { observable.playTracks([track], startIndex: 0) },
+                                                    playShuffleAction: { observable.playTracksShuffled([track]) },
+                                                    playNextAction: { observable.playTracksNext([track]) },
+                                                    addToQueueAction: { observable.addTracksToQueue([track]) }
+                                                )
                                             }
                                             .padding(8)
                                             .background(Color.bg2)
@@ -973,26 +959,12 @@ struct LibraryView: View {
                                             
                                             Spacer()
                                             
-                                            Menu {
-                                                Button(action: { observable.playTracks(albumTracks, startIndex: 0) }) {
-                                                    Label("Play", systemImage: "play.fill")
-                                                }
-                                                Button(action: { observable.playTracksShuffled(albumTracks) }) {
-                                                    Label("Play Shuffle", systemImage: "shuffle")
-                                                }
-                                                Button(action: { observable.playTracksNext(albumTracks) }) {
-                                                    Label("Play Next", systemImage: "arrow.right.to.line")
-                                                }
-                                                Button(action: { observable.addTracksToQueue(albumTracks) }) {
-                                                    Label("Add to Queue", systemImage: "plus")
-                                                }
-                                            } label: {
-                                                Image(systemName: "ellipsis")
-                                                    .font(.system(size: 16, weight: .bold))
-                                                    .foregroundColor(.textSecondary)
-                                                    .frame(width: 32, height: 32)
-                                            }
-                                            .buttonStyle(PlainButtonStyle())
+                                            PlaybackActionMenu(
+                                                playAction: { observable.playTracks(albumTracks, startIndex: 0) },
+                                                playShuffleAction: { observable.playTracksShuffled(albumTracks) },
+                                                playNextAction: { observable.playTracksNext(albumTracks) },
+                                                addToQueueAction: { observable.addTracksToQueue(albumTracks) }
+                                            )
                                         }
                                         .padding(8)
                                         .background(Color.bg2)
@@ -1043,26 +1015,12 @@ struct LibraryView: View {
                                 
                                 Spacer()
                                 
-                                Menu {
-                                    Button(action: { observable.playTracks(observable.downloadedTracks, startIndex: 0) }) {
-                                        Label("Play", systemImage: "play.fill")
-                                    }
-                                    Button(action: { observable.playTracksShuffled(observable.downloadedTracks) }) {
-                                        Label("Play Shuffle", systemImage: "shuffle")
-                                    }
-                                    Button(action: { observable.playTracksNext(observable.downloadedTracks) }) {
-                                        Label("Play Next", systemImage: "arrow.right.to.line")
-                                    }
-                                    Button(action: { observable.addTracksToQueue(observable.downloadedTracks) }) {
-                                        Label("Add to Queue", systemImage: "plus")
-                                    }
-                                } label: {
-                                    Image(systemName: "ellipsis")
-                                        .font(.system(size: 16, weight: .bold))
-                                        .foregroundColor(.textSecondary)
-                                        .frame(width: 32, height: 32)
-                                }
-                                .buttonStyle(PlainButtonStyle())
+                                PlaybackActionMenu(
+                                    playAction: { observable.playTracks(observable.downloadedTracks, startIndex: 0) },
+                                    playShuffleAction: { observable.playTracksShuffled(observable.downloadedTracks) },
+                                    playNextAction: { observable.playTracksNext(observable.downloadedTracks) },
+                                    addToQueueAction: { observable.addTracksToQueue(observable.downloadedTracks) }
+                                )
                             }
                             .padding(.vertical, 8)
                             .padding(.horizontal, 12)
@@ -1100,26 +1058,12 @@ struct LibraryView: View {
                                     
                                     Spacer()
                                     
-                                    Menu {
-                                        Button(action: { observable.playTracks(artistTracks, startIndex: 0) }) {
-                                            Label("Play", systemImage: "play.fill")
-                                        }
-                                        Button(action: { observable.playTracksShuffled(artistTracks) }) {
-                                            Label("Play Shuffle", systemImage: "shuffle")
-                                        }
-                                        Button(action: { observable.playTracksNext(artistTracks) }) {
-                                            Label("Play Next", systemImage: "arrow.right.to.line")
-                                        }
-                                        Button(action: { observable.addTracksToQueue(artistTracks) }) {
-                                            Label("Add to Queue", systemImage: "plus")
-                                        }
-                                    } label: {
-                                        Image(systemName: "ellipsis")
-                                            .font(.system(size: 16, weight: .bold))
-                                            .foregroundColor(.textSecondary)
-                                            .frame(width: 32, height: 32)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
+                                    PlaybackActionMenu(
+                                        playAction: { observable.playTracks(artistTracks, startIndex: 0) },
+                                        playShuffleAction: { observable.playTracksShuffled(artistTracks) },
+                                        playNextAction: { observable.playTracksNext(artistTracks) },
+                                        addToQueueAction: { observable.addTracksToQueue(artistTracks) }
+                                    )
                                 }
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
@@ -1405,4 +1349,34 @@ struct DownloadAlbum: Hashable {
     let name: String
     let artworkFileKey: String
     let trackCount: Int
+}
+
+struct PlaybackActionMenu: View {
+    let playAction: () -> Void
+    let playShuffleAction: () -> Void
+    let playNextAction: () -> Void
+    let addToQueueAction: () -> Void
+    
+    var body: some View {
+        Menu {
+            Button(action: playAction) {
+                Label("Play", systemImage: "play.fill")
+            }
+            Button(action: playShuffleAction) {
+                Label("Play Shuffle", systemImage: "shuffle")
+            }
+            Button(action: playNextAction) {
+                Label("Play Next", systemImage: "arrow.right.to.line")
+            }
+            Button(action: addToQueueAction) {
+                Label("Add to Queue", systemImage: "plus")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.textSecondary)
+                .frame(width: 32, height: 32)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
 }
