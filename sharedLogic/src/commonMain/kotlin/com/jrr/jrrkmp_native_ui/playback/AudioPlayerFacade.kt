@@ -2,6 +2,7 @@ package com.jrr.jrrkmp_native_ui.playback
 
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.redact
+import com.jrr.jrrkmp_native_ui.core.logging.runCatchingLogged
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
@@ -571,7 +572,7 @@ class AudioPlayerFacade(
     fun saveQueueState(zoneId: String) {
         val db = database ?: return
         coroutineScope.launch(ioDispatcher) {
-            try {
+            log.runCatchingLogged("saveQueueState(zone=$zoneId)") {
                 val queueTracks = localPlayerEngine.getQueue()
                 val currentIndex = localPlayerEngine.currentIndex.value
                 log.v { "saveQueueState zone=$zoneId tracks=${queueTracks.size} currentIndex=$currentIndex" }
@@ -593,8 +594,6 @@ class AudioPlayerFacade(
                         currentIndex = currentIndex
                     )
                 )
-            } catch (e: Exception) {
-                log.e(e) { "saveQueueState failed zone=$zoneId" }
             }
         }
     }

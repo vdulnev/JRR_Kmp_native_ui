@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.di.appContainer
 import com.jrr.jrrkmp_native_ui.core.network.acceptAllHostnameVerifier
 import com.jrr.jrrkmp_native_ui.core.network.trustAllSslSocketFactory
@@ -16,6 +17,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
+private val log = Logger.withTag("playback:DownloadWorker")
+
 class DownloadWorker(
     private val context: Context,
     workerParams: WorkerParameters
@@ -25,6 +28,7 @@ class DownloadWorker(
         val fileKey = inputData.getString("file_key") ?: return Result.failure()
         val jobId = inputData.getInt("job_id", -1)
         if (jobId == -1) return Result.failure()
+        log.i { "doWork fileKey=$fileKey jobId=$jobId" }
 
         val container = context.appContainer
         val db = container.database
@@ -152,7 +156,7 @@ class DownloadWorker(
                         }
                     }
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    log.w(e) { "artwork download failed fileKey=$fileKey" }
                 }
 
                 // 3. Add to downloaded_tracks
@@ -185,7 +189,7 @@ class DownloadWorker(
                 return Result.success()
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            log.e(e) { "doWork failed fileKey=$fileKey jobId=$jobId" }
             val currentJob = jobDao.getJobById(jobId)
             if (currentJob != null) {
                 jobDao.update(currentJob.copy(state = "FAILED"))

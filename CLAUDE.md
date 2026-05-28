@@ -95,8 +95,18 @@ all events.
 ### Debug log export
 
 `AppLogger.recentLogs()` returns a snapshot of the last 1000 log lines from
-the in-memory ring buffer. This powers a "Share debug log" Settings action
-(to be added in Phase 7) so users can attach recent activity to bug reports.
+the in-memory ring buffer. This powers the **Share debug log** action on
+the Settings screen so users can attach recent activity to bug reports —
+on Android via `Intent.ACTION_SEND`, on iOS via SwiftUI `ShareLink`.
+
+### Runtime severity selector
+
+`SettingsViewModel.setLogSeverity(severity)` calls `AppLogger.setMinSeverity`,
+adjusting the Kermit floor for the running process. The Settings → Logging
+section exposes a V/D/I/W/E button row, gated on `state.isDebugBuild`, so
+debug builds can flip the floor at runtime without a rebuild. `isDebugBuild`
+is passed into `SettingsViewModel` from each platform's AppContainer
+(Android: `ApplicationInfo.FLAG_DEBUGGABLE`; iOS: `#if DEBUG`).
 
 ## Commit style
 
