@@ -41,54 +41,78 @@ alias jrrlog-android='adb logcat | grep "jrr:"'
 ## iOS Simulator
 
 Apple's `log` CLI runs inside the booted simulator via `xcrun simctl spawn`.
-It treats the simulator like a remote host whose logs you're reading:
+It treats the simulator like a remote host whose logs you're reading.
+
+**Two gotchas to know up front:**
+
+1. **`log show` filters out Info/Debug by default** — without `--info --debug`,
+   you only see Default/Error/Fault, which means almost every Kermit line is
+   suppressed. Always pass both flags when investigating.
+2. **Kermit's iOS writer uses `NSLog`**, not custom-subsystem `os_log`. That
+   means `subsystem` is the system default (not your bundle ID) and `category`
+   is empty. Filter by `process` (the binary name) or `eventMessage` instead.
 
 ```bash
-# All app logs, live
-xcrun simctl spawn booted log stream --process JRRKmpnativeui | grep 'jrr:'
+# All app logs, live (note --info --debug + process filter)
+xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui \
+    2>/dev/null | grep 'jrr:'
 
-# Just network
-xcrun simctl spawn booted log stream --predicate 'category BEGINSWITH "jrr:net:"'
+# Tail history — same predicate + the --info --debug flags
+xcrun simctl spawn booted log show --last 5m --info --debug \
+    --predicate 'process == "JRRKmpnativeui"' \
+    2>/dev/null | grep 'jrr:'
 
-# One specific category (Kermit tag → OSLog category)
-xcrun simctl spawn booted log stream --predicate 'category == "jrr:vm:AlbumDetail"'
+# Broadest possible match — regex on the message text
+xcrun simctl spawn booted log stream --info --debug \
+    --predicate 'eventMessage CONTAINS "jrr:"' 2>/dev/null
 
-# Errors only, app only
-xcrun simctl spawn booted log stream --process JRRKmpnativeui --level error | grep 'jrr:'
+# Just network — combine the process filter with grep
+xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui \
+    2>/dev/null | grep 'jrr:net:'
 
-# Tail the last N minutes from history (great after reproducing a bug)
-xcrun simctl spawn booted log show --last 5m \
-    --predicate 'subsystem == "com.jrr.jrrkmp-native-ui.JRRKmpnativeui"'
+# Errors only (severity filter via the level flag — works regardless of NSLog)
+xcrun simctl spawn booted log stream --process JRRKmpnativeui --level error \
+    2>/dev/null | grep 'jrr:'
 ```
+
+The `2>/dev/null` swallows the benign `getpwuid_r did not find a match for uid 501`
+warning from the spawned `log` process — it doesn't affect output, just clutters
+the terminal.
 
 ### How Kermit maps onto Apple's predicate keys
 
-| Predicate key | Source |
+Kermit's `platformLogWriter()` on iOS / iOS Simulator routes through
+`NSLog`. NSLog writes to the unified logging system but with these
+characteristics:
+
+| Predicate key | What Kermit gives you |
 |---|---|
-| `subsystem` | App's bundle ID (`com.jrr.jrrkmp-native-ui.JRRKmpnativeui`) |
-| `category` | The Kermit tag (e.g. `jrr:vm:AlbumDetail`, `jrr:net:Ktor`) |
-| `eventMessage` | The rendered log message body |
-| `messageType` / `--level` | Maps roughly to severity (`info`, `debug`, `error`, `fault`) |
-
-### Useful predicate combinations
-
-```bash
-# Everything in the net:* family but not the chatty db:SQL stream
-xcrun simctl spawn booted log stream \
-    --predicate 'category BEGINSWITH "jrr:" AND category != "jrr:db:SQL"'
-
-# Only VM logs across the app
-xcrun simctl spawn booted log stream \
-    --predicate 'category BEGINSWITH "jrr:vm:"'
-
-# Combine subsystem + level + message substring
-xcrun simctl spawn booted log stream \
-    --predicate 'subsystem == "com.jrr.jrrkmp-native-ui.JRRKmpnativeui" AND eventMessage CONTAINS "failed"'
-```
+| `process` | The binary name (`JRRKmpnativeui`) — **most reliable filter** |
+| `eventMessage` | The rendered log message, including `jrr:<tag>` prefix |
+| `subsystem` | System default (`com.apple.console` or empty) — **do NOT use this for filtering** |
+| `category` | Empty — **do NOT use this** |
+| `messageType` / `--level` | `default` for everything Info-and-above, `debug` for Debug, `error` for Error |
 
 `--predicate` syntax is [NSPredicate](https://developer.apple.com/documentation/foundation/nspredicate):
 operators include `==`, `!=`, `CONTAINS`, `BEGINSWITH`, `ENDSWITH`,
 `MATCHES` (regex), combined with `AND` / `OR` / `NOT`.
+
+### Useful filter combinations
+
+```bash
+# Drop the chatty SQL stream
+xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui \
+    2>/dev/null | grep 'jrr:' | grep -v 'jrr:db:SQL'
+
+# Only VM logs
+xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui \
+    2>/dev/null | grep 'jrr:vm:'
+
+# Combine process + message substring at the predicate level
+xcrun simctl spawn booted log stream --info --debug \
+    --predicate 'process == "JRRKmpnativeui" AND eventMessage CONTAINS "failed"' \
+    2>/dev/null
+```
 
 ### Simulator must be booted
 
@@ -148,20 +172,23 @@ terminal — same data, same predicate filtering via the search bar.
 
 ## Recommended aliases
 
-Drop these in `~/.zshrc` for the iOS equivalent of `adb logcat | grep jrr:`:
+Drop these in `~/.zshrc` for the iOS equivalent of `adb logcat | grep jrr:`.
+The `--info --debug` flags and `process ==` filter are non-negotiable —
+Kermit's NSLog-backed writer doesn't surface a custom subsystem / category,
+and `log` hides Info/Debug by default.
 
 ```bash
 # All app logs, live (iOS simulator)
-alias jrrlog='xcrun simctl spawn booted log stream --process JRRKmpnativeui | grep "jrr:"'
+alias jrrlog='xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui 2>/dev/null | grep "jrr:"'
 
 # Just network
-alias jrrnet='xcrun simctl spawn booted log stream --predicate "category BEGINSWITH \"jrr:net:\""'
+alias jrrnet='xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui 2>/dev/null | grep "jrr:net:"'
 
 # Just errors
-alias jrrerr='xcrun simctl spawn booted log stream --process JRRKmpnativeui --level error | grep "jrr:"'
+alias jrrerr='xcrun simctl spawn booted log stream --process JRRKmpnativeui --level error 2>/dev/null | grep "jrr:"'
 
 # Last 5 minutes from history (great after reproducing a bug)
-alias jrrtail='xcrun simctl spawn booted log show --last 5m --predicate "subsystem == \"com.jrr.jrrkmp-native-ui.JRRKmpnativeui\""'
+alias jrrtail='xcrun simctl spawn booted log show --last 5m --info --debug --predicate "process == \"JRRKmpnativeui\"" 2>/dev/null | grep "jrr:"'
 
 # Android side, for symmetry
 alias jrrlog-android='adb logcat | grep "jrr:"'
@@ -198,7 +225,7 @@ mysterious redactions.
 
 | Goal | Android | iOS Simulator |
 |---|---|---|
-| All app logs | `adb logcat \| grep 'jrr:'` | `xcrun simctl spawn booted log stream --process JRRKmpnativeui \| grep 'jrr:'` |
-| Network only | `adb logcat \| grep 'jrr:net:'` | `xcrun simctl spawn booted log stream --predicate 'category BEGINSWITH "jrr:net:"'` |
-| Errors only | `adb logcat *:E \| grep 'jrr:'` | `xcrun simctl spawn booted log stream --process JRRKmpnativeui --level error` |
-| Tail last N min | `adb logcat -t '5 minutes ago' \| grep 'jrr:'` | `xcrun simctl spawn booted log show --last 5m --predicate '…'` |
+| All app logs | `adb logcat \| grep 'jrr:'` | `xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui 2>/dev/null \| grep 'jrr:'` |
+| Network only | `adb logcat \| grep 'jrr:net:'` | (same as above) `... \| grep 'jrr:net:'` |
+| Errors only | `adb logcat *:E \| grep 'jrr:'` | `xcrun simctl spawn booted log stream --process JRRKmpnativeui --level error 2>/dev/null \| grep 'jrr:'` |
+| Tail last N min | `adb logcat -t '5 minutes ago' \| grep 'jrr:'` | `xcrun simctl spawn booted log show --last 5m --info --debug --predicate 'process == "JRRKmpnativeui"' 2>/dev/null \| grep 'jrr:'` |
