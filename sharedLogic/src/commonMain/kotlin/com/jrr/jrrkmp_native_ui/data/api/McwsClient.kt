@@ -306,6 +306,9 @@ class McwsClient(
  * Redact the `Token=…` query param value for safe logging. Independent of the
  * Ktor bridge so we can log raw URLs from `getRaw` / repository code without
  * leaking the bearer.
+ *
+ * Replaces the value with `xxxx` (not `***`) so the redacted URL remains
+ * clickable in terminals / IDE log panes / markdown previews.
  */
 private fun String.redactUrlToken(): String =
-    replace(Regex("([?&]Token=)([^&\\s]+)"), "$1***")
+    replace(Regex("([?&]Token=)([^&\\s]+)"), "$1xxxx")

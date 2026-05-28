@@ -23,7 +23,9 @@ internal object KtorLogBridge : KtorLogger {
     override fun log(message: String) {
         val sanitized = TOKEN_REGEX.replace(message) { match ->
             val full = match.groupValues[2]
-            val redacted = if (full.length <= 4) "***" else "***${full.takeLast(4)}"
+            // Use 'xxxx' rather than '***' so the redacted URL stays clickable
+            // in terminals, IDE log panes, and markdown viewers.
+            val redacted = if (full.length <= 4) "xxxx" else "xxxx${full.takeLast(4)}"
             "${match.groupValues[1]}$redacted"
         }
         log.d { sanitized }

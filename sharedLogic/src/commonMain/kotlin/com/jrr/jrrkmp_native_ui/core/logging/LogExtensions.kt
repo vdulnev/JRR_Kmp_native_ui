@@ -13,6 +13,11 @@ import kotlinx.coroutines.flow.onStart
  * null/empty values and the last 4 chars otherwise (matching the pattern used
  * for auth tokens, API keys, and similar bearer credentials).
  *
+ * Uses `xxxx` instead of `***` so the marker survives URL detection in
+ * terminals, IDE log panes, and markdown renderers — `*` is one of the
+ * characters that aggressive URL pattern matchers (and markdown emphasis)
+ * use as a hard stop.
+ *
  * ```
  * log.d { "auth set token=${token.redact()}" }
  * ```
@@ -20,8 +25,8 @@ import kotlinx.coroutines.flow.onStart
 fun String?.redact(): String =
     when {
         isNullOrEmpty() -> "<empty>"
-        length <= 4 -> "***"
-        else -> "***${takeLast(4)}"
+        length <= 4 -> "xxxx"
+        else -> "xxxx${takeLast(4)}"
     }
 
 /**
