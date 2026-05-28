@@ -189,11 +189,11 @@ struct ContentView: View {
             } else {
                 TabView(selection: Binding(
                     get: { mainShellObservable.activeTab },
+                    // The "tap-active-Library-tab resets details" gesture is
+                    // implemented in MainShellViewModel.selectTab now — so
+                    // this binding just forwards. Both platforms share the
+                    // same source of truth.
                     set: { newValue in
-                        if newValue == 0 && mainShellObservable.activeTab == 0 {
-                            // Tapping the active tab resets details
-                            mainShellObservable.selectAlbum(nil)
-                        }
                         mainShellObservable.selectTab(newValue)
                     }
                 )) {

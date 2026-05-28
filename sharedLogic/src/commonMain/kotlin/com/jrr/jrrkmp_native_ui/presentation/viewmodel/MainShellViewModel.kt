@@ -162,11 +162,25 @@ class MainShellViewModel(
         showToast("Connection cancelled")
     }
 
+    /**
+     * Switch active tab. If the user taps the already-active Library tab
+     * (tab 0), treat it as the "pop to root" gesture and clear the selected
+     * album — that's the iOS-tab-bar idiom and we want the same on Android.
+     *
+     * Crucially, we do NOT clear [MainShellState.selectedAlbum] when *arriving*
+     * at the Library tab from another tab — otherwise selecting an album,
+     * switching to Player, then switching back loses the selection (which is
+     * very much not what the user expects).
+     */
     fun selectTab(tab: Int) {
-        log.d { "selectTab($tab)" }
-        _state.update { it.copy(activeTab = tab) }
-        if (tab == 0) {
-            _state.update { it.copy(selectedAlbum = null) }
+        val previous = _state.value.activeTab
+        log.d { "selectTab($tab) from=$previous" }
+        val tapActiveLibrary = tab == 0 && previous == 0
+        _state.update { current ->
+            current.copy(
+                activeTab = tab,
+                selectedAlbum = if (tapActiveLibrary) null else current.selectedAlbum,
+            )
         }
     }
 
