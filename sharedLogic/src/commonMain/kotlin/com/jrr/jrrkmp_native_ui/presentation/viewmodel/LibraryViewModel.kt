@@ -186,6 +186,18 @@ class LibraryViewModel(
         }
     }
 
+    fun playTracksShuffled(tracks: List<Track>) {
+        playTracks(tracks.shuffled(), 0)
+    }
+
+    fun playTracksNext(tracks: List<Track>) {
+        facade.playNextTracks(tracks)
+    }
+
+    fun addTracksToQueue(tracks: List<Track>) {
+        facade.addTracks(tracks)
+    }
+
     fun addTrackToQueue(track: Track) {
         facade.addTracks(listOf(track))
     }
