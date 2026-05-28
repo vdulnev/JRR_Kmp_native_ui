@@ -6,6 +6,19 @@ import co.touchlab.kermit.Severity
 import co.touchlab.kermit.platformLogWriter
 
 /**
+ * App-wide tag prefix applied at the writer layer (see [PrefixingLogWriter]).
+ * Every line we emit ends up tagged `jrr:<subsystem>:<concrete>` regardless of
+ * what the call site passed to `Logger.withTag(...)`. Lets you grep / filter
+ * all logs from this app:
+ *
+ * ```bash
+ * adb logcat | grep 'jrr:'
+ * # or in Console.app (iOS):  category contains "jrr:"
+ * ```
+ */
+private const val TAG_PREFIX = "jrr:"
+
+/**
  * Application-wide logging bootstrap. Call [configure] exactly once at process
  * start from each platform's entry point (Android `Application.onCreate`,
  * iOS `AppDelegate.didFinishLaunchingWithOptions`).
@@ -43,15 +56,15 @@ object AppLogger {
         val severity = if (isDebug) Severity.Verbose else Severity.Info
         Logger.setMinSeverity(severity)
         Logger.setLogWriters(
-            buildList {
+            buildList<LogWriter> {
                 add(platformLogWriter())
                 add(RingBufferLogWriter)
                 addAll(extraWriters)
-            },
+            }.map { PrefixingLogWriter(it, TAG_PREFIX) },
         )
         Logger.setTag("JRR")
         Logger.i(tag = "AppLogger") {
-            "configured isDebug=$isDebug severity=$severity writers=${extraWriters.size + 2}"
+            "configured isDebug=$isDebug severity=$severity writers=${extraWriters.size + 2} prefix='$TAG_PREFIX'"
         }
     }
 

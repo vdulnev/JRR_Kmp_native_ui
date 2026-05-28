@@ -27,7 +27,22 @@ override the minimum severity at runtime via Settings → debug controls.
 
 ### Tag taxonomy
 
-Tags are two-segment: `<subsystem>:<concrete>`. Use these prefixes:
+Every log line is automatically prefixed with `jrr:` at the writer layer
+(see `PrefixingLogWriter`). So a call site that writes
+`Logger.withTag("vm:Library")` ends up tagged `jrr:vm:Library` on Logcat /
+OSLog / the in-memory ring buffer. Do NOT include the `jrr:` prefix in
+`withTag(...)` calls — it would double up.
+
+This makes filtering trivial:
+
+```bash
+adb logcat | grep 'jrr:'              # all app logs amongst the rest of system noise
+adb logcat | grep 'jrr:net:'          # everything network-y
+adb logcat | grep 'jrr:vm:AlbumDetail' # just one VM
+```
+
+Tags themselves are two-segment: `<subsystem>:<concrete>`. Use these
+subsystem prefixes:
 
 - `vm:*` — view models (`vm:AlbumDetail`, `vm:Library`, …)
 - `net:*` — network (`net:Mcws`, `net:Ktor`)
