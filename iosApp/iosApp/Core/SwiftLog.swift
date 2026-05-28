@@ -31,22 +31,22 @@ struct SwiftLog {
     }
 
     func v(_ msg: @autoclosure @escaping () -> String) {
-        Logger.companion.v(throwable: nil, tag: tag, message: msg)
+        KermitLogger.companion.v(throwable: nil, tag: tag, message: msg)
     }
 
     func d(_ msg: @autoclosure @escaping () -> String) {
-        Logger.companion.d(throwable: nil, tag: tag, message: msg)
+        KermitLogger.companion.d(throwable: nil, tag: tag, message: msg)
     }
 
     func i(_ msg: @autoclosure @escaping () -> String) {
-        Logger.companion.i(throwable: nil, tag: tag, message: msg)
+        KermitLogger.companion.i(throwable: nil, tag: tag, message: msg)
     }
 
     func w(_ msg: @autoclosure @escaping () -> String) {
-        Logger.companion.w(throwable: nil, tag: tag, message: msg)
+        KermitLogger.companion.w(throwable: nil, tag: tag, message: msg)
     }
 
     func e(_ msg: @autoclosure @escaping () -> String) {
-        Logger.companion.e(throwable: nil, tag: tag, message: msg)
+        KermitLogger.companion.e(throwable: nil, tag: tag, message: msg)
     }
 }
