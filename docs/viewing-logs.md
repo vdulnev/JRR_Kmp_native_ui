@@ -250,6 +250,83 @@ verbatim. So the on-the-wire size is up to you:
 - **Avoid logging full HTTP bodies.** `LogLevel.HEADERS` in
   `KtorLogBridge`'s install block already omits them.
 
+## Color and clickable URLs
+
+The app logs full MCWS URLs (with `Token=xxxx` redacted). Being able to
+click them straight from the terminal — to fire the same request in a
+browser and see the raw server response — is invaluable for debugging.
+
+### Most modern terminals do this for you
+
+URL detection is a rendering-layer feature, not a CLI feature. If you're
+on any recent terminal app, URLs are auto-underlined and clickable with
+no extra setup. Hover with the mouse — if the URL gets a line under it,
+you're set. **`Cmd+Click`** (macOS) / **`Ctrl+Click`** (Linux) opens it
+in your default browser.
+
+| Terminal | URL detection | How to click |
+|---|---|---|
+| macOS Terminal.app | built-in | `Cmd+Click` |
+| iTerm2 | built-in + Smart Selection rules | `Cmd+Click` |
+| Warp | built-in, very polished | click directly |
+| kitty | `hyperlink_hint` keymap | configurable |
+| Alacritty (0.13+) | `hints` config | configurable |
+| VS Code integrated terminal | built-in | `Cmd+Click` |
+| Ghostty | built-in | `Cmd+Click` |
+
+The earlier `***` → `xxxx` redaction marker fix matters here: triple
+asterisks were breaking URL pattern matchers, so the URL was only
+partially detected. With `xxxx` the URL stays intact through the
+terminal's regex and the whole thing is clickable.
+
+### Explicit color highlighting
+
+If you want URLs to *visually pop* even before hovering, pipe through a
+colorizer.
+
+**Grep trick** — color URLs while keeping all other text:
+
+```bash
+jrrlog | grep --line-buffered --color=always -E 'https?://[^ ]+|$'
+```
+
+The `|$` alternation makes every line "match" so nothing is filtered out;
+only the URL portion gets `grep`'s match-color. Customize via the
+`GREP_COLORS` env var (e.g. `export GREP_COLORS='ms=36;4'` for cyan +
+underline; `36` = cyan, `4` = underline ANSI codes).
+
+**Sed for full control** — explicit ANSI escape wrapping:
+
+```bash
+jrrlog | sed -E $'s|https?://[^ ]+|\\x1b[36;4m&\\x1b[0m|g'
+```
+
+Wraps every URL in cyan-underlined ANSI and resets. Drop into an alias:
+
+```bash
+alias hilite='sed -E $\'s|https?://[^ ]+|\\x1b[36;4m&\\x1b[0m|g\''
+alias jrrlogh='jrrlog | hilite'
+```
+
+### Purpose-built log viewer — `lnav`
+
+For larger investigation sessions where you want filtering, color-coded
+severity, AND URL highlighting all in one tool:
+
+```bash
+brew install lnav
+
+# Capture a window of logs, then explore in lnav
+xcrun simctl spawn booted log show --last 1h --info --debug \
+    --process JRRKmpnativeui --style compact 2>/dev/null > /tmp/jrr.log
+lnav /tmp/jrr.log
+```
+
+`lnav` auto-detects timestamps, severity, IPs, URLs; supports SQL queries
+over the captured log; has tab-complete filtering. Overkill for live
+`tail -f`, but unmatched for "I have hours of logs from a flake, find
+the thing."
+
 ## Recommended aliases
 
 Drop these in `~/.zshrc` for the iOS equivalent of `adb logcat | grep jrr:`.
@@ -286,6 +363,11 @@ Notes on the flag soup:
   almost every Kermit line
 - **`2>/dev/null`** — swallows the benign `getpwuid_r` warning
 - **`less -S +F`** — disables wrap and follows the stream (Ctrl-C then `q` to exit)
+
+Show multiline logs
+```bash
+xcrun simctl spawn booted log stream --info --debug --process JRRKmpnativeui --style compact 2>/dev/null | grep --line-buffered -A15 "jrr:" | awk '/^[0-9]{4}-[0-9]{2}-[0-9]{2}/ { if ($0 ~ /jrr:/) print_block = 1; else print_block = 0 } print_block'
+```
 
 ## Inside the app — share-log button
 
