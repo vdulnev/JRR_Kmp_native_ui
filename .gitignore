@@ -20,3 +20,4 @@ node_modules/
 
 # Claude Code per-user local state
 .claude/settings.local.json
+/MCLibrary.xml

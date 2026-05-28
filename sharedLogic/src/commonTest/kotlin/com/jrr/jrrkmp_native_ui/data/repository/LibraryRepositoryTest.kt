@@ -8,6 +8,101 @@ import kotlin.test.assertTrue
 
 class LibraryRepositoryTest {
 
+    // ---- normalizeAlbumName ------------------------------------------------
+
+    @Test
+    fun normalize_trailingParensDiscMarker() {
+        assertEquals("100 Hits", normalizeAlbumName("100 Hits (Disc 1)"))
+        assertEquals("100 Hits", normalizeAlbumName("100 Hits (Disc 5)"))
+        assertEquals("101", normalizeAlbumName("101 (Disc A)"))
+        assertEquals("101", normalizeAlbumName("101 (Disc B)"))
+        assertEquals(
+            "40 Years - Decades Of Decibels",
+            normalizeAlbumName("40 Years - Decades Of Decibels (Disc1)"),
+        )
+    }
+
+    @Test
+    fun normalize_trailingParensCdMarker() {
+        assertEquals("090909 Sampler", normalizeAlbumName("090909 Sampler (CD 1)"))
+        assertEquals("090909 Sampler", normalizeAlbumName("090909 Sampler (CD 2)"))
+        assertEquals("25", normalizeAlbumName("25 (CD1)"))
+        assertEquals("25", normalizeAlbumName("25 (CD 3)"))
+    }
+
+    @Test
+    fun normalize_embeddedInsideLargerParens() {
+        assertEquals(
+            "13 (Deluxe Edition, 3735427)",
+            normalizeAlbumName("13 (Deluxe Edition, 3735427, CD1)"),
+        )
+        assertEquals(
+            "13 (Deluxe Edition, 3735427)",
+            normalizeAlbumName("13 (Deluxe Edition, 3735427, CD2)"),
+        )
+        assertEquals(
+            "'98 Live Meltdown (1998, SPV, SPV 089-18542 CD, Germany)",
+            normalizeAlbumName("'98 Live Meltdown (1998, SPV, SPV 089-18542 CD, Germany, CD 1)"),
+        )
+        assertEquals(
+            "'98 Live Meltdown (1998, SPV, SPV 089-18542 CD, Germany)",
+            normalizeAlbumName("'98 Live Meltdown (1998, SPV, SPV 089-18542 CD, Germany, CD 2)"),
+        )
+    }
+
+    @Test
+    fun normalize_midNameMarker() {
+        assertEquals(
+            "...To The Rising Sun. In Tokyo (2015, 2CD+DVD, 0210547EMU)",
+            normalizeAlbumName("...To The Rising Sun. In Tokyo CD1 (2015, 2CD+DVD, 0210547EMU)"),
+        )
+        assertEquals(
+            "...To The Rising Sun. In Tokyo (2015, 2CD+DVD, 0210547EMU)",
+            normalizeAlbumName("...To The Rising Sun. In Tokyo CD2 (2015, 2CD+DVD, 0210547EMU)"),
+        )
+        assertEquals(
+            "30: Very Best Of (1998, 2CD, 724349680821)",
+            normalizeAlbumName("30: Very Best Of CD1 (1998, 2CD, 724349680821)"),
+        )
+    }
+
+    @Test
+    fun normalize_trailingBareMarkerNoParens() {
+        assertEquals(
+            "100,000,000 BON JOVI Fans...",
+            normalizeAlbumName("100,000,000 BON JOVI Fans...CD01"),
+        )
+        assertEquals(
+            "100,000,000 BON JOVI Fans...",
+            normalizeAlbumName("100,000,000 BON JOVI Fans...CD04"),
+        )
+    }
+
+    @Test
+    fun normalize_preservesCatalogTokensWithoutTrailingDigit() {
+        // "HNECD032" is a catalog number, not a disc marker — the "CD"
+        // is followed by a digit but is glued into a longer token. We
+        // rely on this being preserved.
+        assertEquals(
+            "1916 [HNECD032, 2014]",
+            normalizeAlbumName("1916 [HNECD032, 2014]"),
+        )
+        // "...2CD..." inside parens: "2CD" has no preceding " " so doesn't
+        // match the mid-name pattern, and no `\d+` after "CD" so doesn't
+        // match the embedded pattern. Preserved as a release-format hint.
+        assertEquals(
+            "Greatest Hits (2CD, Japan)",
+            normalizeAlbumName("Greatest Hits (2CD, Japan)"),
+        )
+    }
+
+    @Test
+    fun normalize_noMarkerReturnsUnchanged() {
+        assertEquals("The Wall", normalizeAlbumName("The Wall"))
+        assertEquals("Wish You Were Here", normalizeAlbumName("Wish You Were Here"))
+        assertEquals("Animals", normalizeAlbumName("Animals"))
+    }
+
     // ---- groupAlbumsByGroupId ----------------------------------------------
 
     private fun makeAlbum(
@@ -17,9 +112,10 @@ class LibraryRepositoryTest {
         totalDiscs: Int = 1,
         discNumber: Int = 1,
         artworkFileKey: String = "${name}-key",
+        albumArtist: String = "Pink Floyd",
     ) = Album(
         name = name,
-        albumArtist = "Pink Floyd",
+        albumArtist = albumArtist,
         folderPath = folderPath,
         parentFolderPath = parentFolderPath,
         date = "1979",
@@ -130,6 +226,81 @@ class LibraryRepositoryTest {
         val result = groupAlbumsByGroupId(listOf(disc2, disc1))
 
         assertEquals("uyi-1", result.single().artworkFileKey)
+    }
+
+    @Test
+    fun groupAlbums_realWorldDiscMarkersInName() {
+        // Tom Jones - 100 Hits is the canonical case: 5 discs, each with its
+        // own "(Disc N)" suffixed name, in sibling subfolders under a common
+        // parent. Total Discs is wrongly tagged as 1.
+        val discs = (1..5).map { n ->
+            makeAlbum(
+                name = "100 Hits (Disc $n)",
+                folderPath = "D:/music/Tom Jones lossless/2012 - 100 hits (5 CD)/CD $n/",
+                parentFolderPath = "D:/music/Tom Jones lossless/2012 - 100 hits (5 CD)/",
+                totalDiscs = 1,            // ← the real-world tagging quirk
+                discNumber = n,
+                albumArtist = "Tom Jones",
+                artworkFileKey = "th-d$n",
+            )
+        }
+
+        val result = groupAlbumsByGroupId(discs.shuffled())
+
+        assertEquals(1, result.size, "all 5 discs should collapse to one rep")
+        val rep = result.single()
+        assertEquals("100 Hits", rep.name, "name should be normalised")
+        assertEquals(
+            "D:/music/Tom Jones lossless/2012 - 100 hits (5 CD)/",
+            rep.folderPath,
+            "folderPath should be rewritten to the parent so getAlbumTracks prefix-matches all discs",
+        )
+        assertEquals(5, rep.totalDiscs, "totalDiscs should reflect the observed group size")
+        // Disc 1 wins the rep selection so its artwork carries through.
+        assertEquals("th-d1", rep.artworkFileKey)
+        assertEquals(1, rep.discNumber)
+    }
+
+    @Test
+    fun groupAlbums_embeddedDiscMarkerInsideLargerParens() {
+        // "'98 Live Meltdown" with release metadata in parens; two physical
+        // releases (SPV / Toshiba) each with two discs — should produce
+        // exactly TWO groups (one per release), not one or four.
+        val spvDisc1 = makeAlbum(
+            name = "'98 Live Meltdown (1998, SPV, SPV 089-18542 CD, Germany, CD 1)",
+            folderPath = "/m/megadeth/spv/cd1/",
+            parentFolderPath = "/m/megadeth/spv/",
+            discNumber = 1,
+            albumArtist = "Megadeth",
+        )
+        val spvDisc2 = spvDisc1.copy(
+            name = "'98 Live Meltdown (1998, SPV, SPV 089-18542 CD, Germany, CD 2)",
+            folderPath = "/m/megadeth/spv/cd2/",
+            discNumber = 2,
+        )
+        val toshibaDisc1 = makeAlbum(
+            name = "'98 Live Meltdown (1998, Zero / Toshiba, XRCN-2039, Japan, CD 1)",
+            folderPath = "/m/megadeth/toshiba/cd1/",
+            parentFolderPath = "/m/megadeth/toshiba/",
+            discNumber = 1,
+            albumArtist = "Megadeth",
+        )
+        val toshibaDisc2 = toshibaDisc1.copy(
+            name = "'98 Live Meltdown (1998, Zero / Toshiba, XRCN-2040, Japan, CD 2)",
+            folderPath = "/m/megadeth/toshiba/cd2/",
+            discNumber = 2,
+        )
+
+        val result = groupAlbumsByGroupId(
+            listOf(toshibaDisc2, spvDisc1, toshibaDisc1, spvDisc2),
+        )
+
+        assertEquals(2, result.size)
+        // Each rep should keep its release-distinguishing metadata in the
+        // normalised name (the catalog-number-bearing parens block).
+        val names = result.map { it.name }.toSet()
+        assertTrue(names.any { it.contains("SPV 089-18542 CD") })
+        assertTrue(names.any { it.contains("XRCN-2039") || it.contains("Toshiba") })
     }
 
     @Test
