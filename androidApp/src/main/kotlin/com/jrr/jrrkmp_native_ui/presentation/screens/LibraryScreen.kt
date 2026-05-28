@@ -22,10 +22,12 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.MoreVert
 import com.jrr.jrrkmp_native_ui.core.di.appContainer
 import androidx.compose.material3.*
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -151,27 +153,35 @@ fun LibraryScreen(
             val selectedIndex = tabs.indexOfFirst { it.second == state.currentTab }.coerceAtLeast(0)
 
             // Tabs Row
-            TabRow(
-                selectedTabIndex = selectedIndex,
-                containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                contentColor = AppColors.accent,
-                divider = {}
-            ) {
-                tabs.forEach { (label, tabId) ->
-                    Tab(
-                        selected = state.currentTab == tabId,
-                        onClick = { viewModel.switchTab(tabId) },
-                        text = {
-                            Text(
-                                label.uppercase(),
-                                style = AppTypography.chipMono,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
-                    )
-                }
-            }
+            SecondaryTabRow(
+                selectedIndex,
+                Modifier,
+                Color.Transparent,
+                AppColors.accent,
+                @Composable {
+                    if (selectedIndex < tabs.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(selectedIndex)
+                        )
+                    }
+                },
+                {},
+                {
+                    tabs.forEach { (label, tabId) ->
+                        Tab(
+                            selected = state.currentTab == tabId,
+                            onClick = { viewModel.switchTab(tabId) },
+                            text = {
+                                Text(
+                                    label.uppercase(),
+                                    style = AppTypography.chipMono,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                        )
+                    }
+                })
 
             Box(
                 modifier = Modifier
