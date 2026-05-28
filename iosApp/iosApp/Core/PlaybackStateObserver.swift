@@ -73,7 +73,10 @@ class PlaybackStateObserver: ObservableObject {
     }
 
     deinit {
-        log.d("deinit (cancelling \(observationTasks.count) observation tasks)")
+        // Snapshot to a local so the SwiftLog @autoclosure doesn't capture
+        // self during deinit (Swift's strict-capture rule).
+        let taskCount = observationTasks.count
+        log.d("deinit (cancelling \(taskCount) observation tasks)")
         observationTasks.forEach { $0.cancel() }
     }
 
