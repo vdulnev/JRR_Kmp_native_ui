@@ -107,6 +107,21 @@ Same severity/tag conventions apply. Native `OSLog` is not used — keep
 everything in one pipeline so the in-app "Share debug log" feature surfaces
 all events.
 
+### Tail logs in a terminal
+
+See `docs/viewing-logs.md` for the complete cheatsheet. Quick recap:
+
+```bash
+# Android
+adb logcat | grep 'jrr:'
+
+# iOS Simulator
+xcrun simctl spawn booted log stream --process JRRKmpnativeui | grep 'jrr:'
+```
+
+The `jrr:` prefix is applied automatically at the writer layer, so the
+same filter works across both platforms.
+
 ### Debug log export
 
 `AppLogger.recentLogs()` returns a snapshot of the last 1000 log lines from
