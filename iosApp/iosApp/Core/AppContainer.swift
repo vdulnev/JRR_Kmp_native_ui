@@ -31,9 +31,6 @@ final class AppContainer {
     /// Essenty lifecycle backing [root]'s `ComponentContext`. Resumed at the end
     /// of `init`; held so it stays alive for the app's lifetime.
     @ObservationIgnored private let rootLifecycle: LifecycleRegistry
-    /// Phase-3 verification: logs every stack emission under `ui:iOS:RootNav`.
-    /// Removed in Phase 4 once `ContentView` observes the stack directly.
-    @ObservationIgnored private var rootStackCancellable: Cancellation?
 
     init() {
         log.i("constructing (iOS)")
@@ -187,14 +184,6 @@ final class AppContainer {
         self.root = root
 
         LifecycleRegistryExtKt.resume(lifecycle)
-
-        // Phase-3 verification only: prove the SKIE bridge over the generic
-        // `Value<ChildStack<…>>` emits. Replaced by ContentView observation in
-        // Phase 4.
-        let rootNavLog = SwiftLog("ui:iOS:RootNav")
-        self.rootStackCancellable = root.stack.subscribe { stack in
-            rootNavLog.d("stack -> active=\(stack.active.configuration) depth=\(stack.items.count)")
-        }
 
         log.i("constructed")
     }

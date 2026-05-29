@@ -42,13 +42,12 @@ class AlbumDetailObservable {
     deinit {
         log.d("deinit")
         observeTask?.cancel()
-        // Tear down the Kotlin viewModelScope so its collectors stop holding
-        // the VM alive. SwiftUI re-evaluates LibraryTabContainerView's body on
-        // every parent invalidation, which creates a fresh AlbumDetailViewModel
-        // each time; only the first reaches the @State wrapper. Without
-        // dispose(), each thrown-away VM leaks its viewModelScope until the
-        // process exits.
-        viewModel.dispose()
+        // No viewModel.dispose() here: the AlbumDetailViewModel is now owned by
+        // the Decompose `LibraryComponent.Child.Detail` and retained in Essenty's
+        // InstanceKeeper. It is torn down deterministically (viewModelScope
+        // cancelled via onCleared) when the Detail child is popped — disposing
+        // it from this transient Swift wrapper would kill a VM the component may
+        // still hold alive in its back stack across tab switches.
     }
 
     private func sync(state: AlbumDetailViewState) {
@@ -129,14 +128,12 @@ class AlbumDetailObservable {
     }
 }
 
-/// Public wrapper. Takes the album as a value; constructs the underlying
-/// `AlbumDetailViewModel` exactly once per view identity, then mounts the
-/// real content. Parents pass a `.id(...)` so identity changes when the
-/// selected album changes.
+/// Public wrapper. The `AlbumDetailViewModel` is supplied by the Decompose
+/// `LibraryComponent.Child.Detail` (built lazily, keyed per album, retained in
+/// the InstanceKeeper), so the old per-album `.id(...)` identity hack is no
+/// longer needed — the component already gives a distinct VM per album.
 struct AlbumDetailView: View {
-    @Environment(AppContainer.self) private var container
-
-    let album: Album
+    let viewModel: AlbumDetailViewModel
     let onBackClick: () -> Void
 
     /// Optional + `.task` is the iOS 17+ pattern for lazy `@State` init when
@@ -157,14 +154,7 @@ struct AlbumDetailView: View {
         }
         .task {
             if observable == nil {
-                observable = AlbumDetailObservable(
-                    viewModel: AlbumDetailViewModel(
-                        album: album,
-                        libraryRepository: container.libraryRepository,
-                        facade: container.facade,
-                        database: container.database
-                    )
-                )
+                observable = AlbumDetailObservable(viewModel: viewModel)
             }
         }
     }
