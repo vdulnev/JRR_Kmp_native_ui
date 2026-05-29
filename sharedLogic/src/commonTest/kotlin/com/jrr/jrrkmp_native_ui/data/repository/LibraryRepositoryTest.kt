@@ -325,6 +325,37 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun groupAlbums_letterDiscMarkersFold() {
+        // Depeche Mode "101" ships its two discs as "(Disc A)" / "(Disc B)"
+        // rather than numbers. The normaliser strips the letter marker, and
+        // the two discs share a parent folder, so they must fold into one rep.
+        val discA = makeAlbum(
+            name = "101 (Disc A)",
+            folderPath = "/m/dm/101/disc a/",
+            parentFolderPath = "/m/dm/101/",
+            discNumber = 1,
+            albumArtist = "Depeche Mode",
+            artworkFileKey = "101-a",
+        )
+        val discB = makeAlbum(
+            name = "101 (Disc B)",
+            folderPath = "/m/dm/101/disc b/",
+            parentFolderPath = "/m/dm/101/",
+            discNumber = 2,
+            albumArtist = "Depeche Mode",
+            artworkFileKey = "101-b",
+        )
+
+        val result = groupAlbumsByGroupId(listOf(discB, discA))
+
+        assertEquals(1, result.size, "both letter discs should collapse to one rep")
+        val rep = result.single()
+        assertEquals("101", rep.name)
+        assertEquals(2, rep.totalDiscs)
+        assertEquals("101-a", rep.artworkFileKey)
+    }
+
+    @Test
     fun groupAlbums_embeddedDiscMarkerInsideLargerParens() {
         // "'98 Live Meltdown" with release metadata in parens; two physical
         // releases (SPV / Toshiba) each with two discs — should produce
