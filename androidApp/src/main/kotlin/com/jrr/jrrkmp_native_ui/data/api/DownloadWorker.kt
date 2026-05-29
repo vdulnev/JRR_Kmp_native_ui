@@ -11,6 +11,7 @@ import com.jrr.jrrkmp_native_ui.core.network.trustAllSslSocketFactory
 import com.jrr.jrrkmp_native_ui.core.network.trustAllTrustManager
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.data.db.entity.DownloadedTrackEntity
+import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -49,7 +50,17 @@ class DownloadWorker(
         val port = if (activeServer.useSsl) activeServer.sslPort else activeServer.port
         val token = activeServer.authToken ?: ""
 
-        val downloadUrl = "$scheme://$host:$port/MCWS/v1/File/GetFile?File=$fileKey&Token=$token"
+        // Server transcodes to the selected quality on the fly. The downloaded
+        // file's real format therefore matches the conversion (flac/opus), not
+        // the library's original fileType — so persist that below too.
+        val quality = LocalAudioQuality.fromName(
+            context.getSharedPreferences("jrr_settings", Context.MODE_PRIVATE)
+                .getString("local_audio_quality", null),
+        )
+        log.i { "doWork quality=${quality.name} fileKey=$fileKey" }
+
+        val downloadUrl =
+            "$scheme://$host:$port/MCWS/v1/File/GetFile?File=$fileKey&FileType=Key&${quality.mcwsParams}&Token=$token"
 
         val client = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -85,7 +96,9 @@ class DownloadWorker(
                     downloadsDir.mkdirs()
                 }
 
-                val extension = if (job.fileType.isNotEmpty()) job.fileType.lowercase() else "mp3"
+                // The transcoded stream is delivered in the conversion format,
+                // so name/store it accordingly (flac or opus).
+                val extension = quality.conversion
                 val tempFile = File(downloadsDir, "temp_${fileKey}.$extension")
                 val finalFile = File(downloadsDir, "${fileKey}.$extension")
 
@@ -177,7 +190,7 @@ class DownloadWorker(
                     bitDepth = 0,
                     sampleRate = 0,
                     channels = 2,
-                    fileType = job.fileType,
+                    fileType = quality.conversion,
                     filePath = finalFile.absolutePath,
                     folderPath = ""
                 )

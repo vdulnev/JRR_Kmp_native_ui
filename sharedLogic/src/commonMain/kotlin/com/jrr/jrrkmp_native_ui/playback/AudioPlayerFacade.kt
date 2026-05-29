@@ -9,6 +9,7 @@ import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.LocalQueueStateEntity
 import com.jrr.jrrkmp_native_ui.data.db.entity.LocalQueueTrackEntity
+import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.PlayerStatus
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
@@ -44,6 +45,8 @@ class AudioPlayerFacade(
     private val serverRepository: ServerRepository? = null,
     private val saveLastActiveZoneId: (String) -> Unit = {},
     private val loadLastActiveZoneId: () -> String? = { null },
+    private val saveLocalAudioQuality: (String) -> Unit = {},
+    private val loadLocalAudioQuality: () -> String? = { null },
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
@@ -61,6 +64,8 @@ class AudioPlayerFacade(
         serverRepository: ServerRepository?,
         saveLastActiveZoneId: (String) -> Unit,
         loadLastActiveZoneId: () -> String?,
+        saveLocalAudioQuality: (String) -> Unit,
+        loadLocalAudioQuality: () -> String?,
     ) : this(
         database = database,
         localPlayerEngine = localPlayerEngine,
@@ -68,6 +73,8 @@ class AudioPlayerFacade(
         serverRepository = serverRepository,
         saveLastActiveZoneId = saveLastActiveZoneId,
         loadLastActiveZoneId = loadLastActiveZoneId,
+        saveLocalAudioQuality = saveLocalAudioQuality,
+        loadLocalAudioQuality = loadLocalAudioQuality,
         mainDispatcher = Dispatchers.Main,
         ioDispatcher = Dispatchers.IO,
     )
@@ -88,6 +95,16 @@ class AudioPlayerFacade(
 
     val currentServerToken: String?
         get() = serverRepository?.activeServer?.value?.token
+
+    // Local audio quality (server-side transcode level for streaming/downloads)
+    private val _localAudioQuality = MutableStateFlow(
+        LocalAudioQuality.fromName(loadLocalAudioQuality()),
+    )
+    val localAudioQuality: StateFlow<LocalAudioQuality> = _localAudioQuality
+
+    /** Sync getter for native players that build MCWS URLs (iOS CorePlayer). */
+    val currentLocalAudioQuality: LocalAudioQuality
+        get() = _localAudioQuality.value
 
     // Remote Playback Handler
     private val remoteHandler = McwsRemotePlayerHandler(mcwsClient)
@@ -204,6 +221,27 @@ class AudioPlayerFacade(
         log.i { "setServerConnection(host=$host port=$port ssl=$useSsl sslPort=$sslPort token=${authToken.redact()})" }
         serverRepository?.setActiveServer(host, port, useSsl, sslPort, authToken)
         _connectionToken.value = authToken
+
+        // At startup the saved local queue is restored *before* auto-connect
+        // resolves the active server, so any streaming items get built with an
+        // empty host and fail with a connection error. Now that the server is
+        // known, rebuild the local queue so those items pick up the real host —
+        // but only while idle, so we never interrupt active playback.
+        val zone = _activeZone.value
+        val state = localPlayerEngine.playbackState.value
+        if ((zone.isLocal || zone.isOffline || zone.isAndroidAuto) &&
+            localPlayerEngine.getQueueSize() > 0 &&
+            state != PlaybackState.PLAYING
+        ) {
+            log.i { "server connected while idle local queue present — rebuilding queue URLs" }
+            loadQueueState(zone.id, skipPlayback = true)
+        }
+    }
+
+    fun setLocalAudioQuality(quality: LocalAudioQuality) {
+        log.i { "setLocalAudioQuality(${quality.name})" }
+        _localAudioQuality.value = quality
+        saveLocalAudioQuality(quality.name)
     }
 
     fun setZone(zone: Zone, skipLoadQueue: Boolean = false) {

@@ -51,6 +51,12 @@ final class AppContainer {
             },
             loadLastActiveZoneId: {
                 UserDefaults.standard.string(forKey: "last_active_zone_id")
+            },
+            saveLocalAudioQuality: { quality in
+                UserDefaults.standard.set(quality, forKey: "local_audio_quality")
+            },
+            loadLocalAudioQuality: {
+                UserDefaults.standard.string(forKey: "local_audio_quality")
             }
         )
         self.facade = facade

@@ -8,6 +8,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.redact
+import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
@@ -23,7 +24,8 @@ private val log = Logger.withTag("playback:Local")
 class LocalPlayerHandler(
     private val context: Context,
     private val serverRepository: ServerRepository,
-    private val checkLocalFileProvider: (String) -> String?
+    private val checkLocalFileProvider: (String) -> String?,
+    private val localAudioQualityProvider: () -> LocalAudioQuality = { LocalAudioQuality.LOSSLESS },
 ) : LocalPlayerEngine {
     private var exoPlayer: ExoPlayer? = null
     
@@ -145,8 +147,9 @@ class LocalPlayerHandler(
                     Pair("", "")
                 }
             }
-            log.v { "createMediaItem(${track.fileKey}) → remote $serverUrl token=${token.redact()}" }
-            Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&Playback=1&Token=${token}")
+            val quality = localAudioQualityProvider()
+            log.v { "createMediaItem(${track.fileKey}) → remote $serverUrl quality=${quality.name} token=${token.redact()}" }
+            Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&FileType=Key&Playback=1&${quality.mcwsParams}&Token=${token}")
         }
 
         return MediaItem.Builder()

@@ -17,6 +17,7 @@ class SettingsObservable {
     var downloadJobs: [DownloadJobEntity] = []
     var isDebugBuild: Bool = false
     var logSeverity: Kermit_coreSeverity = .info
+    var localAudioQuality: LocalAudioQuality = .lossless
     var transientError: String? = nil
     
     @ObservationIgnored private var observeTask: Task<Void, Never>?
@@ -50,6 +51,7 @@ class SettingsObservable {
         self.downloadJobs = state.downloadJobs
         self.isDebugBuild = state.isDebugBuild
         self.logSeverity = state.logSeverity
+        self.localAudioQuality = state.localAudioQuality
         self.transientError = state.transientError
     }
 
@@ -63,6 +65,10 @@ class SettingsObservable {
 
     func setLogSeverity(_ severity: Kermit_coreSeverity) {
         viewModel.setLogSeverity(severity: severity)
+    }
+
+    func setLocalAudioQuality(_ quality: LocalAudioQuality) {
+        viewModel.setLocalAudioQuality(quality: quality)
     }
 
     func exportLogText() -> String {
@@ -209,7 +215,43 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Color.bg2)
 
-                // Section 3: Logging — share log + (debug-only) severity selector
+                // Section 3: Audio Quality — server-side transcode level for
+                // local-zone streaming and downloads.
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("STREAMING & DOWNLOADS")
+                            .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                            .foregroundColor(.textTertiary)
+
+                        Text("Server transcodes to this format on the fly. Lossless preserves fidelity; lossy saves bandwidth.")
+                            .font(AppFont.inter(size: 13, weight: .regular))
+                            .foregroundColor(.textSecondary)
+
+                        ForEach(LocalAudioQuality.allCases, id: \.self) { quality in
+                            let selected = observable.localAudioQuality == quality
+                            Button(action: { observable.setLocalAudioQuality(quality) }) {
+                                Text(quality.label)
+                                    .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                                    .foregroundColor(selected ? .bg0 : .textPrimary)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 38)
+                                    .background(selected ? Color.accentColor : Color.clear)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(selected ? Color.accentColor : Color.line2, lineWidth: 1)
+                                    )
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                } header: {
+                    Text("Audio Quality")
+                        .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
+                        .foregroundColor(.textTertiary)
+                }
+                .listRowBackground(Color.bg2)
+
+                // Section 4: Logging — share log + (debug-only) severity selector
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("DEBUG LOG")

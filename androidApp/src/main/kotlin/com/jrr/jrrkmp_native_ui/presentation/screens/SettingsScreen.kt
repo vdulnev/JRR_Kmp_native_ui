@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import co.touchlab.kermit.Severity
+import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
@@ -195,6 +196,60 @@ fun SettingsScreen(
                                     style = AppTypography.chipMono,
                                     color = if (state.downloadedTracksCount > 0) AppColors.error else AppColors.text3
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Audio Quality Section — server-side transcode level for
+            // local-zone streaming and downloads.
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Audio Quality".uppercase(),
+                        style = AppTypography.sectionHeading,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = AppColors.bg2),
+                        border = BoxBorder(AppColors.line),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "STREAMING & DOWNLOADS",
+                                style = AppTypography.monoLabel,
+                                color = AppColors.text3
+                            )
+                            Text(
+                                text = "Server transcodes to this format on the fly. Lossless preserves fidelity; lossy saves bandwidth.",
+                                style = AppTypography.itemSubtitle,
+                                color = AppColors.text2,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                            )
+                            LocalAudioQuality.entries.forEachIndexed { index, quality ->
+                                if (index > 0) Spacer(modifier = Modifier.height(8.dp))
+                                val selected = state.localAudioQuality == quality
+                                Button(
+                                    onClick = { viewModel.setLocalAudioQuality(quality) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (selected) AppColors.accent else AppColors.bg0
+                                    ),
+                                    border = BoxBorder(if (selected) AppColors.accent else AppColors.line),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = quality.label,
+                                        style = AppTypography.chipMono,
+                                        color = if (selected) AppColors.bg0 else AppColors.text
+                                    )
+                                }
                             }
                         }
                     }

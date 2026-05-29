@@ -74,7 +74,11 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
         let scheme = useSsl ? "https" : "http"
         let token = facade.currentServerToken ?? ""
         
-        let urlString = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(fileKey)&Token=\(token)"
+        // Download in the user-selected quality. The server transcodes on the
+        // fly and returns the converted format (flac/opus); the destination
+        // extension is taken from the response's suggestedFilename below.
+        let quality = facade.currentLocalAudioQuality
+        let urlString = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(fileKey)&FileType=Key&\(quality.mcwsParams)&Token=\(token)"
         guard let url = URL(string: urlString) else { return }
         
         let task = session.downloadTask(with: url)
