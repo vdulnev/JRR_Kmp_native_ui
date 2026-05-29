@@ -8,6 +8,7 @@ import com.jrr.jrrkmp_native_ui.core.logging.AppLogger
 import com.jrr.jrrkmp_native_ui.core.logging.logged
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.DownloadJobEntity
+import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -32,6 +33,7 @@ private fun SettingsViewState.summary(): String = buildString {
     }
     append(" downloaded=$downloadedTracksCount")
     append(" jobs=${downloadJobs.size}")
+    append(" quality=${localAudioQuality.name}")
     append(" sev=$logSeverity")
     if (transientError != null) append(" err=$transientError")
 }
@@ -53,6 +55,8 @@ data class SettingsViewState(
     /** Current minimum-severity floor enforced by Kermit. Surfaced for the
      *  Settings → Logging picker so dev users can flip levels at runtime. */
     val logSeverity: Severity = Severity.Info,
+    /** Server-side transcode quality applied to streaming + downloads. */
+    val localAudioQuality: LocalAudioQuality = LocalAudioQuality.LOSSLESS,
     val transientError: String? = null,
 )
 
@@ -111,6 +115,10 @@ class SettingsViewModel(
             }
             .launchIn(viewModelScope)
 
+        facade.localAudioQuality
+            .onEach { quality -> _state.update { it.copy(localAudioQuality = quality) } }
+            .launchIn(viewModelScope)
+
         state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
     }
 
@@ -149,6 +157,17 @@ class SettingsViewModel(
 
     fun clearTransientError() {
         _state.update { it.copy(transientError = null) }
+    }
+
+    /**
+     * Apply a new server-side transcode quality for local-zone streaming and
+     * downloads. Persisted by the facade via its platform-provided lambda, so
+     * the choice survives restarts. Already-downloaded files keep whatever
+     * format they were fetched in.
+     */
+    fun setLocalAudioQuality(quality: LocalAudioQuality) {
+        log.i { "setLocalAudioQuality(${quality.name})" }
+        facade.setLocalAudioQuality(quality)
     }
 
     /**

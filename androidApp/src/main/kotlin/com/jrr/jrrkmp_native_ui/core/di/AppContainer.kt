@@ -10,10 +10,12 @@ import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.createDatabase
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
+import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.playback.LocalPlayerHandler
 import kotlinx.coroutines.runBlocking
+import androidx.core.content.edit
 
 private val log = Logger.withTag("di:AppContainer")
 
@@ -44,6 +46,11 @@ class AppContainer(context: Context) {
     val mcwsClient: McwsClient get() = mcwsCore.mcwsClient
     val serverRepository: ServerRepository get() = mcwsCore.serverRepository
 
+    /** Process-wide preferences store, shared by the facade + player handler. */
+    private val prefs by lazy {
+        appContext.getSharedPreferences("jrr_settings", Context.MODE_PRIVATE)
+    }
+
     val localPlayerHandler: LocalPlayerHandler by lazy {
         log.d { "lazy: localPlayerHandler" }
         LocalPlayerHandler(
@@ -53,23 +60,31 @@ class AppContainer(context: Context) {
                 runBlocking {
                     database.downloadedTrackDao().getTrack(fileKey)?.filePath
                 }
-            }
+            },
+            localAudioQualityProvider = {
+                LocalAudioQuality.fromName(prefs.getString("local_audio_quality", null))
+            },
         )
     }
 
     val facade: AudioPlayerFacade by lazy {
         log.d { "lazy: facade" }
-        val prefs = appContext.getSharedPreferences("jrr_settings", Context.MODE_PRIVATE)
         AudioPlayerFacade(
             database = database,
             localPlayerEngine = localPlayerHandler,
             mcwsClient = mcwsClient,
             serverRepository = serverRepository,
             saveLastActiveZoneId = { zoneId ->
-                prefs.edit().putString("last_active_zone_id", zoneId).apply()
+                prefs.edit { putString("last_active_zone_id", zoneId) }
             },
             loadLastActiveZoneId = {
                 prefs.getString("last_active_zone_id", null)
+            },
+            saveLocalAudioQuality = { quality ->
+                prefs.edit { putString("local_audio_quality", quality) }
+            },
+            loadLocalAudioQuality = {
+                prefs.getString("local_audio_quality", null)
             },
         )
     }
