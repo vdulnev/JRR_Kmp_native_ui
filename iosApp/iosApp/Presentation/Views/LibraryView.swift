@@ -419,10 +419,6 @@ struct LibraryView: View {
                                     .padding(.leading, 8)
                                 
                                 Spacer()
-                                
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.textTertiary)
                             }
                             .padding(.vertical, 8)
                             .padding(.horizontal, 12)
@@ -750,7 +746,7 @@ struct LibraryView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                   Text(albumName)
                                       .styleItemTitle()
-                                      .lineLimit(1)
+                                      .lineLimit(2)
                                   Text(artist)
                                       .styleItemSubtitle()
                                       .lineLimit(1)
@@ -778,14 +774,10 @@ struct LibraryView: View {
                                 Image(systemName: "ellipsis")
                                     .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(.textSecondary)
+                                    .rotationEffect(.degrees(90))
                                     .frame(width: 32, height: 32)
                             }
                             .buttonStyle(PlainButtonStyle())
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 14))
-                                .foregroundColor(.textTertiary)
-                                .padding(.trailing, 4)
                         }
                         .padding(8)
                         .background(Color.bg2)
@@ -982,7 +974,7 @@ struct LibraryView: View {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(album.name)
                                                     .styleItemTitle()
-                                                    .lineLimit(1)
+                                                    .lineLimit(2)
                                                 
                                                 Text("\(album.trackCount) \(album.trackCount == 1 ? "track" : "tracks")")
                                                     .styleItemSubtitle()
@@ -1330,7 +1322,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(album.name)
                     .styleItemTitle()
-                    .lineLimit(1)
+                    .lineLimit(2)
                 
                 Text(album.date.isEmpty ? "Unknown Year" : album.date)
                     .styleItemSubtitle()
@@ -1358,14 +1350,10 @@ struct LibraryView: View {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.textSecondary)
+                    .rotationEffect(.degrees(90))
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(PlainButtonStyle())
-            
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14))
-                .foregroundColor(.textTertiary)
-                .padding(.trailing, 4)
         }
         .padding(8)
         .background(Color.bg2)
@@ -1409,6 +1397,7 @@ struct PlaybackActionMenu: View {
             Image(systemName: "ellipsis")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(.textSecondary)
+                .rotationEffect(.degrees(90))
                 .frame(width: 32, height: 32)
         }
         .buttonStyle(PlainButtonStyle())

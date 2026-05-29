@@ -1345,8 +1345,17 @@ fun AlbumRowItem(
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(album.name, style = AppTypography.itemTitle, maxLines = 1)
-            Text(album.date.ifEmpty { "Unknown Year" }, style = AppTypography.itemSubtitle, color = AppColors.text2)
+            Text(
+                text = album.name,
+                style = AppTypography.itemTitle.copy(fontSize = 14.sp),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = album.date.ifEmpty { "Unknown Year" },
+                style = AppTypography.itemSubtitle,
+                color = AppColors.text2
+            )
         }
 
         Spacer(modifier = Modifier.width(8.dp))
