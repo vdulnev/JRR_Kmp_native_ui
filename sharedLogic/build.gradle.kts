@@ -63,6 +63,13 @@ kotlin {
             // in commonMain so the deps should travel with them.
             api(libs.kermit)
             implementation(libs.atomicfu)
+            // `api` so app modules (and the iOS framework via SKIE) can name
+            // Value, ChildStack, ComponentContext without re-declaring the dep.
+            api(libs.decompose)
+            api(libs.essenty.lifecycle)
+            api(libs.essenty.state.keeper)
+            api(libs.essenty.back.handler)
+            api(libs.essenty.instance.keeper)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
