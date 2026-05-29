@@ -60,7 +60,11 @@ internal fun parseMcwsTracksJson(jsonStr: String?): List<Track> {
     if (jsonStr.isNullOrEmpty()) return emptyList()
     return try {
         val dtos = jsonConfiguration.decodeFromString<List<McwsTrackDto>>(jsonStr)
-        dtos.mapNotNull { it.toDomainTrack() }
+        val tracks = dtos.mapNotNull { it.toDomainTrack() }
+        if (tracks.isNotEmpty()) {
+            log.d { "parseMcwsTracksJson: parsed ${tracks.size} tracks. Plays: ${tracks.take(10).map { "${it.name}=${it.numberPlays}" }}" }
+        }
+        tracks
     } catch (e: Exception) {
         log.e(e) { "parseMcwsTracksJson failed (len=${jsonStr.length})" }
         emptyList()
@@ -158,7 +162,7 @@ class McwsClient(
 
     suspend fun searchTracks(query: String): List<Track> {
         log.d { "searchTracks(q='$query')" }
-        val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated"))
+        val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated,Number Plays"))
         val tracks = parseMcwsTracksJson(json)
         log.d { "searchTracks → ${tracks.size} results" }
         return tracks
@@ -166,7 +170,7 @@ class McwsClient(
 
     suspend fun getBrowseFiles(nodeId: String): List<Track> {
         log.d { "getBrowseFiles(nodeId=$nodeId)" }
-        val json = getMcwsJson("Browse/Files", mapOf("Fields" to "Calculated", "ID" to nodeId))
+        val json = getMcwsJson("Browse/Files", mapOf("Fields" to "Calculated,Number Plays", "ID" to nodeId))
         val tracks = parseMcwsTracksJson(json)
         log.d { "getBrowseFiles → ${tracks.size} tracks" }
         return tracks
@@ -174,7 +178,7 @@ class McwsClient(
 
     suspend fun getRemoteQueue(): List<Track> {
         log.d { "getRemoteQueue()" }
-        val json = getMcwsJson("Playback/Playlist", mapOf("Fields" to "Calculated"))
+        val json = getMcwsJson("Playback/Playlist", mapOf("Fields" to "Calculated,Number Plays"))
         val tracks = parseMcwsTracksJson(json)
         log.d { "getRemoteQueue → ${tracks.size} tracks" }
         return tracks

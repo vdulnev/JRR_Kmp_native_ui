@@ -568,6 +568,36 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun testParseTracksJson_numberPlays() {
+        val json = """
+        [
+            {
+                "Key": "1",
+                "Name": "T1",
+                "Filename": "f1.mp3",
+                "Number Plays": 5
+            },
+            {
+                "Key": "2",
+                "Name": "T2",
+                "Filename": "f2.mp3",
+                "Number Plays": "0"
+            },
+            {
+                "Key": "3",
+                "Name": "T3",
+                "Filename": "f3.mp3"
+            }
+        ]
+        """.trimIndent()
+        val tracks = parseMcwsTracksJson(json)
+        assertEquals(3, tracks.size)
+        assertEquals(5, tracks[0].numberPlays)
+        assertEquals(0, tracks[1].numberPlays)
+        assertEquals(0, tracks[2].numberPlays)
+    }
+
+    @Test
     fun testParseTracksJson_emptyOrInvalid() {
         assertTrue(parseMcwsTracksJson(null).isEmpty())
         assertTrue(parseMcwsTracksJson("").isEmpty())
