@@ -103,6 +103,69 @@ class LibraryRepositoryTest {
         assertEquals("Animals", normalizeAlbumName("Animals"))
     }
 
+    @Test
+    fun normalize_discMarkerFollowedByMoreParensOrBrackets() {
+        // Beatles box sets: (Disc N) followed by a catalog-number block.
+        assertEquals(
+            "1962 - 1966 (0602455920768)",
+            normalizeAlbumName("1962 - 1966 (Disc 1) (0602455920768)"),
+        )
+        assertEquals(
+            "1962 - 1966 (0602455920768)",
+            normalizeAlbumName("1962 - 1966 (Disc 2) (0602455920768)"),
+        )
+        // Metallica reissue series: (Disc N) followed by square-bracket
+        // catalog metadata.
+        assertEquals(
+            "Garage Inc. [SHM-CD, UICY-94670]",
+            normalizeAlbumName("Garage Inc. (Disc 1) [SHM-CD, UICY-94670]"),
+        )
+        assertEquals(
+            "Garage Inc. [Brazil Vertigo 538 351-2]",
+            normalizeAlbumName("Garage Inc. (Disc 1) [Brazil Vertigo 538 351-2]"),
+        )
+        // Pink Floyd reissue: (Disc N) followed by edition tag in parens.
+        assertEquals(
+            "The Wall (EU Shine On)",
+            normalizeAlbumName("The Wall (Disc 1) (EU Shine On)"),
+        )
+    }
+
+    @Test
+    fun normalize_writtenOutDiscNumbers() {
+        assertEquals("Anthology", normalizeAlbumName("Anthology (Disc One)"))
+        assertEquals("Anthology", normalizeAlbumName("Anthology (Disc Two)"))
+        assertEquals("Finyl Vinyl", normalizeAlbumName("Finyl Vinyl (Disc Two)"))
+        // No space variant
+        assertEquals("The Wall", normalizeAlbumName("The Wall (DiscTwo)"))
+    }
+
+    @Test
+    fun normalize_cyrillicDiskKeyword() {
+        // Russian-language libraries: «Диск» is the Cyrillic equivalent of
+        // 'Disk'. Same patterns as the English variants.
+        assertEquals(
+            "Ленинград 1984 [2009, Отделение Выход, В 139]",
+            normalizeAlbumName("Ленинград 1984 (Диск 1) [2009, Отделение Выход, В 139]"),
+        )
+        assertEquals(
+            "Ленинград 1984 [2009, Отделение Выход, В 140]",
+            normalizeAlbumName("Ленинград 1984 (Диск 2) [2009, Отделение Выход, В 140]"),
+        )
+    }
+
+    @Test
+    fun normalize_twoDigitDiscNumbers() {
+        // Beatles Mono Box has discs numbered up to ~30.
+        assertEquals("All You Need Is Love", normalizeAlbumName("All You Need Is Love (Disc 17)"))
+        assertEquals("Get Back", normalizeAlbumName("Get Back (Disc 21)"))
+        // Zero-padded CD numbers.
+        assertEquals(
+            "Eine Musikalische Traumreise - Traumhaftes Europa",
+            normalizeAlbumName("Eine Musikalische Traumreise - Traumhaftes Europa (CD 01)"),
+        )
+    }
+
     // ---- groupAlbumsByGroupId ----------------------------------------------
 
     private fun makeAlbum(

@@ -24,10 +24,18 @@ private val log = Logger.withTag("repo:Library")
 // to recognise the marker in the name and normalise it away to compute a
 // stable group key.
 
-// (Disc N) / (Disk N) / (CD N) / (Disc A) when the parens content is JUST
-// the disc marker. Trailing position. Square brackets too.
-private val DISC_TRAILING_PAREN_ONLY = Regex(
-    """\s*[(\[]\s*(?:Disc|Disk|CD)\s*[A-Za-z0-9]+\s*[)\]]\s*$""",
+// Disc-marker keywords across the variants observed in real libraries —
+// English ('Disc' / 'Disk' / 'CD') and Russian ('Диск'). 'One', 'Two', ...
+// (written-out numbers) fall out naturally because the suffix part is
+// matched as `[A-Za-z0-9А-Яа-я]+`.
+private const val DISC_WORDS = """(?:Disc|Disk|CD|Диск)"""
+
+// (Disc N) / (Disk N) / (CD N) / (Disc A) / (Disc One) when the bracket
+// content is JUST a disc marker. NOT anchored to end-of-string — strips
+// the marker even when followed by another parens block carrying release
+// info, e.g. `Garage Inc. (Disc 1) [SHM-CD, UICY-94670]`.
+private val DISC_PAREN_ONLY = Regex(
+    """\s*[(\[]\s*$DISC_WORDS\s*[A-Za-zА-Яа-я0-9]+\s*[)\]]""",
     RegexOption.IGNORE_CASE,
 )
 
@@ -36,14 +44,14 @@ private val DISC_TRAILING_PAREN_ONLY = Regex(
 // comma) so the rest of the release metadata is preserved as a distinguishing
 // feature between releases of the same multi-disc album.
 private val DISC_INSIDE_LARGER_PARENS = Regex(
-    """\s*,\s*(?:Disc|Disk|CD)\s*\d+\b""",
+    """\s*,\s*$DISC_WORDS\s*\d+\b""",
     RegexOption.IGNORE_CASE,
 )
 
 // Mid-name `\s+CDN(\s+|\()` — e.g. `... In Tokyo CD1 (2015, …)`. Replaced
 // with a single space so the trailing parens block stays attached cleanly.
 private val DISC_MID_NAME = Regex(
-    """\s+(?:Disc|Disk|CD)\s*\d+(?=\s|\(|$)""",
+    """\s+$DISC_WORDS\s*\d+(?=\s|\(|$)""",
     RegexOption.IGNORE_CASE,
 )
 
@@ -51,7 +59,7 @@ private val DISC_MID_NAME = Regex(
 // `100,000,000 BON JOVI Fans...CD01`. Word-boundary handles the `.→C`
 // transition; doesn't match catalog tokens like `HNECD032` (no digit AFTER).
 private val DISC_TRAILING_BARE = Regex(
-    """\b(?:Disc|Disk|CD)\s*\d+\s*$""",
+    """\b$DISC_WORDS\s*\d+\s*$""",
     RegexOption.IGNORE_CASE,
 )
 
@@ -79,7 +87,9 @@ private val MULTI_SPACE = Regex("""\s{2,}""")
  */
 internal fun normalizeAlbumName(name: String): String {
     var result = name
-    result = DISC_TRAILING_PAREN_ONLY.replace(result, "")
+    // Replace with " " (not "") so a disc-marker block in the middle leaves
+    // a clean separator between surrounding tokens; collapsed below.
+    result = DISC_PAREN_ONLY.replace(result, " ")
     result = DISC_INSIDE_LARGER_PARENS.replace(result, "")
     result = DISC_MID_NAME.replace(result, " ")
     result = DISC_TRAILING_BARE.replace(result, "")
