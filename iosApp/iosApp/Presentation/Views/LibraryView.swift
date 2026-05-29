@@ -1324,6 +1324,16 @@ struct LibraryView: View {
                     .styleItemTitle()
                     .lineLimit(2)
                 
+                let pathParts = [album.parentFolderPath, album.folderPath]
+                    .flatMap { $0.replacingOccurrences(of: "\\", with: "/").components(separatedBy: "/") }
+                    .filter { !$0.isEmpty }
+                let path = pathParts.suffix(2).joined(separator: "/")
+                if !path.isEmpty {
+                    Text(path)
+                        .font(AppFont.inter(size: 11, weight: .regular))
+                        .foregroundColor(.textTertiary)
+                }
+                
                 Text(album.date.isEmpty ? "Unknown Year" : album.date)
                     .styleItemSubtitle()
             }

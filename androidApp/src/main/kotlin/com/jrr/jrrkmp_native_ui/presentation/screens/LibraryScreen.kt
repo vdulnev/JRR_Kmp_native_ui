@@ -1351,6 +1351,17 @@ fun AlbumRowItem(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            val pathParts = listOf(album.parentFolderPath, album.folderPath)
+                .flatMap { it.replace("\\", "/").split("/") }
+                .filter { it.isNotEmpty() }
+            val path = pathParts.takeLast(2).joinToString("/")
+            if (path.isNotEmpty()) {
+                Text(
+                    text = path,
+                    style = AppTypography.itemSubtitle.copy(fontSize = 11.sp),
+                    color = AppColors.text3
+                )
+            }
             Text(
                 text = album.date.ifEmpty { "Unknown Year" },
                 style = AppTypography.itemSubtitle,
