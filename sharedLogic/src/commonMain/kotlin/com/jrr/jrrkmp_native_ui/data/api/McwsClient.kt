@@ -158,7 +158,7 @@ class McwsClient(
 
     suspend fun searchTracks(query: String): List<Track> {
         log.d { "searchTracks(q='$query')" }
-        val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated,Number Plays"))
+        val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated"))
         val tracks = parseMcwsTracksJson(json)
         log.d { "searchTracks → ${tracks.size} results" }
         return tracks
@@ -166,7 +166,7 @@ class McwsClient(
 
     suspend fun getBrowseFiles(nodeId: String): List<Track> {
         log.d { "getBrowseFiles(nodeId=$nodeId)" }
-        val json = getMcwsJson("Browse/Files", mapOf("Fields" to "Calculated,Number Plays", "ID" to nodeId))
+        val json = getMcwsJson("Browse/Files", mapOf("Fields" to "Calculated", "ID" to nodeId))
         val tracks = parseMcwsTracksJson(json)
         log.d { "getBrowseFiles → ${tracks.size} tracks" }
         return tracks
@@ -174,7 +174,7 @@ class McwsClient(
 
     suspend fun getRemoteQueue(): List<Track> {
         log.d { "getRemoteQueue()" }
-        val json = getMcwsJson("Playback/Playlist", mapOf("Fields" to "Calculated,Number Plays"))
+        val json = getMcwsJson("Playback/Playlist", mapOf("Fields" to "Calculated"))
         val tracks = parseMcwsTracksJson(json)
         log.d { "getRemoteQueue → ${tracks.size} tracks" }
         return tracks

@@ -408,7 +408,7 @@ private struct AlbumDetailContentView: View {
             // Download status
             if !observable.isOffline {
                 if observable.downloadedTrackKeys.contains(track.fileKey) {
-                    Image(systemName: "floppydisk")
+                    Image(systemName: "square.and.arrow.down")
                         .font(.system(size: 14))
                         .foregroundColor(.accentColor)
                         .padding(.trailing, 8)
