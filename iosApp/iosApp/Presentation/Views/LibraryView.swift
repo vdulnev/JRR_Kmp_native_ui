@@ -361,16 +361,31 @@ struct LibraryView: View {
                     ProgressView().tint(.accentColor)
                     Spacer()
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(observable.artistAlbums, id: \.albumGroupId) { album in
-                                albumRowItem(album: album) {
-                                    onAlbumClick(album)
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: 8) {
+                                ForEach(observable.artistAlbums, id: \.albumGroupId) { album in
+                                    albumRowItem(album: album) {
+                                        onAlbumClick(album)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                            .padding(.trailing, 18)
+                            .padding(.top, 8)
+                        }
+                        .overlay(alignment: .trailing) {
+                            AlphabetIndexBar(
+                                letters: orderedSectionLetters(observable.artistAlbums.map { $0.name }),
+                                bottomInset: 96
+                            ) { letter in
+                                if let target = observable.artistAlbums.first(
+                                    where: { sectionLetter(for: $0.name) == letter }
+                                ) {
+                                    withAnimation { proxy.scrollTo(target.albumGroupId, anchor: .top) }
                                 }
                             }
                         }
-                        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                        .padding(.top, 8)
                     }
                 }
             }
@@ -382,6 +397,7 @@ struct LibraryView: View {
                     Spacer()
                 }
             } else {
+                ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         ForEach(observable.artists, id: \.self) { artist in
@@ -403,10 +419,6 @@ struct LibraryView: View {
                                     .padding(.leading, 8)
                                 
                                 Spacer()
-                                
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.textTertiary)
                             }
                             .padding(.vertical, 8)
                             .padding(.horizontal, 12)
@@ -422,12 +434,26 @@ struct LibraryView: View {
                         }
                     }
                     .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                    .padding(.trailing, 18)
                     .padding(.top, 12)
+                }
+                .overlay(alignment: .trailing) {
+                    AlphabetIndexBar(
+                        letters: orderedSectionLetters(observable.artists),
+                        bottomInset: 96
+                    ) { letter in
+                        if let target = observable.artists.first(
+                            where: { sectionLetter(for: $0) == letter }
+                        ) {
+                            withAnimation { proxy.scrollTo(target, anchor: .top) }
+                        }
+                    }
+                }
                 }
             }
         }
     }
-    
+
     // MARK: - Random Tab View
     @ViewBuilder
     private func randomTab() -> some View {
@@ -720,7 +746,7 @@ struct LibraryView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                   Text(albumName)
                                       .styleItemTitle()
-                                      .lineLimit(1)
+                                      .lineLimit(2)
                                   Text(artist)
                                       .styleItemSubtitle()
                                       .lineLimit(1)
@@ -748,14 +774,10 @@ struct LibraryView: View {
                                 Image(systemName: "ellipsis")
                                     .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(.textSecondary)
+                                    .rotationEffect(.degrees(90))
                                     .frame(width: 32, height: 32)
                             }
                             .buttonStyle(PlainButtonStyle())
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 14))
-                                .foregroundColor(.textTertiary)
-                                .padding(.trailing, 4)
                         }
                         .padding(8)
                         .background(Color.bg2)
@@ -952,7 +974,7 @@ struct LibraryView: View {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(album.name)
                                                     .styleItemTitle()
-                                                    .lineLimit(1)
+                                                    .lineLimit(2)
                                                 
                                                 Text("\(album.trackCount) \(album.trackCount == 1 ? "track" : "tracks")")
                                                     .styleItemSubtitle()
@@ -1300,7 +1322,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(album.name)
                     .styleItemTitle()
-                    .lineLimit(1)
+                    .lineLimit(2)
                 
                 Text(album.date.isEmpty ? "Unknown Year" : album.date)
                     .styleItemSubtitle()
@@ -1328,14 +1350,10 @@ struct LibraryView: View {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.textSecondary)
+                    .rotationEffect(.degrees(90))
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(PlainButtonStyle())
-            
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14))
-                .foregroundColor(.textTertiary)
-                .padding(.trailing, 4)
         }
         .padding(8)
         .background(Color.bg2)
@@ -1379,6 +1397,7 @@ struct PlaybackActionMenu: View {
             Image(systemName: "ellipsis")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(.textSecondary)
+                .rotationEffect(.degrees(90))
                 .frame(width: 32, height: 32)
         }
         .buttonStyle(PlainButtonStyle())

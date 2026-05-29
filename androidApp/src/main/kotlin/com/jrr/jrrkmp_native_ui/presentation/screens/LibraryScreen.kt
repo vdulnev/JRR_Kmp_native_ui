@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -44,7 +45,10 @@ import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
 import com.jrr.jrrkmp_native_ui.data.api.BrowseNode
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
+import com.jrr.jrrkmp_native_ui.presentation.components.AlphabetIndexBar
+import com.jrr.jrrkmp_native_ui.presentation.components.sectionLetterFor
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.LibraryViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -305,22 +309,42 @@ fun ArtistsTab(
                     CircularProgressIndicator(color = AppColors.accent)
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(artistAlbums) { album ->
-                        AlbumRowItem(
-                            album = album,
-                            onPlay = { onPlayAlbum(album) },
-                            onPlayNext = { onPlayAlbumNext(album) },
-                            onAddToQueue = { onAddAlbumToQueue(album) },
-                            onDownload = { onDownloadAlbum(album) },
-                            isOffline = isOffline,
-                            onClick = { onAlbumClick(album) }
-                        )
+                val albumsListState = rememberLazyListState()
+                val albumsScope = rememberCoroutineScope()
+                val albumSections = remember(artistAlbums) {
+                    artistAlbums.map { sectionLetterFor(it.name) }
+                }
+                val albumLetters = remember(albumSections) { albumSections.distinct() }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = albumsListState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 16.dp, end = 28.dp, top = 16.dp, bottom = 16.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(artistAlbums) { album ->
+                            AlbumRowItem(
+                                album = album,
+                                onPlay = { onPlayAlbum(album) },
+                                onPlayNext = { onPlayAlbumNext(album) },
+                                onAddToQueue = { onAddAlbumToQueue(album) },
+                                onDownload = { onDownloadAlbum(album) },
+                                isOffline = isOffline,
+                                onClick = { onAlbumClick(album) }
+                            )
+                        }
                     }
+                    AlphabetIndexBar(
+                        letters = albumLetters,
+                        onLetterSelected = { letter ->
+                            val idx = albumSections.indexOf(letter)
+                            if (idx >= 0) albumsScope.launch {
+                                albumsListState.scrollToItem(idx)
+                            }
+                        },
+                    )
                 }
             }
         }
@@ -330,37 +354,53 @@ fun ArtistsTab(
                 CircularProgressIndicator(color = AppColors.accent)
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(artists) { artist ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(AppColors.bg2)
-                            .clickable { onArtistClick(artist) }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
+            val listState = rememberLazyListState()
+            val scope = rememberCoroutineScope()
+            val sections = remember(artists) { artists.map { sectionLetterFor(it) } }
+            val letters = remember(sections) { sections.distinct() }
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 16.dp, end = 28.dp, top = 16.dp, bottom = 16.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(artists) { artist ->
+                        Row(
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(AppColors.accentDim),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AppColors.bg2)
+                                .clickable { onArtistClick(artist) }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = artist.take(1).uppercase(),
-                                style = AppTypography.chipMono.copy(color = AppColors.accent, fontSize = 14.sp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(AppColors.accentDim),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = artist.take(1).uppercase(),
+                                    style = AppTypography.chipMono.copy(color = AppColors.accent, fontSize = 14.sp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(artist, style = AppTypography.itemTitle)
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(artist, style = AppTypography.itemTitle)
                     }
                 }
+                AlphabetIndexBar(
+                    letters = letters,
+                    onLetterSelected = { letter ->
+                        val idx = sections.indexOf(letter)
+                        if (idx >= 0) scope.launch { listState.scrollToItem(idx) }
+                    },
+                )
             }
         }
     }
@@ -1305,8 +1345,17 @@ fun AlbumRowItem(
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(album.name, style = AppTypography.itemTitle, maxLines = 1)
-            Text(album.date.ifEmpty { "Unknown Year" }, style = AppTypography.itemSubtitle, color = AppColors.text2)
+            Text(
+                text = album.name,
+                style = AppTypography.itemTitle.copy(fontSize = 14.sp),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = album.date.ifEmpty { "Unknown Year" },
+                style = AppTypography.itemSubtitle,
+                color = AppColors.text2
+            )
         }
 
         Spacer(modifier = Modifier.width(8.dp))
