@@ -27,45 +27,45 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.arkivanov.decompose.defaultComponentContext
+import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.JrrTheme
 import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.di.appContainer
-import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
+import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
-import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.presentation.components.MiniPlayer
+import com.jrr.jrrkmp_native_ui.presentation.navigation.AppDeps
+import com.jrr.jrrkmp_native_ui.presentation.navigation.LibraryComponent
+import com.jrr.jrrkmp_native_ui.presentation.navigation.PlayerComponent
+import com.jrr.jrrkmp_native_ui.presentation.navigation.RootComponent
+import com.jrr.jrrkmp_native_ui.presentation.navigation.RootConfig
 import com.jrr.jrrkmp_native_ui.presentation.screens.*
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.*
 import android.widget.Toast
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.BorderStroke
-import com.jrr.jrrkmp_native_ui.domain.model.Album
 
 class MainActivity : ComponentActivity() {
-
-    private lateinit var facade: AudioPlayerFacade
-    private lateinit var serverRepository: ServerRepository
-    private lateinit var libraryRepository: LibraryRepository
-    private lateinit var mcwsClient: McwsClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val container = appContainer
-        facade = container.facade
-        serverRepository = container.serverRepository
-        libraryRepository = container.libraryRepository
-        mcwsClient = container.mcwsClient
+        val facade = container.facade
+        val serverRepository = container.serverRepository
+        val libraryRepository = container.libraryRepository
+        val mcwsClient = container.mcwsClient
+        val database = container.database
 
         val prefs = getSharedPreferences("jrr_settings", Context.MODE_PRIVATE)
         val settings = object : MainShellSettings {
@@ -74,17 +74,60 @@ class MainActivity : ComponentActivity() {
             override fun getHasSavedServers(): Boolean = prefs.getBoolean("has_saved_servers", false)
             override fun setHasSavedServers(hasSaved: Boolean) = prefs.edit().putBoolean("has_saved_servers", hasSaved).apply()
         }
-        val mainShellViewModel = MainShellViewModel(facade, serverRepository, settings)
+
+        val isDebug = (applicationInfo.flags and
+            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        val clearPhysicalDownloads: () -> Unit = {
+            val downloadsDir = java.io.File(filesDir, "downloads")
+            if (downloadsDir.exists() && downloadsDir.isDirectory) {
+                downloadsDir.listFiles()?.forEach { file -> file.delete() }
+            }
+        }
+
+        // Feature ViewModels are now built by the component tree, lazily and
+        // retained in Essenty's InstanceKeeper (survives rotation, deterministic
+        // onCleared). The host only supplies the factory lambdas.
+        val deps = AppDeps(
+            libraryViewModel = { LibraryViewModel(libraryRepository, facade) },
+            albumDetailViewModel = { album ->
+                AlbumDetailViewModel(album, libraryRepository, facade, database)
+            },
+            nowPlayingViewModel = { NowPlayingViewModel(facade, mcwsClient) },
+            queueViewModel = { QueueViewModel(facade, libraryRepository) },
+            zonesViewModel = { ZonesViewModel(facade, libraryRepository) },
+            settingsViewModel = {
+                SettingsViewModel(
+                    facade = facade,
+                    database = database,
+                    clearPhysicalDownloads = clearPhysicalDownloads,
+                    isDebugBuild = isDebug,
+                )
+            },
+        )
+
+        // defaultComponentContext() wires StateKeeper (savedStateRegistry),
+        // BackHandler (onBackPressedDispatcher) and the Activity Lifecycle, so the
+        // tab back-stack survives process death and system-back pops inner stacks.
+        val root = RootComponent(
+            componentContext = defaultComponentContext(),
+            deps = deps,
+            initialConfig = RootComponent.initialConfig(settings),
+        )
+
+        // MainShellViewModel still owns auto-connect + toast (connection business
+        // logic, not navigation). Its only navigation side-effect — flip to Player
+        // on connect / back to Server on failure — is bridged into the component
+        // tree in MainShell below, until Phase 5 relocates it into RootComponent.
+        val connectViewModel = MainShellViewModel(facade, serverRepository, settings)
 
         setContent {
             JrrTheme {
                 CompositionLocalProvider(LocalMcwsClient provides mcwsClient) {
                     MainShell(
-                        viewModel = mainShellViewModel,
+                        root = root,
+                        connectViewModel = connectViewModel,
                         facade = facade,
                         serverRepository = serverRepository,
-                        libraryRepository = libraryRepository,
-                        mcwsClient = mcwsClient,
                     )
                 }
             }
@@ -92,59 +135,46 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** Maps the legacy connect-flow tab index onto a typed [RootConfig]. */
+private fun tabConfig(tab: Int): RootConfig = when (tab) {
+    0 -> RootConfig.Library
+    2 -> RootConfig.Player
+    3 -> RootConfig.Zones
+    4 -> RootConfig.Settings
+    else -> RootConfig.Server
+}
+
 @Composable
 fun MainShell(
-    viewModel: MainShellViewModel,
+    root: RootComponent,
+    connectViewModel: MainShellViewModel,
     facade: AudioPlayerFacade,
     serverRepository: ServerRepository,
-    libraryRepository: LibraryRepository,
-    mcwsClient: McwsClient,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val mcwsClient = LocalMcwsClient.current
 
-    val libraryViewModel = remember {
-        LibraryViewModel(libraryRepository, facade)
-    }
-    val nowPlayingViewModel = remember {
-        NowPlayingViewModel(facade, mcwsClient)
-    }
-    val queueViewModel = remember {
-        QueueViewModel(facade, libraryRepository, context.appContainer.database)
-    }
-    val zonesViewModel = remember {
-        ZonesViewModel(facade, libraryRepository)
-    }
-    val settingsViewModel = remember {
-        val isDebug = (context.applicationInfo.flags and
-            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        SettingsViewModel(
-            facade = facade,
-            database = context.appContainer.database,
-            clearPhysicalDownloads = {
-                val downloadsDir = java.io.File(context.filesDir, "downloads")
-                if (downloadsDir.exists() && downloadsDir.isDirectory) {
-                    downloadsDir.listFiles()?.forEach { file ->
-                        file.delete()
-                    }
-                }
-            },
-            isDebugBuild = isDebug,
-        )
-    }
+    val stack by root.stack.subscribeAsState()
+    val active = stack.active.configuration
 
     val playerStatus by facade.playerStatus.collectAsState()
-    val activeZone by facade.activeZone.collectAsState()
-
-    val shellState by viewModel.state.collectAsState()
+    val shellState by connectViewModel.state.collectAsState()
 
     LaunchedEffect(Unit) {
-        viewModel.performAutoConnect()
+        connectViewModel.performAutoConnect()
+    }
+
+    // Bridge connect-driven tab changes (auto-connect success/failure, cancel)
+    // into the component tree. Manual tab taps go straight to root.selectTab and
+    // never touch connectViewModel, so this only fires for connection events.
+    LaunchedEffect(shellState.activeTab) {
+        root.selectTab(tabConfig(shellState.activeTab))
     }
 
     LaunchedEffect(shellState.toastMessage) {
         shellState.toastMessage?.let { msg ->
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-            viewModel.clearToast()
+            connectViewModel.clearToast()
         }
     }
 
@@ -161,11 +191,11 @@ fun MainShell(
 
     Scaffold(
         bottomBar = {
-            if (shellState.activeTab != 1) {
+            if (active != RootConfig.Server) {
                 Column {
-                    // Mini Player: sits above the tab bar, shown on all tabs except Now Playing (2),
-                    // and only if a track is active/loaded
-                    if (shellState.activeTab != 2 && !trackName.isNullOrEmpty()) {
+                    // Mini Player: above the tab bar, on every tab except Player,
+                    // and only when a track is active/loaded.
+                    if (active != RootConfig.Player && !trackName.isNullOrEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -183,7 +213,7 @@ fun MainShell(
                                 onNextClick = { facade.next() },
                                 onPrevClick = { facade.previous() },
                                 onBodyClick = {
-                                    viewModel.selectTab(2) // Switch to full Player tab
+                                    root.selectTab(RootConfig.Player)
                                 }
                             )
                         }
@@ -196,7 +226,6 @@ fun MainShell(
                             .height(68.dp)
                             .background(AppColors.bg2)
                             .drawBehind {
-                                // Sleek top border line
                                 drawLine(
                                     color = AppColors.line2,
                                     start = Offset(0f, 0f),
@@ -207,23 +236,21 @@ fun MainShell(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val tabs = listOf(
-                            Triple("Player", Icons.Default.PlayArrow, 2),
-                            Triple("Library", Icons.Default.Home, 0),
-                            Triple("Zones", Icons.Default.List, 3),
-                            Triple("Settings", Icons.Default.Settings, 4)
+                            Triple("Player", Icons.Default.PlayArrow, RootConfig.Player),
+                            Triple("Library", Icons.Default.Home, RootConfig.Library),
+                            Triple("Zones", Icons.Default.List, RootConfig.Zones),
+                            Triple("Settings", Icons.Default.Settings, RootConfig.Settings)
                         )
 
-                        tabs.forEach { (label, icon, index) ->
-                            val selected = shellState.activeTab == index
-                            
-                            // Smooth color transition
+                        tabs.forEach { (label, icon, config) ->
+                            val selected = active == config
+
                             val tintColor by animateColorAsState(
                                 targetValue = if (selected) AppColors.accent else AppColors.text3,
                                 animationSpec = tween(durationMillis = 200),
                                 label = "tabTintColor"
                             )
-                            
-                            // Smooth scale micro-animation
+
                             val scale by animateFloatAsState(
                                 targetValue = if (selected) 1.12f else 1.0f,
                                 animationSpec = spring(
@@ -233,7 +260,6 @@ fun MainShell(
                                 label = "tabScale"
                             )
 
-                            // Smooth width transition for selection indicator pill
                             val indicatorWidth by animateDpAsState(
                                 targetValue = if (selected) 12.dp else 0.dp,
                                 animationSpec = spring(
@@ -249,9 +275,9 @@ fun MainShell(
                                     .fillMaxHeight()
                                     .clickable(
                                         interactionSource = remember { MutableInteractionSource() },
-                                        indication = null // Clean animated tab clicks without clunky M3 background ripple
+                                        indication = null
                                     ) {
-                                        viewModel.selectTab(index)
+                                        root.selectTab(config)
                                     },
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
@@ -275,7 +301,6 @@ fun MainShell(
                                     )
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
-                                // Subtle gold indicator dot/pill under active tab
                                 Box(
                                     modifier = Modifier
                                         .width(indicatorWidth)
@@ -298,78 +323,26 @@ fun MainShell(
                 .background(AppColors.bg1)
                 .padding(innerPadding)
         ) {
-            when (shellState.activeTab) {
-                0 -> {
-                    // Library Tab with nested AlbumDetailScreen
-                    val album = shellState.selectedAlbum
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Box(
-                            modifier = if (album != null) {
-                                Modifier.size(0.dp)
-                            } else {
-                                Modifier.fillMaxSize()
-                            }
-                        ) {
-                            LibraryScreen(
-                                viewModel = libraryViewModel,
-                                onAlbumClick = { alb ->
-                                    viewModel.selectAlbum(alb)
-                                }
-                            )
-                        }
-                        
-                        if (album != null) {
-                            val albumDetailViewModel = remember(album) {
-                                AlbumDetailViewModel(
-                                    album = album,
-                                    libraryRepository = libraryRepository,
-                                    facade = facade,
-                                    database = context.appContainer.database
-                                )
-                            }
-                            AlbumDetailScreen(
-                                viewModel = albumDetailViewModel,
-                                onBackClick = { viewModel.selectAlbum(null) }
-                            )
-                        }
+            when (val child = stack.active.instance) {
+                is RootComponent.RootChild.Library -> LibraryChildren(child.component)
+                is RootComponent.RootChild.Server -> ServerManagerScreen(
+                    facade = facade,
+                    serverRepository = serverRepository,
+                    onConnectSuccess = { root.onConnectSuccess() }
+                )
+                is RootComponent.RootChild.Player -> PlayerChildren(child.component)
+                is RootComponent.RootChild.Zones -> ZonesScreen(
+                    viewModel = child.component.vm,
+                    onBackClick = { root.selectTab(RootConfig.Player) }
+                )
+                is RootComponent.RootChild.Settings -> SettingsScreen(
+                    viewModel = child.component.vm,
+                    onBackClick = { root.selectTab(RootConfig.Player) },
+                    onDisconnectClick = {
+                        connectViewModel.disconnect()
+                        root.onDisconnect()
                     }
-                }
-                1 -> {
-                    ServerManagerScreen(
-                        facade = facade,
-                        serverRepository = serverRepository,
-                        onConnectSuccess = { viewModel.selectTab(2) }
-                    )
-                }
-                2 -> {
-                    // Now Playing Tab with nested QueueScreen
-                    if (shellState.showQueue) {
-                        QueueScreen(
-                            viewModel = queueViewModel,
-                            onBackClick = { viewModel.setShowQueue(false) }
-                        )
-                    } else {
-                        NowPlayingScreen(
-                            viewModel = nowPlayingViewModel,
-                            onQueueClick = { viewModel.setShowQueue(true) }
-                        )
-                    }
-                }
-                3 -> {
-                    ZonesScreen(
-                        viewModel = zonesViewModel,
-                        onBackClick = { viewModel.selectTab(2) }
-                    )
-                }
-                4 -> {
-                    SettingsScreen(
-                        viewModel = settingsViewModel,
-                        onBackClick = { viewModel.selectTab(2) },
-                        onDisconnectClick = {
-                            viewModel.disconnect()
-                        }
-                    )
-                }
+                )
             }
         }
     }
@@ -379,7 +352,7 @@ fun MainShell(
             modifier = Modifier
                 .fillMaxSize()
                 .background(AppColors.bg0.copy(alpha = 0.95f))
-                .clickable(enabled = false) {}, // Scrim intercept
+                .clickable(enabled = false) {},
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -405,7 +378,7 @@ fun MainShell(
                 Spacer(modifier = Modifier.height(32.dp))
                 OutlinedButton(
                     onClick = {
-                        viewModel.cancelAutoConnect()
+                        connectViewModel.cancelAutoConnect()
                     },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColors.text2),
                     border = BorderStroke(1.dp, AppColors.line2),
@@ -415,5 +388,37 @@ fun MainShell(
                 }
             }
         }
+    }
+}
+
+/** Library tab: List → AlbumDetail, driven by [LibraryComponent.stack]. */
+@Composable
+private fun LibraryChildren(component: LibraryComponent) {
+    val stack by component.stack.subscribeAsState()
+    when (val child = stack.active.instance) {
+        is LibraryComponent.Child.List -> LibraryScreen(
+            viewModel = child.vm,
+            onAlbumClick = { album -> component.openAlbum(album) }
+        )
+        is LibraryComponent.Child.Detail -> AlbumDetailScreen(
+            viewModel = child.vm,
+            onBackClick = { component.back() }
+        )
+    }
+}
+
+/** Player tab: NowPlaying → Queue, driven by [PlayerComponent.stack]. */
+@Composable
+private fun PlayerChildren(component: PlayerComponent) {
+    val stack by component.stack.subscribeAsState()
+    when (val child = stack.active.instance) {
+        is PlayerComponent.Child.NowPlaying -> NowPlayingScreen(
+            viewModel = child.vm,
+            onQueueClick = { component.openQueue() }
+        )
+        is PlayerComponent.Child.Queue -> QueueScreen(
+            viewModel = child.vm,
+            onBackClick = { component.closeQueue() }
+        )
     }
 }
