@@ -1,9 +1,13 @@
 # Decompose Migration Plan
 
-> **Status:** Planning document. **No production code is changed by this file.**
-> It describes a phased adoption of [Decompose](https://arkivanov.github.io/Decompose/)
-> for navigation in this Kotlin Multiplatform app. Every claim below is grounded
-> in the files cited inline.
+> **Status:** ✅ **Implemented** on branch `feat/decompose-navigation` (Phases 0–5
+> complete). This document describes a phased adoption of
+> [Decompose](https://arkivanov.github.io/Decompose/) for navigation in this Kotlin
+> Multiplatform app. The plan was followed as written; the only deviation worth
+> noting is that auto-connect/toast logic was **kept in a slim `MainShellViewModel`**
+> rather than relocated into `RootComponent` (see §5/§12) — `activeTab` survives as a
+> connect→nav *bridge signal* (Server = 1, Player = 2) that each host forwards to
+> `root.selectTab`. Every claim below is grounded in the files cited inline.
 
 ---
 
@@ -622,12 +626,12 @@ phase (the repo builds Android via Gradle and iOS via `xcodebuild`):
 | --- | --- | --- | --- |
 | any | `./gradlew :androidApp:assembleDebug` | `./gradlew :sharedLogic:testAndroidHostTest` | `xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator build` |
 
-**Phase 0 — Compatibility spike (no commit if blocked).**
+**Phase 0 — Compatibility spike (no commit if blocked).** ✅ Done.
 Confirm a Decompose/Essenty release supports Kotlin `2.3.21`. Add the deps to a
 throwaway branch, build `:sharedLogic`. If no compatible tag exists, **stop and
 report** — the rest of the plan is blocked.
 
-**Phase 1 — Configs + `RootComponent` behind the scenes (shared only).**
+**Phase 1 — Configs + `RootComponent` behind the scenes (shared only).** ✅ Done (commit `1c3cb9b`).
 Add `decompose` to `commonMain`, create `presentation/navigation/` with
 `RootConfig`, `RootComponent`, `LibraryComponent`, `PlayerComponent`, the other
 leaf components, `AppDeps`, and the `VmHolder`/`instanceKeeper` adapter. **Not
@@ -636,7 +640,7 @@ wired into any host yet.** Add a `commonTest` that drives `RootComponent.selectT
 `MainShellViewModel`). Verify: `:sharedLogic:testAndroidHostTest` green;
 `:androidApp:assembleDebug` still builds (unused new code).
 
-**Phase 2 — Migrate Android host.**
+**Phase 2 — Migrate Android host.** ✅ Done (commit `3058ebb`).
 Add `decompose-extensions-compose` to `androidApp`. Rewrite `MainShell` to
 `Children(...)` + nested children; build `RootComponent` in `MainActivity.onCreate`
 via `defaultComponentContext()`. Screens unchanged; tab bar unchanged. Delete the
@@ -644,22 +648,31 @@ via `defaultComponentContext()`. Screens unchanged; tab bar unchanged. Delete th
 `:androidApp:assembleDebug`; manual smoke (tab switch keeps album selection;
 system back pops detail/queue; rotation keeps stack).
 
-**Phase 3 — iOS bridge groundwork.**
+**Phase 3 — iOS bridge groundwork.** ✅ Done (commit `2ed5c2d`). The framework
+must `export(...)` the Decompose/Essenty deps for their types to appear by name in
+the generated Swift header — see `sharedLogic/build.gradle.kts`.
 Add `ValueObservable` (and any concrete component accessors needed for SKIE). Build
 `RootComponent` in `AppContainer`/`AppDelegate`. **Do not yet rewire `ContentView`'s
 TabView** — verify the bridge compiles and emits by logging stack changes
 (`ui:iOS:RootNav`). Verify: `xcodebuild`.
 
-**Phase 4 — Migrate iOS host.**
-Rewire `ContentView`'s `TabView`, `LibraryTabContainerView`, `PlayerTabContainerView`
-to observe the component stacks; remove `MainShellObservable`'s navigation fields
-(keep connect/toast). Remove the `.id(...)` hack. Verify: `xcodebuild`; manual
-smoke parity with Android.
+**Phase 4 — Migrate iOS host.** ✅ Done (commit `9ff2a01`).
+Rewired `ContentView`'s `TabView`, `LibraryTabContainerView`, `PlayerTabContainerView`
+to observe the component stacks; removed `MainShellObservable`'s navigation fields
+(kept connect/toast). The generic `Value<ChildStack<C,T>>` is bridged via three
+purpose-built `@Observable` observers (`RootStackObservable`, `LibraryStackObservable`,
+`PlayerStackObservable`) that only touch the generic *inside* the inferred
+`subscribe` closure and expose plain existentials — the §6 "concrete accessor"
+escape hatch. Per-tab components are pulled from the live stack `children` so
+SwiftUI subtrees keep a stable identity across tab switches.
 
-**Phase 5 — Cleanup.**
-Delete now-dead navigation code from `MainShellViewModel` (keep auto-connect/toast,
-relocated per §12), drop magic-int `selectTab(Int)`. Update `docs/`. Verify all
-three commands.
+**Phase 5 — Cleanup.** ✅ Done.
+Deleted dead navigation code from `MainShellViewModel` — `selectTab(Int)`,
+`selectAlbum`, `setShowQueue`, and the `selectedAlbum`/`showQueue` state fields —
+keeping auto-connect/toast/disconnect. `MainShellViewModel` was kept as a slim
+connect holder rather than folded into `RootComponent` (lower-risk; the auto-connect
+guard/Offline-shortcut/cancel logic is already well-tested in place). Updated this
+doc. Verified all three build commands.
 
 Safest ordering rationale: shared component tree first (testable in isolation),
 **Android before iOS** (Compose `Children` is turnkey; surfaces component-design

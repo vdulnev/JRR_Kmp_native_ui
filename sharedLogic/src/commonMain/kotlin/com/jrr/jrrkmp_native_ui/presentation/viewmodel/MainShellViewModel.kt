@@ -6,7 +6,6 @@ import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.logged
 import com.jrr.jrrkmp_native_ui.core.logging.redact
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
-import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import kotlinx.coroutines.flow.*
@@ -19,8 +18,6 @@ private val log = Logger.withTag("vm:MainShell")
 
 private fun MainShellState.summary(): String = buildString {
     append("tab=$activeTab")
-    if (selectedAlbum != null) append(" album=${selectedAlbum.name}")
-    if (showQueue) append(" queue")
     if (isAutoConnecting) append(" autoConnecting=$autoConnectServerName")
     if (toastMessage != null) append(" toast='$toastMessage'")
 }
@@ -32,10 +29,13 @@ interface MainShellSettings {
     fun setHasSavedServers(hasSaved: Boolean)
 }
 
+/**
+ * Connection-flow state. Navigation proper lives in the Decompose component
+ * tree; [activeTab] survives only as a *bridge signal* — the connect flow flips
+ * it (Server = 1, Player = 2) and each host forwards that to `root.selectTab`.
+ */
 data class MainShellState(
     val activeTab: Int = 1,
-    val selectedAlbum: Album? = null,
-    val showQueue: Boolean = false,
     val isAutoConnecting: Boolean = false,
     val autoConnectServerName: String = "",
     val hasAttemptedAutoConnect: Boolean = false,
@@ -160,38 +160,6 @@ class MainShellViewModel(
         autoConnectJob = null
         _state.update { it.copy(isAutoConnecting = false, activeTab = 1) }
         showToast("Connection cancelled")
-    }
-
-    /**
-     * Switch active tab. If the user taps the already-active Library tab
-     * (tab 0), treat it as the "pop to root" gesture and clear the selected
-     * album — that's the iOS-tab-bar idiom and we want the same on Android.
-     *
-     * Crucially, we do NOT clear [MainShellState.selectedAlbum] when *arriving*
-     * at the Library tab from another tab — otherwise selecting an album,
-     * switching to Player, then switching back loses the selection (which is
-     * very much not what the user expects).
-     */
-    fun selectTab(tab: Int) {
-        val previous = _state.value.activeTab
-        log.d { "selectTab($tab) from=$previous" }
-        val tapActiveLibrary = tab == 0 && previous == 0
-        _state.update { current ->
-            current.copy(
-                activeTab = tab,
-                selectedAlbum = if (tapActiveLibrary) null else current.selectedAlbum,
-            )
-        }
-    }
-
-    fun selectAlbum(album: Album?) {
-        log.d { "selectAlbum(${album?.name})" }
-        _state.update { it.copy(selectedAlbum = album) }
-    }
-
-    fun setShowQueue(show: Boolean) {
-        log.d { "setShowQueue($show)" }
-        _state.update { it.copy(showQueue = show) }
     }
 
     fun showToast(message: String) {
