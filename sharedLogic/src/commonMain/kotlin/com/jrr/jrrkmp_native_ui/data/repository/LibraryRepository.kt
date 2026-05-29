@@ -63,6 +63,24 @@ private val DISC_TRAILING_BARE = Regex(
     RegexOption.IGNORE_CASE,
 )
 
+// A folder whose own name is JUST a disc bucket — `CD 1`, `CD01`, `Disc 2`,
+// `Disk 3`, `Диск 4`. Plenty of real-world rips put the disc split ONLY in
+// sibling subfolders (…/KuschelRock 28 [3CD] (2014)/CD 1, …/CD 2, …/CD 3)
+// while leaving the album NAME free of a per-disc marker and Total Discs at 1.
+// Recognising that folder lets us fold those siblings the same way we fold
+// name-marked discs.
+private val DISC_FOLDER_LEAF = Regex(
+    """^$DISC_WORDS\s*\d+$""",
+    RegexOption.IGNORE_CASE,
+)
+
+// Same shape as DISC_FOLDER_LEAF but captures the number, so we can recover a
+// disc index from a `CD 3` folder when the file tags don't carry `Disc #`.
+private val DISC_FOLDER_NUM = Regex(
+    """^$DISC_WORDS\s*(\d+)$""",
+    RegexOption.IGNORE_CASE,
+)
+
 private val MULTI_SPACE = Regex("""\s{2,}""")
 
 /**
@@ -100,6 +118,43 @@ internal fun normalizeAlbumName(name: String): String {
     return result
 }
 
+/**
+ * The last path segment of [folderPath], with any trailing separator dropped.
+ * Handles both Windows (`\`) and POSIX (`/`) separators. Exposed as `internal`
+ * for tests.
+ */
+internal fun leafFolderName(folderPath: String): String {
+    if (folderPath.isEmpty()) return ""
+    val trimmed = folderPath.trimEnd('\\', '/')
+    val sep = maxOf(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'))
+    return if (sep >= 0) trimmed.substring(sep + 1) else trimmed
+}
+
+/**
+ * True when [folderPath]'s own folder is a disc bucket like `CD 1` / `Disc 2`,
+ * i.e. the album is split across sibling disc subfolders under a common parent.
+ */
+internal fun isDiscSubfolder(folderPath: String): Boolean =
+    DISC_FOLDER_LEAF.matches(leafFolderName(folderPath).trim())
+
+/**
+ * Recover a 1-based disc index from a disc-bucket folder (`…/CD 3` → 3), or
+ * `null` if the folder isn't a disc bucket. Used to repair `Disc #` for tracks
+ * whose multi-disc split lives only in sibling subfolders — without it, every
+ * disc reads as disc 1 and their track numbers collide in the detail view.
+ */
+internal fun discNumberFromFolder(folderPath: String): Int? =
+    DISC_FOLDER_NUM.matchEntire(leafFolderName(folderPath).trim())
+        ?.groupValues?.get(1)?.toIntOrNull()
+
+/**
+ * Returns this track with its [Track.discNumber] taken from the enclosing disc
+ * folder when present; otherwise unchanged. No-op for tracks not in a `CD N` /
+ * `Disc N` folder, so it's safe to apply to every track.
+ */
+internal fun Track.withFolderDiscNumber(): Track =
+    discNumberFromFolder(folderPath)?.let { copy(discNumber = it) } ?: this
+
 // Strip ANY parenthesised content (one level deep) — used only for computing
 // the group key, not for displayed names. Lets us fold discs of the same
 // multi-disc release that have per-disc catalog numbers (e.g. Toshiba's
@@ -118,9 +173,10 @@ private val PARENS_BLOCK = Regex("""\s*[(\[][^()\[\]]*[)\]]\s*""")
  *   The displayed name on the rep keeps the parenthesised release info so
  *   different releases of the same album stay visibly distinct.
  * - **Use `parentFolderPath` as the path key when the album appears to be
- *   multi-disc** — either the name carried a disc marker, or `totalDiscs > 1`
- *   is properly tagged. This groups discs that live in sibling subfolders
- *   under a common parent.
+ *   multi-disc** — the name carried a disc marker, `totalDiscs > 1` is
+ *   properly tagged, or the album's own folder is a disc bucket like `CD 1`
+ *   (the disc split lives only in sibling subfolders). This groups discs that
+ *   live in sibling subfolders under a common parent.
  * - **Use `folderPath` as the path key otherwise** — preserves the
  *   distinction between two genuinely different single-disc albums that
  *   happen to share a name (e.g. two "Greatest Hits" compilations in
@@ -133,7 +189,12 @@ private fun computeGroupKey(album: Album): String {
     val normalized = normalizeAlbumName(album.name)
     val hasDiscMarker = normalized != album.name
     val taggedMultiDisc = album.totalDiscs > 1 && album.discNumber > 0
-    val pathKey = if (hasDiscMarker || taggedMultiDisc) album.parentFolderPath else album.folderPath
+    val folderIsDisc = isDiscSubfolder(album.folderPath)
+    val pathKey = if (hasDiscMarker || taggedMultiDisc || folderIsDisc) {
+        album.parentFolderPath
+    } else {
+        album.folderPath
+    }
     val groupingName = PARENS_BLOCK.replace(normalized, " ").trim()
     return "${groupingName.lowercase()}|${album.albumArtist.lowercase()}|${pathKey.lowercase()}"
 }
@@ -164,11 +225,23 @@ internal fun groupAlbumsByGroupId(albums: List<Album>): List<Album> =
             val rep = discs.minByOrNull { d ->
                 if (d.discNumber > 0) d.discNumber else Int.MAX_VALUE
             } ?: discs.first()
-            if (discs.size > 1) {
+            // Fold when we saw multiple discs, OR when the rep's own folder is
+            // a disc bucket (`…/CD 1`) — the latter covers the case where the
+            // server collapsed the discs to a single row but the layout still
+            // tells us this is a multi-disc set whose siblings live under the
+            // shared parent.
+            val foldsByFolder = isDiscSubfolder(rep.folderPath)
+            if (discs.size > 1 || foldsByFolder) {
                 rep.copy(
                     name = normalizeAlbumName(rep.name),
                     folderPath = rep.parentFolderPath,
-                    totalDiscs = discs.size.coerceAtLeast(rep.totalDiscs),
+                    // ≥2 so getAlbumTracks treats it as grouped and prefix-
+                    // matches every disc folder under the parent.
+                    totalDiscs = maxOf(
+                        discs.size,
+                        rep.totalDiscs,
+                        if (foldsByFolder) 2 else 1,
+                    ),
                 )
             } else {
                 rep
@@ -299,7 +372,7 @@ class LibraryRepository(
                     }
                     sameAlbum && folderMatches
                 }
-                .map { it.toTrack() }
+                .map { it.toTrack().withFolderDiscNumber() }
                 .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
                 .also { log.d { "getAlbumTracks offline → ${it.size} from cache" } }
         }
@@ -321,6 +394,7 @@ class LibraryRepository(
             "[Album]=[${esc(album.name)}] $pathFilter ~sort=[Disc #],[Track #]"
         }
         mcwsClient.searchTracks(mcwsQuery)
+            .map { it.withFolderDiscNumber() }
             .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
     }
 

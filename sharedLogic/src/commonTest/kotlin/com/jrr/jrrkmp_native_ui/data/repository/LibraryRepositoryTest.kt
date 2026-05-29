@@ -233,33 +233,86 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun groupAlbums_untaggedDiscNumberStaysSeparate() {
-        // Defensive: Album.albumGroupId requires discNumber > 0 to opt into
-        // the multi-disc grouping path. A track with totalDiscs=2 but
-        // discNumber=0 is treated as its own group because we can't trust
-        // the disc metadata enough to fold it into the album.
-        //
-        // This locks down current behaviour. If we ever want to be more
-        // lenient (group by parentFolderPath whenever totalDiscs > 1
-        // regardless of discNumber), update Album.albumGroupId AND this test.
+    fun groupAlbums_untaggedDiscNumberInPlainFoldersStaysSeparate() {
+        // When disc metadata is untrustworthy (discNumber=0) AND the layout
+        // gives no other signal — the subfolders aren't disc-named and the
+        // name has no marker — we can't safely fold, so the entries stay
+        // separate. (Contrast with disc-named subfolders, which DO fold even
+        // when the disc number is untagged — see
+        // groupAlbums_discSubfoldersFoldWithoutNameMarker.)
         val disc1 = makeAlbum(
             name = "The Wall",
-            folderPath = "/m/pf/wall/disc 1/",
+            folderPath = "/m/pf/wall/part one/",
             parentFolderPath = "/m/pf/wall/",
-            totalDiscs = 2,
+            totalDiscs = 1,
             discNumber = 1,
         )
         val untagged = makeAlbum(
             name = "The Wall",
-            folderPath = "/m/pf/wall/disc 2/",
+            folderPath = "/m/pf/wall/part two/",
             parentFolderPath = "/m/pf/wall/",
-            totalDiscs = 2,
+            totalDiscs = 1,
             discNumber = 0,
         )
 
         val result = groupAlbumsByGroupId(listOf(untagged, disc1))
 
         assertEquals(2, result.size)
+    }
+
+    @Test
+    fun groupAlbums_discSubfoldersFoldWithoutNameMarker() {
+        // KuschelRock 28: three CDs split into sibling "CD 1" / "CD 2" / "CD 3"
+        // subfolders. The album NAME carries only a "[3CD]" count hint (not a
+        // per-disc marker) and Total Discs is left at 1 — so the only signal
+        // that this is multi-disc is the disc-named subfolders. They must
+        // still fold into one representative spanning all three discs.
+        val parent =
+            "D:/music/_cd_rip/VA - Kuschelrock Vol. 1-33/KuschelRock 28 [3CD] (2014)/"
+        val discs = (1..3).map { n ->
+            makeAlbum(
+                name = "KuschelRock 28 [3CD] (2014)",
+                folderPath = "${parent}CD $n/",
+                parentFolderPath = parent,
+                totalDiscs = 1,   // ← untagged
+                discNumber = 1,   // ← untagged (parser defaults to 1)
+                albumArtist = "Kuschelrock",
+                artworkFileKey = "kr28-cd$n",
+            )
+        }
+
+        val result = groupAlbumsByGroupId(discs.shuffled())
+
+        assertEquals(1, result.size, "three disc subfolders should fold to one rep")
+        val rep = result.single()
+        assertEquals("KuschelRock 28 [3CD] (2014)", rep.name)
+        assertEquals(
+            parent,
+            rep.folderPath,
+            "folderPath rewritten to the parent so getAlbumTracks prefix-matches every disc",
+        )
+        assertEquals(3, rep.totalDiscs, "totalDiscs reflects the observed disc-folder count")
+    }
+
+    @Test
+    fun groupAlbums_singleReturnedDiscSubfolderStillFolds() {
+        // Defensive: if the server collapses the multi-disc set to a single
+        // representative row whose folder is still a disc bucket (…/CD 1), we
+        // must rewrite it to the parent and flag it multi-disc so
+        // getAlbumTracks pulls the sibling discs in.
+        val only = makeAlbum(
+            name = "KuschelRock 28 [3CD] (2014)",
+            folderPath = "D:/music/KuschelRock 28 [3CD] (2014)/CD 1/",
+            parentFolderPath = "D:/music/KuschelRock 28 [3CD] (2014)/",
+            totalDiscs = 1,
+            discNumber = 1,
+            albumArtist = "Kuschelrock",
+        )
+
+        val rep = groupAlbumsByGroupId(listOf(only)).single()
+
+        assertEquals("D:/music/KuschelRock 28 [3CD] (2014)/", rep.folderPath)
+        assertTrue(rep.totalDiscs >= 2, "must read as grouped so all discs load")
     }
 
     @Test
@@ -421,6 +474,35 @@ class LibraryRepositoryTest {
     @Test
     fun groupAlbums_emptyListReturnsEmpty() {
         assertTrue(groupAlbumsByGroupId(emptyList()).isEmpty())
+    }
+
+    // ---- discNumberFromFolder ----------------------------------------------
+
+    @Test
+    fun discNumberFromFolder_parsesDiscBucketLeaf() {
+        assertEquals(1, discNumberFromFolder("D:/music/KuschelRock 28 [3CD] (2014)/CD 1/"))
+        assertEquals(3, discNumberFromFolder("D:/music/KuschelRock 28 [3CD] (2014)/CD 3"))
+        assertEquals(2, discNumberFromFolder("/m/pf/wall/Disc 2/"))
+        assertEquals(12, discNumberFromFolder("/m/box/CD12/"))
+        // Cyrillic keyword + Windows separators.
+        assertEquals(4, discNumberFromFolder("""D:\music\box\Диск 4\"""))
+    }
+
+    @Test
+    fun discNumberFromFolder_nullForNonDiscFolders() {
+        // Not a disc bucket — the album's real folder.
+        assertEquals(null, discNumberFromFolder("D:/music/KuschelRock 28 [3CD] (2014)/"))
+        assertEquals(null, discNumberFromFolder("/m/pf/wall/"))
+        // Catalog-ish token, not a "CD <n>" bucket.
+        assertEquals(null, discNumberFromFolder("/m/box/HNECD032/"))
+        assertEquals(null, discNumberFromFolder(""))
+    }
+
+    @Test
+    fun leafFolderName_handlesBothSeparators() {
+        assertEquals("CD 1", leafFolderName("D:/music/album/CD 1/"))
+        assertEquals("CD 2", leafFolderName("""D:\music\album\CD 2"""))
+        assertEquals("album", leafFolderName("album"))
     }
 
     // ---- parseMcwsTracksJson -----------------------------------------------
