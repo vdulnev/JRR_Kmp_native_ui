@@ -361,16 +361,31 @@ struct LibraryView: View {
                     ProgressView().tint(.accentColor)
                     Spacer()
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(observable.artistAlbums, id: \.albumGroupId) { album in
-                                albumRowItem(album: album) {
-                                    onAlbumClick(album)
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: 8) {
+                                ForEach(observable.artistAlbums, id: \.albumGroupId) { album in
+                                    albumRowItem(album: album) {
+                                        onAlbumClick(album)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                            .padding(.trailing, 18)
+                            .padding(.top, 8)
+                        }
+                        .overlay(alignment: .trailing) {
+                            AlphabetIndexBar(
+                                letters: orderedSectionLetters(observable.artistAlbums.map { $0.name }),
+                                bottomInset: 96
+                            ) { letter in
+                                if let target = observable.artistAlbums.first(
+                                    where: { sectionLetter(for: $0.name) == letter }
+                                ) {
+                                    withAnimation { proxy.scrollTo(target.albumGroupId, anchor: .top) }
                                 }
                             }
                         }
-                        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                        .padding(.top, 8)
                     }
                 }
             }
@@ -382,6 +397,7 @@ struct LibraryView: View {
                     Spacer()
                 }
             } else {
+                ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         ForEach(observable.artists, id: \.self) { artist in
@@ -422,12 +438,26 @@ struct LibraryView: View {
                         }
                     }
                     .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                    .padding(.trailing, 18)
                     .padding(.top, 12)
+                }
+                .overlay(alignment: .trailing) {
+                    AlphabetIndexBar(
+                        letters: orderedSectionLetters(observable.artists),
+                        bottomInset: 96
+                    ) { letter in
+                        if let target = observable.artists.first(
+                            where: { sectionLetter(for: $0) == letter }
+                        ) {
+                            withAnimation { proxy.scrollTo(target, anchor: .top) }
+                        }
+                    }
+                }
                 }
             }
         }
     }
-    
+
     // MARK: - Random Tab View
     @ViewBuilder
     private func randomTab() -> some View {
