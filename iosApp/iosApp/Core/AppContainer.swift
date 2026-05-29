@@ -25,6 +25,16 @@ final class AppContainer {
     let playbackStateObserver: PlaybackStateObserver
     let downloadManager: DownloadManager
 
+    /// Decompose navigation tree. Built once here — not in `ContentView.init` —
+    /// so it survives SwiftUI view re-creation. Drives `ContentView` from Phase 4.
+    let root: RootComponent
+    /// Essenty lifecycle backing [root]'s `ComponentContext`. Resumed at the end
+    /// of `init`; held so it stays alive for the app's lifetime.
+    @ObservationIgnored private let rootLifecycle: LifecycleRegistry
+    /// Phase-3 verification: logs every stack emission under `ui:iOS:RootNav`.
+    /// Removed in Phase 4 once `ContentView` observes the stack directly.
+    @ObservationIgnored private var rootStackCancellable: Cancellation?
+
     init() {
         log.i("constructing (iOS)")
         let builder = DatabaseBuilder().createBuilder()
@@ -67,11 +77,12 @@ final class AppContainer {
             facade: facade
         )
 
-        self.libraryRepository = LibraryRepository(
+        let libraryRepository = LibraryRepository(
             database: database,
             mcwsClient: mcwsCore.mcwsClient,
             isOfflineProvider: FacadeOfflineModeProvider(facade: facade)
         )
+        self.libraryRepository = libraryRepository
 
         let nowPlayingCoordinator = NowPlayingCoordinator()
         nowPlayingCoordinator.configure(
@@ -94,6 +105,97 @@ final class AppContainer {
             facade: facade
         )
         self.downloadManager.setup(libraryRepository: self.libraryRepository)
+
+        // ---- Decompose navigation tree (Phase 3 groundwork) ----
+        //
+        // Feature ViewModels are built lazily by the component tree (retained in
+        // Essenty's InstanceKeeper), so AppDeps only supplies factory closures.
+        // These capture local lets — not `self` — so they're valid before init
+        // finishes.
+        #if DEBUG
+        let isDebugBuild = true
+        #else
+        let isDebugBuild = false
+        #endif
+        let clearPhysicalDownloads: () -> Void = {
+            let fileManager = FileManager.default
+            let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let downloadsDir = documentsURL.appendingPathComponent("downloads")
+            if fileManager.fileExists(atPath: downloadsDir.path) {
+                do {
+                    let filePaths = try fileManager.contentsOfDirectory(atPath: downloadsDir.path)
+                    for filePath in filePaths {
+                        let fullPath = downloadsDir.appendingPathComponent(filePath).path
+                        try fileManager.removeItem(atPath: fullPath)
+                    }
+                } catch {
+                    log.e("clearPhysicalDownloads failed: \(error)")
+                }
+            }
+        }
+
+        let mcwsClient = mcwsCore.mcwsClient
+        let deps = AppDeps(
+            libraryViewModel: {
+                LibraryViewModel(libraryRepository: libraryRepository, facade: facade)
+            },
+            albumDetailViewModel: { album in
+                AlbumDetailViewModel(
+                    album: album,
+                    libraryRepository: libraryRepository,
+                    facade: facade,
+                    database: database
+                )
+            },
+            nowPlayingViewModel: {
+                NowPlayingViewModel(facade: facade, mcwsClient: mcwsClient)
+            },
+            queueViewModel: {
+                QueueViewModel(facade: facade, libraryRepository: libraryRepository)
+            },
+            zonesViewModel: {
+                ZonesViewModel(facade: facade, libraryRepository: libraryRepository)
+            },
+            settingsViewModel: {
+                SettingsViewModel(
+                    facade: facade,
+                    database: database,
+                    clearPhysicalDownloads: clearPhysicalDownloads,
+                    isDebugBuild: isDebugBuild
+                )
+            }
+        )
+
+        // iOS has no `defaultComponentContext`; build the context manually from
+        // Essenty primitives (standard Decompose-on-iOS). StateKeeper for
+        // cold-launch restore is an optional follow-up — in-session retention
+        // (root held here) is enough for now.
+        let lifecycle = LifecycleRegistryKt.LifecycleRegistry()
+        let componentContext = DefaultComponentContext(
+            lifecycle: lifecycle,
+            stateKeeper: nil,
+            instanceKeeper: nil,
+            backHandler: nil
+        )
+        let settings = SwiftMainShellSettings()
+        let root = RootComponent(
+            componentContext: componentContext,
+            deps: deps,
+            initialConfig: RootComponent.companion.initialConfig(settings: settings)
+        )
+        self.rootLifecycle = lifecycle
+        self.root = root
+
+        LifecycleRegistryExtKt.resume(lifecycle)
+
+        // Phase-3 verification only: prove the SKIE bridge over the generic
+        // `Value<ChildStack<…>>` emits. Replaced by ContentView observation in
+        // Phase 4.
+        let rootNavLog = SwiftLog("ui:iOS:RootNav")
+        self.rootStackCancellable = root.stack.subscribe { stack in
+            rootNavLog.d("stack -> active=\(stack.active.configuration) depth=\(stack.items.count)")
+        }
+
         log.i("constructed")
     }
 }
