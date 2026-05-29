@@ -8,9 +8,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -61,6 +64,10 @@ fun LibraryScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var isSearching by remember { mutableStateOf(false) }
+
+    val artistsListState = rememberLazyListState()
+    val artistAlbumsListState = rememberLazyListState()
+    val randomAlbumsGridState = rememberLazyGridState()
 
     LaunchedEffect(state.transientError) {
         state.transientError?.let { error ->
@@ -200,6 +207,8 @@ fun LibraryScreen(
                         artistAlbums = state.artistAlbums,
                         isLoadingArtists = state.isLoading,
                         isLoadingAlbums = state.isTabLoading,
+                        artistsListState = artistsListState,
+                        artistAlbumsListState = artistAlbumsListState,
                         onArtistClick = { artistName ->
                             viewModel.selectArtist(artistName)
                         },
@@ -214,6 +223,7 @@ fun LibraryScreen(
                     "random" -> RandomTab(
                         albums = state.randomAlbums,
                         isLoading = state.isLoading,
+                        gridState = randomAlbumsGridState,
                         onAlbumClick = onAlbumClick,
                         onPlayAlbum = { viewModel.playAlbum(it) },
                         onPlayAlbumNext = { viewModel.playAlbumNext(it) },
@@ -282,6 +292,8 @@ fun ArtistsTab(
     artistAlbums: List<Album>,
     isLoadingArtists: Boolean,
     isLoadingAlbums: Boolean,
+    artistsListState: LazyListState,
+    artistAlbumsListState: LazyListState,
     onArtistClick: (String) -> Unit,
     onAlbumClick: (Album) -> Unit,
     onPlayAlbum: (Album) -> Unit,
@@ -310,7 +322,6 @@ fun ArtistsTab(
                     CircularProgressIndicator(color = AppColors.accent)
                 }
             } else {
-                val albumsListState = rememberLazyListState()
                 val albumsScope = rememberCoroutineScope()
                 val albumSections = remember(artistAlbums) {
                     artistAlbums.map { sectionLetterFor(it.name) }
@@ -318,7 +329,7 @@ fun ArtistsTab(
                 val albumLetters = remember(albumSections) { albumSections.distinct() }
                 Box(modifier = Modifier.fillMaxSize()) {
                     LazyColumn(
-                        state = albumsListState,
+                        state = artistAlbumsListState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
                             start = 16.dp, end = 28.dp, top = 16.dp, bottom = 16.dp
@@ -342,7 +353,7 @@ fun ArtistsTab(
                         onLetterSelected = { letter ->
                             val idx = albumSections.indexOf(letter)
                             if (idx >= 0) albumsScope.launch {
-                                albumsListState.scrollToItem(idx)
+                                artistAlbumsListState.scrollToItem(idx)
                             }
                         },
                     )
@@ -355,13 +366,12 @@ fun ArtistsTab(
                 CircularProgressIndicator(color = AppColors.accent)
             }
         } else {
-            val listState = rememberLazyListState()
             val scope = rememberCoroutineScope()
             val sections = remember(artists) { artists.map { sectionLetterFor(it) } }
             val letters = remember(sections) { sections.distinct() }
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyColumn(
-                    state = listState,
+                    state = artistsListState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
                         start = 16.dp, end = 28.dp, top = 16.dp, bottom = 16.dp
@@ -399,7 +409,7 @@ fun ArtistsTab(
                     letters = letters,
                     onLetterSelected = { letter ->
                         val idx = sections.indexOf(letter)
-                        if (idx >= 0) scope.launch { listState.scrollToItem(idx) }
+                        if (idx >= 0) scope.launch { artistsListState.scrollToItem(idx) }
                     },
                 )
             }
@@ -411,6 +421,7 @@ fun ArtistsTab(
 fun RandomTab(
     albums: List<Album>,
     isLoading: Boolean,
+    gridState: LazyGridState,
     onAlbumClick: (Album) -> Unit,
     onPlayAlbum: (Album) -> Unit,
     onPlayAlbumNext: (Album) -> Unit,
@@ -444,6 +455,7 @@ fun RandomTab(
             }
         } else {
             LazyVerticalGrid(
+                state = gridState,
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),

@@ -395,23 +395,28 @@ struct LibraryTabContainerView: View {
     let libraryViewModel: LibraryViewModel
 
     var body: some View {
-        if let album = selectedAlbum {
-            AlbumDetailView(
-                album: album,
-                onBackClick: { selectedAlbum = nil }
-            )
-            // SwiftUI keys the inner @State on view identity; this id makes the
-            // identity change when the user navigates to a different album, so
-            // the lazy-initialised AlbumDetailObservable is rebuilt for the new
-            // album rather than reusing the previous one.
-            .id("\(album.name)|\(album.albumArtist)|\(album.folderPath)")
-        } else {
+        ZStack {
             LibraryView(
                 viewModel: libraryViewModel,
                 onAlbumClick: { album in
                     selectedAlbum = album
                 }
             )
+            .opacity(selectedAlbum == nil ? 1 : 0)
+            .disabled(selectedAlbum != nil)
+            
+            if let album = selectedAlbum {
+                AlbumDetailView(
+                    album: album,
+                    onBackClick: { selectedAlbum = nil }
+                )
+                // SwiftUI keys the inner @State on view identity; this id makes the
+                // identity change when the user navigates to a different album, so
+                // the lazy-initialised AlbumDetailObservable is rebuilt for the new
+                // album rather than reusing the previous one.
+                .id("\(album.name)|\(album.albumArtist)|\(album.folderPath)")
+                .background(Color.bg1)
+            }
         }
     }
 }

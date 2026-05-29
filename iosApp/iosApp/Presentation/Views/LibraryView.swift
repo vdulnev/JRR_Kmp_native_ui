@@ -338,118 +338,127 @@ struct LibraryView: View {
     // MARK: - Artists Tab View
     @ViewBuilder
     private func artistsTab() -> some View {
-        if let artist = observable.selectedArtist {
+        ZStack {
+            // Artists List
             VStack(spacing: 0) {
-                // Back to artists list header
-                Button(action: { observable.selectArtist(nil) }) {
-                    HStack {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(.accentColor)
-                            .font(.system(size: 16, weight: .bold))
-                        
-                        Text(artist)
-                            .styleSubScreenTitle()
-                        
+                if observable.isLoading {
+                    VStack {
+                        Spacer()
+                        ProgressView().tint(.accentColor)
                         Spacer()
                     }
-                    .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                    .padding(.vertical, 12)
-                }
-                
-                if observable.isTabLoading {
-                    Spacer()
-                    ProgressView().tint(.accentColor)
-                    Spacer()
                 } else {
                     ScrollViewReader { proxy in
                         ScrollView {
                             LazyVStack(spacing: 8) {
-                                ForEach(observable.artistAlbums, id: \.albumGroupId) { album in
-                                    albumRowItem(album: album) {
-                                        onAlbumClick(album)
+                                ForEach(observable.artists, id: \.self) { artist in
+                                    HStack {
+                                        // Avatar circle with initial
+                                        ZStack {
+                                            Circle()
+                                                .fill(Color.bg3)
+                                                .frame(width: 36, height: 36)
+                                            
+                                            Text(artist.prefix(1).uppercased())
+                                                .font(AppFont.ibmPlexMono(size: 14, weight: .medium))
+                                                .foregroundColor(.accentColor)
+                                        }
+                                        
+                                        Text(artist)
+                                            .font(AppFont.inter(size: 16, weight: .medium))
+                                            .foregroundColor(.textPrimary)
+                                            .padding(.leading, 8)
+                                        
+                                        Spacer()
+                                    }
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                                    .background(Color.bg2)
+                                    .cornerRadius(10)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.line, lineWidth: 1)
+                                    )
+                                    .onTapGesture {
+                                        observable.selectArtist(artist)
                                     }
                                 }
                             }
                             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                             .padding(.trailing, 18)
-                            .padding(.top, 8)
+                            .padding(.top, 12)
                         }
                         .overlay(alignment: .trailing) {
                             AlphabetIndexBar(
-                                letters: orderedSectionLetters(observable.artistAlbums.map { $0.name }),
+                                letters: orderedSectionLetters(observable.artists),
                                 bottomInset: 96
                             ) { letter in
-                                if let target = observable.artistAlbums.first(
-                                    where: { sectionLetter(for: $0.name) == letter }
+                                if let target = observable.artists.first(
+                                    where: { sectionLetter(for: $0) == letter }
                                 ) {
-                                    withAnimation { proxy.scrollTo(target.albumGroupId, anchor: .top) }
+                                    withAnimation { proxy.scrollTo(target, anchor: .top) }
                                 }
                             }
                         }
                     }
                 }
             }
-        } else {
-            if observable.isLoading {
-                VStack {
-                    Spacer()
-                    ProgressView().tint(.accentColor)
-                    Spacer()
-                }
-            } else {
-                ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(observable.artists, id: \.self) { artist in
-                            HStack {
-                                // Avatar circle with initial
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.bg3)
-                                        .frame(width: 36, height: 36)
-                                    
-                                    Text(artist.prefix(1).uppercased())
-                                        .font(AppFont.ibmPlexMono(size: 14, weight: .medium))
-                                        .foregroundColor(.accentColor)
+            .opacity(observable.selectedArtist == nil ? 1 : 0)
+            .disabled(observable.selectedArtist != nil)
+            
+            // Selected Artist's Albums List
+            if let artist = observable.selectedArtist {
+                VStack(spacing: 0) {
+                    // Back to artists list header
+                    Button(action: { observable.selectArtist(nil) }) {
+                        HStack {
+                            Image(systemName: "chevron.left")
+                                .foregroundColor(.accentColor)
+                                .font(.system(size: 16, weight: .bold))
+                            
+                            Text(artist)
+                                .styleSubScreenTitle()
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                        .padding(.vertical, 12)
+                    }
+                    
+                    if observable.isTabLoading {
+                        Spacer()
+                        ProgressView().tint(.accentColor)
+                        Spacer()
+                    } else {
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                LazyVStack(spacing: 8) {
+                                    ForEach(observable.artistAlbums, id: \.albumGroupId) { album in
+                                        albumRowItem(album: album) {
+                                            onAlbumClick(album)
+                                        }
+                                    }
                                 }
-                                
-                                Text(artist)
-                                    .font(AppFont.inter(size: 16, weight: .medium))
-                                    .foregroundColor(.textPrimary)
-                                    .padding(.leading, 8)
-                                
-                                Spacer()
+                                .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                                .padding(.trailing, 18)
+                                .padding(.top, 8)
                             }
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 12)
-                            .background(Color.bg2)
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.line, lineWidth: 1)
-                            )
-                            .onTapGesture {
-                                observable.selectArtist(artist)
+                            .overlay(alignment: .trailing) {
+                                AlphabetIndexBar(
+                                    letters: orderedSectionLetters(observable.artistAlbums.map { $0.name }),
+                                    bottomInset: 96
+                                ) { letter in
+                                    if let target = observable.artistAlbums.first(
+                                        where: { sectionLetter(for: $0.name) == letter }
+                                    ) {
+                                        withAnimation { proxy.scrollTo(target.albumGroupId, anchor: .top) }
+                                    }
+                                }
                             }
                         }
                     }
-                    .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                    .padding(.trailing, 18)
-                    .padding(.top, 12)
                 }
-                .overlay(alignment: .trailing) {
-                    AlphabetIndexBar(
-                        letters: orderedSectionLetters(observable.artists),
-                        bottomInset: 96
-                    ) { letter in
-                        if let target = observable.artists.first(
-                            where: { sectionLetter(for: $0) == letter }
-                        ) {
-                            withAnimation { proxy.scrollTo(target, anchor: .top) }
-                        }
-                    }
-                }
-                }
+                .background(Color.bg1)
             }
         }
     }

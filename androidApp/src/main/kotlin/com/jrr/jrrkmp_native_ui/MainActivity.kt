@@ -302,26 +302,36 @@ fun MainShell(
                 0 -> {
                     // Library Tab with nested AlbumDetailScreen
                     val album = shellState.selectedAlbum
-                    if (album != null) {
-                        val albumDetailViewModel = remember(album) {
-                            AlbumDetailViewModel(
-                                album = album,
-                                libraryRepository = libraryRepository,
-                                facade = facade,
-                                database = context.appContainer.database
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = if (album != null) {
+                                Modifier.size(0.dp)
+                            } else {
+                                Modifier.fillMaxSize()
+                            }
+                        ) {
+                            LibraryScreen(
+                                viewModel = libraryViewModel,
+                                onAlbumClick = { alb ->
+                                    viewModel.selectAlbum(alb)
+                                }
                             )
                         }
-                        AlbumDetailScreen(
-                            viewModel = albumDetailViewModel,
-                            onBackClick = { viewModel.selectAlbum(null) }
-                        )
-                    } else {
-                        LibraryScreen(
-                            viewModel = libraryViewModel,
-                            onAlbumClick = { album ->
-                                viewModel.selectAlbum(album)
+                        
+                        if (album != null) {
+                            val albumDetailViewModel = remember(album) {
+                                AlbumDetailViewModel(
+                                    album = album,
+                                    libraryRepository = libraryRepository,
+                                    facade = facade,
+                                    database = context.appContainer.database
+                                )
                             }
-                        )
+                            AlbumDetailScreen(
+                                viewModel = albumDetailViewModel,
+                                onBackClick = { viewModel.selectAlbum(null) }
+                            )
+                        }
                     }
                 }
                 1 -> {
