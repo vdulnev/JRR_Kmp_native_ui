@@ -169,18 +169,59 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
     
     private func createPlayerItem(for track: Track) -> AVPlayerItem {
         let url: URL
+        let source: String
+        var mimeHint: String? = nil
         if let localPath = getLocalFilePath(fileKey: track.fileKey) {
             url = URL(fileURLWithPath: localPath)
+            source = "local"
         } else {
             let host = facade.currentServerHost ?? ""
             let useSsl = facade.currentServerUseSsl
             let port = useSsl ? facade.currentServerSslPort : facade.currentServerPort
             let scheme = useSsl ? "https" : "http"
             let token = facade.currentServerToken ?? ""
-            let encodedUrl = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(track.fileKey)&Playback=1&Token=\(token)"
+            let quality = facade.currentLocalAudioQuality
+            let encodedUrl = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(track.fileKey)&FileType=Key&Playback=1&\(quality.mcwsParams)&Token=\(token)"
             url = URL(string: encodedUrl) ?? URL(fileURLWithPath: "")
+            source = "stream"
+            // The converted stream carries no extension, so hand AVPlayer the
+            // MIME type explicitly to pick the PCM/WAV parser.
+            mimeHint = "audio/wav"
         }
-        return AVPlayerItem(url: url)
+        // Redact the token query param before logging the URL.
+        let safeUrl = url.absoluteString.replacingOccurrences(
+            of: "Token=\(facade.currentServerToken ?? "")",
+            with: "Token=xxxx"
+        )
+        log.d("createPlayerItem key=\(track.fileKey) '\(track.name)' source=\(source) type=\(track.fileType) mime=\(mimeHint ?? "-") url=\(safeUrl)")
+
+        let asset: AVURLAsset
+        if let mime = mimeHint {
+            // `AVURLAssetOutOfBandMIMETypeKey` isn't surfaced as a Swift symbol
+            // in this SDK, but the underlying option string is honored.
+            asset = AVURLAsset(url: url, options: ["AVURLAssetOutOfBandMIMETypeKey": mime])
+        } else {
+            asset = AVURLAsset(url: url)
+        }
+        let item = AVPlayerItem(asset: asset)
+        // Observe the item's load status so a fast-failing item (bad URL,
+        // unreachable host, ATS block, missing local file) surfaces its real
+        // error instead of silently auto-advancing the queue.
+        item.publisher(for: \.status)
+            .sink { [weak item] status in
+                switch status {
+                case .failed:
+                    let err = item?.error.map { String(describing: $0) } ?? "nil"
+                    log.e("item FAILED key=\(track.fileKey) '\(track.name)' error=\(err)")
+                case .readyToPlay:
+                    let durSec = item.map { CMTimeGetSeconds($0.duration) } ?? Double.nan
+                    log.d("item ready key=\(track.fileKey) '\(track.name)' duration=\(durSec)s")
+                default:
+                    break
+                }
+            }
+            .store(in: &cancellables)
+        return item
     }
 
     func setQueue(tracks: [Track], startIndex: Int32) {
@@ -337,7 +378,17 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
     func getDuration() -> Int64 {
         guard let item = queuePlayer?.currentItem else { return 0 }
         let sec = CMTimeGetSeconds(item.duration)
-        return sec.isNaN ? 0 : Int64(sec * 1000)
+        if !sec.isNaN && sec > 0 {
+            return Int64(sec * 1000)
+        }
+        // On-the-fly transcoded streams arrive chunked with no Content-Length,
+        // so AVPlayer reports an indefinite (NaN) duration. Fall back to the
+        // track's library metadata duration so the scrubber/time still work.
+        if let idx = playerItems.firstIndex(of: item),
+           idx >= 0 && idx < localQueue.count {
+            return localQueue[idx].durationMs
+        }
+        return 0
     }
     
     func addTracks(tracks: [Track]) {
@@ -421,7 +472,7 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         let fileManager = FileManager.default
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let downloadsDir = documentsURL.appendingPathComponent("downloads")
-        for ext in ["mp3", "m4a", "wav", "flac", "aac"] {
+        for ext in ["mp3", "m4a", "wav", "flac", "aac", "opus"] {
             let fileURL = downloadsDir.appendingPathComponent("\(fileKey).\(ext)")
             if fileManager.fileExists(atPath: fileURL.path) {
                 return fileURL.path
