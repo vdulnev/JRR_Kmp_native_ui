@@ -212,7 +212,7 @@ class LibraryRepository(
                 .also { log.d { "searchFiles offline → ${it.size} from cache" } }
         }
         val mcwsQuery =
-            "[Media Type]=Audio ([Name] contains \"$query\" OR [Artist] contains \"$query\" OR [Album] contains \"$query\")"
+            "[Media Type]=Audio ([Name]=\"$query\" OR [Artist]=\"$query\" OR [Album]=\"$query\")"
         mcwsClient.searchTracks(mcwsQuery)
     }
 
