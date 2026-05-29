@@ -327,14 +327,14 @@ class LibraryRepository(
                 .map { Album(it.toTrack()) }
                 .toList()
             return@withContext groupAlbumsByGroupId(albums)
-                .sortedWith(compareBy { it.name.lowercase() })
+                .sortedWith(compareBy<Album>({ it.date }, { it.name.lowercase() }))
                 .also { log.d { "getAlbumsByArtist offline → ${it.size} from cache" } }
         }
         val mcwsQuery =
             "[Album Artist (auto)]=[${esc(artistName)}] ~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
         val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
         groupAlbumsByGroupId(raw)
-            .sortedWith(compareBy { it.name.lowercase() })
+            .sortedWith(compareBy<Album>({ it.date }, { it.name.lowercase() }))
             .also { log.d { "getAlbumsByArtist → ${it.size} groups (from ${raw.size} disc-level entries)" } }
     }
 
