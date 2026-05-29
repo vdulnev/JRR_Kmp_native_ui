@@ -125,7 +125,8 @@ data class Track(
     val channels: Int,
     val fileType: String,
     val filePath: String,
-    val folderPath: String
+    val folderPath: String,
+    val numberPlays: Int = 0
 ) {
     val parentFolderPath: String
         get() = parentPath(folderPath)

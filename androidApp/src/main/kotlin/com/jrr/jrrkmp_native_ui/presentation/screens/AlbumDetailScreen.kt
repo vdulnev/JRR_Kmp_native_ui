@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -274,9 +276,23 @@ fun AlbumDetailScreen(
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(track.name, style = AppTypography.itemTitle, maxLines = 1)
-                                    if (track.artist != viewModel.album.albumArtist) {
-                                        Text(track.artist, style = AppTypography.itemSubtitle, maxLines = 1)
+                                    val durationSec = track.durationMs / 1000
+                                    val timeStr = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60)
+                                    val subtitleText = if (track.artist != viewModel.album.albumArtist) {
+                                        "${track.artist} • $timeStr"
+                                    } else {
+                                        timeStr
                                     }
+                                    Text(subtitleText, style = AppTypography.itemSubtitle, maxLines = 1)
+                                }
+
+                                if (track.numberPlays > 0) {
+                                    Icon(
+                                        imageVector = Icons.Default.Headphones,
+                                        contentDescription = "${track.numberPlays} plays",
+                                        tint = AppColors.text3,
+                                        modifier = Modifier.size(16.dp).padding(horizontal = 2.dp)
+                                    )
                                 }
 
                                 Box(
@@ -285,7 +301,7 @@ fun AlbumDetailScreen(
                                 ) {
                                     if (isDownloaded) {
                                         Icon(
-                                            imageVector = Icons.Default.Check,
+                                            imageVector = Icons.Default.Save,
                                             contentDescription = "Downloaded",
                                             tint = AppColors.accent,
                                             modifier = Modifier.size(20.dp)
@@ -296,26 +312,8 @@ fun AlbumDetailScreen(
                                             modifier = Modifier.size(20.dp),
                                             strokeWidth = 2.dp
                                         )
-                                    } else {
-                                        IconButton(
-                                            onClick = { viewModel.startDownload(track) },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = DownloadIcon,
-                                                contentDescription = "Download",
-                                                tint = AppColors.text3,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
                                     }
                                 }
-
-                                val durationSec = track.durationMs / 1000
-                                Text(
-                                    text = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60),
-                                    style = AppTypography.monoLabel
-                                )
 
                                 Spacer(modifier = Modifier.width(8.dp))
 

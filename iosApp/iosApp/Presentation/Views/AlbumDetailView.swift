@@ -388,20 +388,28 @@ private struct AlbumDetailContentView: View {
                     .styleItemTitle()
                     .lineLimit(1)
                 
-                if track.artist != observable.artistName {
-                    Text(track.artist)
-                        .styleItemSubtitle()
-                        .lineLimit(1)
-                }
+                let durationSec = track.durationMs / 1000
+                let durationStr = String(format: "%d:%02d", durationSec / 60, durationSec % 60)
+                let subtitleText = track.artist != observable.artistName ? "\(track.artist) • \(durationStr)" : durationStr
+                Text(subtitleText)
+                    .styleItemSubtitle()
+                    .lineLimit(1)
             }
             
             Spacer()
             
-            // Download status / action button
+            if track.numberPlays > 0 {
+                Image(systemName: "headphones")
+                    .font(.system(size: 12))
+                    .foregroundColor(.textTertiary)
+                    .padding(.trailing, 4)
+            }
+            
+            // Download status
             if !observable.isOffline {
                 if observable.downloadedTrackKeys.contains(track.fileKey) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
+                    Image(systemName: "floppydisk")
+                        .font(.system(size: 14))
                         .foregroundColor(.accentColor)
                         .padding(.trailing, 8)
                 } else if let jobState = observable.activeDownloadJobs[track.fileKey] {
@@ -410,29 +418,9 @@ private struct AlbumDetailContentView: View {
                             .controlSize(.small)
                             .tint(.accentColor)
                             .padding(.trailing, 8)
-                    } else {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.system(size: 12))
-                            .foregroundColor(.textTertiary)
-                            .padding(.trailing, 8)
                     }
-                } else {
-                    Button(action: {
-                        observable.startDownload(track: track)
-                    }) {
-                        Image(systemName: "arrow.down.circle")
-                            .font(.system(size: 14))
-                            .foregroundColor(.textSecondary)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .padding(.trailing, 8)
                 }
             }
-            
-            let durationSec = track.durationMs / 1000
-            Text(String(format: "%d:%02d", durationSec / 60, durationSec % 60))
-                .styleMonoLabel()
-                .padding(.trailing, 4)
             
             Menu {
                 Button(action: { observable.playTrack(track) }) {

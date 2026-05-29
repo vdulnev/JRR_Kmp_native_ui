@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Headphones
 import com.jrr.jrrkmp_native_ui.core.di.appContainer
 import androidx.compose.material3.*
 import androidx.compose.material3.SecondaryTabRow
@@ -1045,26 +1046,33 @@ fun GroupedTrackRowItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (track.artist != track.albumArtist) {
-                Text(
-                    text = track.artist,
-                    style = AppTypography.itemSubtitle,
-                    color = AppColors.text2,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            val durationSec = track.durationMs / 1000
+            val timeStr = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60)
+            val subtitleText = if (track.artist != track.albumArtist) {
+                "${track.artist} • $timeStr"
+            } else {
+                timeStr
             }
+            Text(
+                text = subtitleText,
+                style = AppTypography.itemSubtitle,
+                color = AppColors.text2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        val durationSec = track.durationMs / 1000
-        Text(
-            text = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60),
-            style = AppTypography.monoLabel
-        )
-
-        Spacer(modifier = Modifier.width(8.dp))
+        if (track.numberPlays > 0) {
+            Icon(
+                imageVector = Icons.Default.Headphones,
+                contentDescription = "${track.numberPlays} plays",
+                tint = AppColors.text3,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
 
         TrackActionMenu(
             onPlay = { onPlayTracks(listOf(track)) },
@@ -1239,18 +1247,28 @@ fun TrackRowItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(track.name, style = AppTypography.itemTitle, maxLines = 1)
-            Text(track.artist, style = AppTypography.itemSubtitle, color = AppColors.text2, maxLines = 1)
+            val durationSec = track.durationMs / 1000
+            val timeStr = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60)
+            Text(
+                text = "${track.artist} • $timeStr",
+                style = AppTypography.itemSubtitle,
+                color = AppColors.text2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        val durationSec = track.durationMs / 1000
-        Text(
-            text = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60),
-            style = AppTypography.monoLabel
-        )
-
-        Spacer(modifier = Modifier.width(8.dp))
+        if (track.numberPlays > 0) {
+            Icon(
+                imageVector = Icons.Default.Headphones,
+                contentDescription = "${track.numberPlays} plays",
+                tint = AppColors.text3,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
 
         var showMenu by remember { mutableStateOf(false) }
         Box {

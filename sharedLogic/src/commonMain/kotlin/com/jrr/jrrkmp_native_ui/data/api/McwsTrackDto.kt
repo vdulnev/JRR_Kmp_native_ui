@@ -27,7 +27,8 @@ internal data class McwsTrackDto(
     @SerialName("Channels") val channels: JsonElement? = null,
     @SerialName("File Type") val fileType: String? = null,
     @SerialName("Filename") val filePath: String? = null,
-    @SerialName("Filename (path)") val folderPath: String? = null
+    @SerialName("Filename (path)") val folderPath: String? = null,
+    @SerialName("Number Plays") val numberPlays: JsonElement? = null
 )
 
 internal fun McwsTrackDto.toDomainTrack(): Track? {
@@ -43,6 +44,7 @@ internal fun McwsTrackDto.toDomainTrack(): Track? {
     val bitDep = bitDepth?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
     val sampRate = sampleRate?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
     val chan = channels?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 2
+    val numPlays = numberPlays?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
 
     return Track(
         fileKey = fileKey,
@@ -63,6 +65,7 @@ internal fun McwsTrackDto.toDomainTrack(): Track? {
         channels = chan,
         fileType = fileType ?: "Unknown",
         filePath = filePath ?: "",
-        folderPath = folderPath ?: ""
+        folderPath = folderPath ?: "",
+        numberPlays = numPlays
     )
 }

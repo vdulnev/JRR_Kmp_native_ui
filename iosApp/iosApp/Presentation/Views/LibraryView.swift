@@ -1176,19 +1176,23 @@ struct LibraryView: View {
                     .styleItemTitle()
                     .lineLimit(1)
                 
-                if track.artist != track.albumArtist {
-                    Text(track.artist)
-                        .styleItemSubtitle()
-                        .lineLimit(1)
-                }
+                let secs = track.durationMs / 1000
+                let timeStr = String(format: "%d:%02d", secs / 60, secs % 60)
+                let subtitleText = track.artist != track.albumArtist ? "\(track.artist) • \(timeStr)" : timeStr
+                Text(subtitleText)
+                    .styleItemSubtitle()
+                    .lineLimit(1)
             }
             .padding(.leading, 4)
             
             Spacer()
             
-            let secs = track.durationMs / 1000
-            Text(String(format: "%d:%02d", secs / 60, secs % 60))
-                .styleMonoLabel()
+            if track.numberPlays > 0 {
+                Image(systemName: "headphones")
+                    .font(.system(size: 12))
+                    .foregroundColor(.textTertiary)
+                    .padding(.trailing, 4)
+            }
         }
         .padding(8)
         .background(Color.bg2)
@@ -1240,7 +1244,9 @@ struct LibraryView: View {
                     .styleItemTitle()
                     .lineLimit(1)
                 
-                Text(track.artist)
+                let secs = track.durationMs / 1000
+                let timeStr = String(format: "%d:%02d", secs / 60, secs % 60)
+                Text("\(track.artist) • \(timeStr)")
                     .styleItemSubtitle()
                     .lineLimit(1)
             }
@@ -1248,10 +1254,12 @@ struct LibraryView: View {
             
             Spacer()
             
-            let secs = track.durationMs / 1000
-            Text(String(format: "%d:%02d", secs / 60, secs % 60))
-                .styleMonoLabel()
-                .padding(.trailing, 4)
+            if track.numberPlays > 0 {
+                Image(systemName: "headphones")
+                    .font(.system(size: 12))
+                    .foregroundColor(.textTertiary)
+                    .padding(.trailing, 4)
+            }
             
             Menu {
                 Button(action: { observable.playTrack(track) }) {
