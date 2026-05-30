@@ -11,6 +11,8 @@ import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 
 private val log = Logger.withTag("repo:Library")
@@ -30,12 +32,17 @@ private val log = Logger.withTag("repo:Library")
 // matched as `[A-Za-z0-9А-Яа-я]+`.
 private const val DISC_WORDS = """(?:Disc|Disk|CD|Диск)"""
 
-// (Disc N) / (Disk N) / (CD N) / (Disc A) / (Disc One) when the bracket
-// content is JUST a disc marker. NOT anchored to end-of-string — strips
-// the marker even when followed by another parens block carrying release
-// info, e.g. `Garage Inc. (Disc 1) [SHM-CD, UICY-94670]`.
+// Separator tolerated between the disc keyword and its index: nothing,
+// whitespace, hyphen, or dot — so `CD 1`, `CD1`, `CD-1`, `CD.1`, `Disc-2`
+// all parse. Hyphenated folder/name markers are common in real rips.
+private const val DISC_SEP = """[\s.\-]*"""
+
+// (Disc N) / (Disk N) / (CD N) / (CD-1) / (Disc A) / (Disc One) when the
+// bracket content is JUST a disc marker. NOT anchored to end-of-string —
+// strips the marker even when followed by another parens block carrying
+// release info, e.g. `Garage Inc. (Disc 1) [SHM-CD, UICY-94670]`.
 private val DISC_PAREN_ONLY = Regex(
-    """\s*[(\[]\s*$DISC_WORDS\s*[A-Za-zА-Яа-я0-9]+\s*[)\]]""",
+    """\s*[(\[]\s*$DISC_WORDS$DISC_SEP[A-Za-zА-Яа-я0-9]+\s*[)\]]""",
     RegexOption.IGNORE_CASE,
 )
 
@@ -44,14 +51,14 @@ private val DISC_PAREN_ONLY = Regex(
 // comma) so the rest of the release metadata is preserved as a distinguishing
 // feature between releases of the same multi-disc album.
 private val DISC_INSIDE_LARGER_PARENS = Regex(
-    """\s*,\s*$DISC_WORDS\s*\d+\b""",
+    """\s*,\s*$DISC_WORDS$DISC_SEP\d+\b""",
     RegexOption.IGNORE_CASE,
 )
 
 // Mid-name `\s+CDN(\s+|\()` — e.g. `... In Tokyo CD1 (2015, …)`. Replaced
 // with a single space so the trailing parens block stays attached cleanly.
 private val DISC_MID_NAME = Regex(
-    """\s+$DISC_WORDS\s*\d+(?=\s|\(|$)""",
+    """\s+$DISC_WORDS$DISC_SEP\d+(?=\s|\(|$)""",
     RegexOption.IGNORE_CASE,
 )
 
@@ -59,25 +66,26 @@ private val DISC_MID_NAME = Regex(
 // `100,000,000 BON JOVI Fans...CD01`. Word-boundary handles the `.→C`
 // transition; doesn't match catalog tokens like `HNECD032` (no digit AFTER).
 private val DISC_TRAILING_BARE = Regex(
-    """\b$DISC_WORDS\s*\d+\s*$""",
+    """\b$DISC_WORDS$DISC_SEP\d+\s*$""",
     RegexOption.IGNORE_CASE,
 )
 
-// A folder whose own name is JUST a disc bucket — `CD 1`, `CD01`, `Disc 2`,
-// `Disk 3`, `Диск 4`. Plenty of real-world rips put the disc split ONLY in
-// sibling subfolders (…/KuschelRock 28 [3CD] (2014)/CD 1, …/CD 2, …/CD 3)
+// A folder whose own name is JUST a disc bucket — `CD 1`, `CD01`, `CD-1`,
+// `Disc 2`, `Disk 3`, `Диск 4`. Plenty of real-world rips put the disc split
+// ONLY in sibling subfolders (…/KuschelRock 28 [3CD] (2014)/CD 1, …/CD 2, …)
 // while leaving the album NAME free of a per-disc marker and Total Discs at 1.
 // Recognising that folder lets us fold those siblings the same way we fold
 // name-marked discs.
 private val DISC_FOLDER_LEAF = Regex(
-    """^$DISC_WORDS\s*\d+$""",
+    """^$DISC_WORDS$DISC_SEP\d+$""",
     RegexOption.IGNORE_CASE,
 )
 
 // Same shape as DISC_FOLDER_LEAF but captures the number, so we can recover a
-// disc index from a `CD 3` folder when the file tags don't carry `Disc #`.
+// disc index from a `CD 3` / `CD-3` folder when the file tags don't carry
+// `Disc #`.
 private val DISC_FOLDER_NUM = Regex(
-    """^$DISC_WORDS\s*(\d+)$""",
+    """^$DISC_WORDS$DISC_SEP(\d+)$""",
     RegexOption.IGNORE_CASE,
 )
 
@@ -249,6 +257,32 @@ internal fun groupAlbumsByGroupId(albums: List<Album>): List<Album> =
         }
 
 /**
+ * JRiver's auto album-artist sentinel for an album whose tracks span more than
+ * one artist (`[Album Artist (auto)]`).
+ */
+internal const val MULTIPLE_ARTISTS_SENTINEL = "(Multiple Artists)"
+
+/**
+ * Whether [albumArtists] — the distinct `[Album Artist (auto)]` values observed
+ * across a multi-disc box set's disc folders — mark it as a *various-artists*
+ * set.
+ *
+ * True only when the discs disagree (more than one distinct artist) **and** at
+ * least one disc already resolved to [MULTIPLE_ARTISTS_SENTINEL]. Requiring the
+ * sentinel keeps a genuine artist split that JRiver never collapsed (e.g.
+ * `CD1 = Artist A`, `CD2 = Artist B`, neither disc internally mixed) visible
+ * under each artist, rather than making the set vanish from every list.
+ *
+ * Example (the bug this guards): a 3-CD set with `CD1 = (Multiple Artists)`,
+ * `CD2 = Aerosmith`, `CD3 = (Multiple Artists)` → `{Aerosmith, (Multiple
+ * Artists)}` → various, so it shows only under `(Multiple Artists)` and not also
+ * under `Aerosmith`.
+ */
+internal fun isVariousArtistsSet(albumArtists: Set<String>): Boolean =
+    albumArtists.size > 1 &&
+        albumArtists.any { it.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) }
+
+/**
  * Resolves whether the app is currently in offline mode. Modelled as a SAM
  * interface so Swift can implement it directly without the
  * `() -> Boolean` -> `() -> KotlinBoolean` boxing dance the closure form
@@ -320,22 +354,73 @@ class LibraryRepository(
         log.d { "getAlbumsByArtist($artistName) offline=$offline" }
         if (offline) {
             val db = database ?: return@withContext emptyList()
-            val albums = db.downloadedTrackDao().getAllTracks()
+            val allTracks = db.downloadedTrackDao().getAllTracks()
+            val albums = allTracks
                 .asSequence()
                 .filter { it.artist.equals(artistName, ignoreCase = true) }
                 .filter { it.album.trim().isNotEmpty() }
                 .map { Album(it.toTrack()) }
                 .toList()
-            return@withContext groupAlbumsByGroupId(albums)
-                .sortedBy { it.name.lowercase() }
+            val grouped = groupAlbumsByGroupId(albums).sortedBy { it.name.lowercase() }
+            val filtered = if (artistName.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true)) {
+                grouped
+            } else {
+                grouped.filterNot { album ->
+                    album.totalDiscs > 1 && isVariousArtistsSet(
+                        allTracks.asSequence()
+                            .filter {
+                                it.folderPath.startsWith(album.folderPath, ignoreCase = true)
+                            }
+                            .map { it.albumArtist }
+                            .toSet()
+                    )
+                }
+            }
+            return@withContext filtered
                 .also { log.d { "getAlbumsByArtist offline → ${it.size} from cache" } }
         }
         val mcwsQuery =
             "[Album Artist (auto)]=[${esc(artistName)}] ~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
         val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
-        groupAlbumsByGroupId(raw)
-            .sortedBy { it.name.lowercase() }
-            .also { log.d { "getAlbumsByArtist → ${it.size} groups (from ${raw.size} disc-level entries)" } }
+        val grouped = groupAlbumsByGroupId(raw).sortedBy { it.name.lowercase() }
+        // A multi-disc box set whose discs carry mixed album artists otherwise
+        // surfaces under each disc's artist (e.g. CD2 tagged "Aerosmith" next to
+        // CD1/CD3 resolved to "(Multiple Artists)"). When browsing a specific
+        // artist, drop such various-artists sets so they appear only under the
+        // multiple-artists sentinel. One prefix-match query per folded set —
+        // `[Filename (path)]="<parent>"` spans every disc subfolder.
+        val filtered = if (artistName.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true)) {
+            grouped
+        } else {
+            coroutineScope {
+                val variousFlags = grouped.map { album ->
+                    async {
+                        album.totalDiscs > 1 &&
+                            isVariousArtistsSet(albumArtistsUnderFolder(album.folderPath))
+                    }
+                }
+                grouped.filterIndexed { index, _ -> !variousFlags[index].await() }
+            }
+        }
+        filtered.also {
+            log.d {
+                "getAlbumsByArtist → ${it.size} groups (from ${raw.size} disc-level " +
+                    "entries, ${grouped.size - it.size} various-artist sets hidden)"
+            }
+        }
+    }
+
+    /**
+     * Distinct `[Album Artist (auto)]` values across every disc under
+     * [folderPath] (a box set's parent folder). `[Filename (path)]="<path>"` is
+     * a prefix match in JRiver, so a single query spans all disc subfolders.
+     */
+    private suspend fun albumArtistsUnderFolder(folderPath: String): Set<String> {
+        if (folderPath.isEmpty()) return emptySet()
+        val query =
+            "[Media Type]=Audio [Filename (path)]=\"${esc(folderPath)}\" " +
+                "~limit=-1,1,[Album Artist (auto)]"
+        return mcwsClient.searchTracks(query).map { it.albumArtist }.toSet()
     }
 
     suspend fun getAlbumTracks(album: Album): List<Track> = withContext(Dispatchers.IO) {

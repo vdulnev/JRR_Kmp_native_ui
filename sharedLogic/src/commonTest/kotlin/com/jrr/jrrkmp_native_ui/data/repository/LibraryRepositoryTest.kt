@@ -4,6 +4,7 @@ import com.jrr.jrrkmp_native_ui.data.api.parseMcwsTracksJson
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class LibraryRepositoryTest {
@@ -28,6 +29,23 @@ class LibraryRepositoryTest {
         assertEquals("090909 Sampler", normalizeAlbumName("090909 Sampler (CD 2)"))
         assertEquals("25", normalizeAlbumName("25 (CD1)"))
         assertEquals("25", normalizeAlbumName("25 (CD 3)"))
+    }
+
+    @Test
+    fun normalize_hyphenatedCdMarker_keepsCatalogParens() {
+        // `(CD-1)` is a disc marker (drop it); `(SRCS 7321~3)` is a catalog
+        // number and must be preserved as a distinguishing release token.
+        assertEquals(
+            "Pandora's Box (SRCS 7321~3)",
+            normalizeAlbumName("Pandora's Box (SRCS 7321~3) (CD-1)"),
+        )
+        assertEquals(
+            "Pandora's Box (SRCS 7321~3)",
+            normalizeAlbumName("Pandora's Box (SRCS 7321~3) (CD-3)"),
+        )
+        assertEquals("25", normalizeAlbumName("25 (CD-2)"))
+        assertEquals("25", normalizeAlbumName("25 (CD.2)"))
+        assertEquals("25", normalizeAlbumName("25 (Disc-2)"))
     }
 
     @Test
@@ -489,6 +507,22 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun discNumberFromFolder_parsesHyphenatedDiscBuckets() {
+        // Pandora's Box (C3K 86567): discs live in `CD-1` / `CD-2` / `CD-3`
+        // folders. Without recovering the disc index here, getAlbumTracks can't
+        // split the set by disc and the tracks render interleaved.
+        assertEquals(
+            1,
+            discNumberFromFolder(
+                """D:\music\_cd_rip\Aerosmith\...\2002 - Pandora's Box (C3K 86567) USA\CD-1\""",
+            ),
+        )
+        assertEquals(2, discNumberFromFolder("/m/box/CD-2/"))
+        assertEquals(3, discNumberFromFolder("/m/box/Disc-3/"))
+        assertEquals(2, discNumberFromFolder("/m/box/CD.2/"))
+    }
+
+    @Test
     fun discNumberFromFolder_nullForNonDiscFolders() {
         // Not a disc bucket — the album's real folder.
         assertEquals(null, discNumberFromFolder("D:/music/KuschelRock 28 [3CD] (2014)/"))
@@ -603,6 +637,46 @@ class LibraryRepositoryTest {
         assertTrue(parseMcwsTracksJson("").isEmpty())
         assertTrue(parseMcwsTracksJson("[]").isEmpty())
         assertTrue(parseMcwsTracksJson("invalid-json").isEmpty())
+    }
+
+    // ---- isVariousArtistsSet ----------------------------------------------
+
+    @Test
+    fun various_mixedArtistsWithSentinel_isVarious() {
+        // The Pandora's Box case: CD1/CD3 → "(Multiple Artists)", CD2 → "Aerosmith".
+        assertTrue(
+            isVariousArtistsSet(setOf("Aerosmith", MULTIPLE_ARTISTS_SENTINEL)),
+        )
+    }
+
+    @Test
+    fun various_sentinelMatchIsCaseInsensitive() {
+        assertTrue(isVariousArtistsSet(setOf("Aerosmith", "(multiple artists)")))
+    }
+
+    @Test
+    fun various_singleArtistMultiDisc_isNotVarious() {
+        // A normal 2-CD album by one artist must stay under that artist.
+        assertFalse(isVariousArtistsSet(setOf("Aerosmith")))
+    }
+
+    @Test
+    fun various_onlySentinel_isNotVarious() {
+        // A single internally-mixed compilation already lives under the sentinel;
+        // there's no second artist to fold away from.
+        assertFalse(isVariousArtistsSet(setOf(MULTIPLE_ARTISTS_SENTINEL)))
+    }
+
+    @Test
+    fun various_artistSplitWithoutSentinel_isNotVarious() {
+        // CD1 = Artist A, CD2 = Artist B, neither disc internally mixed and no
+        // sentinel present: keep it visible under each artist rather than hiding.
+        assertFalse(isVariousArtistsSet(setOf("Artist A", "Artist B")))
+    }
+
+    @Test
+    fun various_emptySet_isNotVarious() {
+        assertFalse(isVariousArtistsSet(emptySet()))
     }
 }
 
