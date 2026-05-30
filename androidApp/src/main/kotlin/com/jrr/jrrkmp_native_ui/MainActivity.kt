@@ -22,6 +22,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -391,19 +392,40 @@ fun MainShell(
     }
 }
 
-/** Library tab: List → AlbumDetail, driven by [LibraryComponent.stack]. */
+/**
+ * Library tab: List → AlbumDetail, driven by [LibraryComponent.stack].
+ *
+ * Only the active child is composed, but each child's saveable UI state is
+ * retained across navigation via a [rememberSaveableStateHolder]. The scroll
+ * positions inside [LibraryScreen] (artists / artist-albums / random grid) are
+ * `rememberLazyListState`/`rememberLazyGridState`, which are `rememberSaveable`
+ * backed — so when an album detail is pushed and later popped, the list's scroll
+ * is saved while it's off-screen and restored on the way back, without keeping
+ * it composed behind the detail. Keyed by child so List and Detail get
+ * independent state slots (commit d2935a1 behaviour, the idiomatic way).
+ */
 @Composable
 private fun LibraryChildren(component: LibraryComponent) {
     val stack by component.stack.subscribeAsState()
-    when (val child = stack.active.instance) {
-        is LibraryComponent.Child.List -> LibraryScreen(
-            viewModel = child.vm,
-            onAlbumClick = { album -> component.openAlbum(album) }
-        )
-        is LibraryComponent.Child.Detail -> AlbumDetailScreen(
-            viewModel = child.vm,
-            onBackClick = { component.back() }
-        )
+    val stateHolder = rememberSaveableStateHolder()
+    val active = stack.active.instance
+
+    val stateKey = when (active) {
+        is LibraryComponent.Child.List -> "list"
+        is LibraryComponent.Child.Detail -> "detail:${active.album.albumGroupId}"
+    }
+
+    stateHolder.SaveableStateProvider(key = stateKey) {
+        when (active) {
+            is LibraryComponent.Child.List -> LibraryScreen(
+                viewModel = active.vm,
+                onAlbumClick = { album -> component.openAlbum(album) }
+            )
+            is LibraryComponent.Child.Detail -> AlbumDetailScreen(
+                viewModel = active.vm,
+                onBackClick = { component.back() }
+            )
+        }
     }
 }
 
