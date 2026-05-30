@@ -8,14 +8,13 @@ private let log = SwiftLog("ui:iOS:Library")
 class LibraryObservable {
     let viewModel: LibraryViewModel
 
-    var searchQuery: String = ""
-    var searchResults: [Track] = []
     var currentTab: String = "artists"
     var artists: [String] = []
     var selectedArtist: String?
     var artistAlbums: [Album] = []
     var compilationMode: Bool = false
     var compilationArtists: [String] = []
+    var artistsFilter: String = ""
     var randomAlbums: [Album] = []
     var browseStack: [BrowseNode] = []
     var browseChildren: [BrowseItem] = []
@@ -48,14 +47,13 @@ class LibraryObservable {
     }
 
     private func sync(state: LibraryViewState) {
-        searchQuery = state.searchQuery
-        searchResults = state.searchResults
         currentTab = state.currentTab
         artists = state.artists
         selectedArtist = state.selectedArtist
         artistAlbums = state.artistAlbums
         compilationMode = state.compilationMode
         compilationArtists = state.compilationArtists
+        artistsFilter = state.artistsFilter
         randomAlbums = state.randomAlbums
         browseStack = state.browseStack
         browseChildren = state.browseChildren
@@ -65,10 +63,6 @@ class LibraryObservable {
         isLoading = state.isLoading
         isTabLoading = state.isTabLoading
         transientError = state.transientError
-    }
-
-    func updateSearchQuery(_ query: String) {
-        viewModel.updateSearchQuery(query: query)
     }
 
     func switchTab(_ tab: String) {
@@ -83,6 +77,10 @@ class LibraryObservable {
     /// `nil` selects "All" (every compilation).
     func selectCompilationArtist(_ artistName: String?) {
         viewModel.selectCompilationArtist(artistName: artistName)
+    }
+
+    func setArtistsFilter(_ query: String) {
+        viewModel.setArtistsFilter(query: query)
     }
 
     func pushBrowseNode(browseItem: BrowseItem) {
@@ -171,8 +169,6 @@ struct LibraryView: View {
     @EnvironmentObject private var stateObserver: PlaybackStateObserver
     @State private var observable: LibraryObservable
     let onAlbumClick: (Album) -> Void // AlbumName, ArtistName
-    @State private var isSearching = false
-    @State private var searchQueryText = ""
     @State private var selectedArtist: String? = nil
     @State private var selectedAlbumGroupId: String? = nil
     @State private var infoTrack: Track? = nil
@@ -184,6 +180,9 @@ struct LibraryView: View {
     /// Stable id for the leading "All" row; namespaced so it can't collide with
     /// an artist name.
     private let compilationAllRowID = "\u{1}__all_compilations__"
+    /// Local mirror of the shared artists filter, so the text field stays
+    /// responsive without round-tripping every keystroke through the flow.
+    @State private var artistFilterText = ""
 
     init(viewModel: LibraryViewModel, onAlbumClick: @escaping (Album) -> Void) {
         _observable = State(initialValue: LibraryObservable(viewModel: viewModel))
@@ -192,130 +191,52 @@ struct LibraryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with search toggle
+            // Header
             HStack {
-                if isSearching {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.textTertiary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("LIBRARY")
+                        .styleSectionLabel()
 
-                        TextField("Search tracks, artists...", text: $searchQueryText)
-                            .foregroundColor(.textPrimary)
-                            .font(AppFont.inter(size: 14, weight: .regular))
-                            .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                            .onChange(of: searchQueryText) { _, newValue in
-                                observable.updateSearchQuery(newValue)
-                            }
-
-                        if !searchQueryText.isEmpty {
-                            Button(action: {
-                                searchQueryText = ""
-                                observable.updateSearchQuery("")
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.textSecondary)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 38)
-                    .background(Color.bg2)
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.line2, lineWidth: 1),
-                    )
-
-                    Button(action: {
-                        isSearching = false
-                        searchQueryText = ""
-                        observable.updateSearchQuery("")
-                    }) {
-                        Text("Cancel")
-                            .font(AppFont.inter(size: 14, weight: .medium))
-                            .foregroundColor(.accentColor)
-                    }
-                    .padding(.leading, 8)
-                } else {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("LIBRARY")
-                            .styleSectionLabel()
-
-                        Text("Browse")
-                            .styleScreenTitle()
-                    }
-
-                    Spacer()
-
-                    Button(action: { isSearching = true }) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.textPrimary)
-                            .frame(width: 44, height: 44)
-                    }
+                    Text("Browse")
+                        .styleScreenTitle()
                 }
+
+                Spacer()
             }
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
             .padding(.vertical, 12)
             .background(Color.bg1)
 
-            if isSearching {
-                // Search Results
-                if observable.isTabLoading {
-                    VStack {
-                        Spacer()
-                        ProgressView()
-                            .tint(.accentColor)
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(observable.searchResults, id: \.fileKey) { track in
-                                trackRowItem(track: track) {
-                                    observable.playTrack(track)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                        .padding(.top, 8)
-                    }
-                    .background(Color.bg1)
+            // Tab strip
+            HStack(spacing: 0) {
+                tabButton(title: "Artists", id: "artists")
+                if !observable.isOffline {
+                    tabButton(title: "Random", id: "random")
+                    tabButton(title: "Browse", id: "browse")
                 }
-            } else {
-                // Tab strip
-                HStack(spacing: 0) {
-                    tabButton(title: "Artists", id: "artists")
-                    if !observable.isOffline {
-                        tabButton(title: "Random", id: "random")
-                        tabButton(title: "Browse", id: "browse")
-                    }
-                    tabButton(title: "Downloads", id: "downloads")
-                    tabButton(title: "Favorites", id: "favorites")
-                }
-                .background(Color.bg1)
-
-                // Tab Content
-                Group {
-                    switch observable.currentTab {
-                    case "artists":
-                        artistsTab()
-                    case "random":
-                        randomTab()
-                    case "browse":
-                        browseTab()
-                    case "downloads":
-                        downloadsTab()
-                    case "favorites":
-                        favoritesTab()
-                    default:
-                        EmptyView()
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                tabButton(title: "Downloads", id: "downloads")
+                tabButton(title: "Favorites", id: "favorites")
             }
+            .background(Color.bg1)
+
+            // Tab Content
+            Group {
+                switch observable.currentTab {
+                case "artists":
+                    artistsTab()
+                case "random":
+                    randomTab()
+                case "browse":
+                    browseTab()
+                case "downloads":
+                    downloadsTab()
+                case "favorites":
+                    favoritesTab()
+                default:
+                    EmptyView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.bg1.ignoresSafeArea())
         .onAppear {
@@ -366,6 +287,7 @@ struct LibraryView: View {
         ZStack {
             // Artists List
             VStack(spacing: 0) {
+                listFilterField(placeholder: "Filter artists")
                 if observable.isLoading {
                     VStack {
                         Spacer()
@@ -373,10 +295,11 @@ struct LibraryView: View {
                         Spacer()
                     }
                 } else {
+                    let displayArtists = observable.artists.filter { matchesFilter($0) }
                     ScrollViewReader { proxy in
                         ScrollView {
                             LazyVStack(spacing: 8) {
-                                ForEach(observable.artists, id: \.self) { artist in
+                                ForEach(displayArtists, id: \.self) { artist in
                                     HStack {
                                         // Avatar circle with initial
                                         ZStack {
@@ -389,7 +312,7 @@ struct LibraryView: View {
                                                 .foregroundColor(.accentColor)
                                         }
 
-                                        Text(artist)
+                                        highlighted(artist)
                                             .font(AppFont.inter(size: 16, weight: .medium))
                                             .foregroundColor(.textPrimary)
                                             .padding(.leading, 8)
@@ -415,10 +338,10 @@ struct LibraryView: View {
                         }
                         .overlay(alignment: .trailing) {
                             AlphabetIndexBar(
-                                letters: orderedSectionLetters(observable.artists),
+                                letters: orderedSectionLetters(displayArtists),
                                 bottomInset: 96,
                             ) { letter in
-                                if let target = observable.artists.first(
+                                if let target = displayArtists.first(
                                     where: { sectionLetter(for: $0) == letter },
                                 ) {
                                     withAnimation { proxy.scrollTo(target, anchor: .top) }
@@ -459,15 +382,18 @@ struct LibraryView: View {
                         .padding(.vertical, 12)
                     }
 
+                    listFilterField(placeholder: "Filter albums")
+
                     if observable.isTabLoading {
                         Spacer()
                         ProgressView().tint(.accentColor)
                         Spacer()
                     } else {
+                        let displayAlbums = observable.artistAlbums.filter { matchesFilter($0.name) }
                         ScrollViewReader { proxy in
                             ScrollView {
                                 LazyVStack(spacing: 8) {
-                                    ForEach(observable.artistAlbums, id: \.albumGroupId) { album in
+                                    ForEach(displayAlbums, id: \.albumGroupId) { album in
                                         albumRowItem(album: album) {
                                             onAlbumClick(album)
                                         }
@@ -479,10 +405,10 @@ struct LibraryView: View {
                             }
                             .overlay(alignment: .trailing) {
                                 AlphabetIndexBar(
-                                    letters: orderedSectionLetters(observable.artistAlbums.map(\.name)),
+                                    letters: orderedSectionLetters(displayAlbums.map(\.name)),
                                     bottomInset: 96,
                                 ) { letter in
-                                    if let target = observable.artistAlbums.first(
+                                    if let target = displayAlbums.first(
                                         where: { sectionLetter(for: $0.name) == letter },
                                     ) {
                                         withAnimation { proxy.scrollTo(target.albumGroupId, anchor: .top) }
@@ -493,6 +419,15 @@ struct LibraryView: View {
                     }
                 }
                 .background(Color.bg1)
+            }
+        }
+        .onChange(of: artistFilterText) { _, value in
+            observable.setArtistsFilter(value)
+        }
+        .onChange(of: observable.artistsFilter) { _, value in
+            // The shared VM clears the filter on navigation; mirror that locally.
+            if value.isEmpty, !artistFilterText.isEmpty {
+                artistFilterText = ""
             }
         }
     }
@@ -517,20 +452,27 @@ struct LibraryView: View {
                 .padding(.vertical, 12)
             }
 
+            listFilterField(placeholder: "Filter artists")
+
             if observable.isTabLoading {
                 Spacer()
                 ProgressView().tint(.accentColor)
                 Spacer()
             } else {
+                let displayCompArtists = observable.compilationArtists.filter { matchesFilter($0) }
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        compilationRow(label: "All", avatar: "∗", highlighted: true) {
-                            observable.selectCompilationArtist(nil)
+                        // Hide "All" while filtering — the user is hunting a
+                        // specific artist, not the everything bucket.
+                        if artistFilterText.isEmpty {
+                            compilationRow(label: Text("All"), avatar: "∗", highlighted: true) {
+                                observable.selectCompilationArtist(nil)
+                            }
+                            .id(compilationAllRowID)
                         }
-                        .id(compilationAllRowID)
-                        ForEach(observable.compilationArtists, id: \.self) { artist in
+                        ForEach(displayCompArtists, id: \.self) { artist in
                             compilationRow(
-                                label: artist,
+                                label: highlighted(artist),
                                 avatar: String(artist.prefix(1)).uppercased(),
                                 highlighted: false,
                             ) {
@@ -549,10 +491,10 @@ struct LibraryView: View {
                 .scrollPosition(id: $compilationScrollID, anchor: .top)
                 .overlay(alignment: .trailing) {
                     AlphabetIndexBar(
-                        letters: orderedSectionLetters(observable.compilationArtists),
+                        letters: orderedSectionLetters(displayCompArtists),
                         bottomInset: 96,
                     ) { letter in
-                        if let target = observable.compilationArtists.first(
+                        if let target = displayCompArtists.first(
                             where: { sectionLetter(for: $0) == letter },
                         ) {
                             withAnimation { compilationScrollID = target }
@@ -564,7 +506,7 @@ struct LibraryView: View {
     }
 
     private func compilationRow(
-        label: String,
+        label: Text,
         avatar: String,
         highlighted: Bool,
         onTap: @escaping () -> Void,
@@ -580,7 +522,7 @@ struct LibraryView: View {
                     .foregroundColor(highlighted ? .bg0 : .accentColor)
             }
 
-            Text(label)
+            label
                 .font(AppFont.inter(size: 16, weight: .medium))
                 .foregroundColor(highlighted ? .accentColor : .textPrimary)
                 .padding(.leading, 8)
@@ -597,6 +539,57 @@ struct LibraryView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
+    }
+
+    // MARK: - In-list quick filter
+
+    /// Slim type-to-filter row pinned above an Artists-tab list.
+    private func listFilterField(placeholder: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.textTertiary)
+            TextField(placeholder, text: $artistFilterText)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .foregroundColor(.textPrimary)
+                .font(AppFont.inter(size: 14, weight: .regular))
+            if !artistFilterText.isEmpty {
+                Button(action: { artistFilterText = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.textSecondary)
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 38)
+        .background(Color.bg2)
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.line, lineWidth: 1),
+        )
+        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+        .padding(.vertical, 6)
+    }
+
+    private func matchesFilter(_ text: String) -> Bool {
+        artistFilterText.isEmpty || text.range(of: artistFilterText, options: .caseInsensitive) != nil
+    }
+
+    /// `text` with the first case-insensitive occurrence of the active filter
+    /// bolded in the accent colour.
+    private func highlighted(_ text: String) -> Text {
+        guard !artistFilterText.isEmpty,
+              let range = text.range(of: artistFilterText, options: .caseInsensitive)
+        else {
+            return Text(text)
+        }
+        let pre = String(text[text.startIndex ..< range.lowerBound])
+        let match = String(text[range])
+        let post = String(text[range.upperBound...])
+        return Text(pre)
+            + Text(match).foregroundColor(.accentColor).fontWeight(.bold)
+            + Text(post)
     }
 
     // MARK: - Random Tab View
