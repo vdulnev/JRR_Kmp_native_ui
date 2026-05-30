@@ -108,6 +108,20 @@ private func config(forTag tag: Int) -> RootConfig {
     }
 }
 
+/// Drives the scroll-to-hide chrome (header, in-list filter, mini-player).
+/// A scrolling list flips `collapsed`; the host hides the mini-player and the
+/// Library screen collapses its header/filter, maximising the scroll area.
+@Observable
+@MainActor
+final class ChromeVisibility {
+    private(set) var collapsed = false
+
+    func setCollapsed(_ value: Bool) {
+        guard value != collapsed else { return }
+        withAnimation(.easeInOut(duration: 0.22)) { collapsed = value }
+    }
+}
+
 struct ContentView: View {
     @Environment(AppContainer.self) private var container
 
@@ -118,6 +132,7 @@ struct ContentView: View {
     @State private var mainShellObservable: MainShellObservable
 
     @State private var rootObservable: RootStackObservable
+    @State private var chrome = ChromeVisibility()
 
     init(container: AppContainer) {
         // The mini-player overlay reads playback status from its own lightweight
@@ -303,8 +318,11 @@ struct ContentView: View {
             }
 
             // Floating MiniPlayer overlay — shown on every tab except Player and
-            // the full-screen Server screen, when a track is loaded.
-            if !isPlayerActive, !isServerActive, nowPlayingObservable.trackTitle != "Idle" {
+            // the full-screen Server screen, when a track is loaded. Hidden
+            // while a list is scrolled to maximise the scroll area.
+            if !isPlayerActive, !isServerActive, !chrome.collapsed,
+               nowPlayingObservable.trackTitle != "Idle"
+            {
                 VStack {
                     Spacer()
 
@@ -406,6 +424,12 @@ struct ContentView: View {
                 }
                 .ignoresSafeArea(.keyboard)
             }
+        }
+        .environment(chrome)
+        // Switching tabs always restores the chrome (the new tab starts at the
+        // top, and the mini-player should be visible there).
+        .onChange(of: activeTag) { _, _ in
+            chrome.setCollapsed(false)
         }
         .task {
             mainShellObservable.performAutoConnect()

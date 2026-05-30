@@ -161,6 +161,12 @@ fun MainShell(
     val playerStatus by facade.playerStatus.collectAsState()
     val shellState by connectViewModel.state.collectAsState()
 
+    // Scroll-to-hide chrome: a scrolling list collapses the header, the in-list
+    // filter, and the mini-player to maximise the scroll area. Reset whenever
+    // the active tab changes (new tab starts at the top).
+    var chromeCollapsed by remember { mutableStateOf(false) }
+    LaunchedEffect(active) { chromeCollapsed = false }
+
     LaunchedEffect(Unit) {
         connectViewModel.performAutoConnect()
     }
@@ -195,8 +201,9 @@ fun MainShell(
             if (active != RootConfig.Server) {
                 Column {
                     // Mini Player: above the tab bar, on every tab except Player,
-                    // and only when a track is active/loaded.
-                    if (active != RootConfig.Player && !trackName.isNullOrEmpty()) {
+                    // and only when a track is active/loaded. Hidden while a list
+                    // is scrolled (chrome collapsed) to maximise the scroll area.
+                    if (active != RootConfig.Player && !trackName.isNullOrEmpty() && !chromeCollapsed) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -325,7 +332,11 @@ fun MainShell(
                 .padding(innerPadding)
         ) {
             when (val child = stack.active.instance) {
-                is RootComponent.RootChild.Library -> LibraryChildren(child.component)
+                is RootComponent.RootChild.Library -> LibraryChildren(
+                    component = child.component,
+                    chromeCollapsed = chromeCollapsed,
+                    onChromeCollapsedChange = { chromeCollapsed = it }
+                )
                 is RootComponent.RootChild.Server -> ServerManagerScreen(
                     facade = facade,
                     serverRepository = serverRepository,
@@ -408,7 +419,11 @@ fun MainShell(
  * independent state slots (commit d2935a1 behaviour, the idiomatic way).
  */
 @Composable
-private fun LibraryChildren(component: LibraryComponent) {
+private fun LibraryChildren(
+    component: LibraryComponent,
+    chromeCollapsed: Boolean,
+    onChromeCollapsedChange: (Boolean) -> Unit
+) {
     val stack by component.stack.subscribeAsState()
     val stateHolder = rememberSaveableStateHolder()
     val active = stack.active.instance
@@ -422,7 +437,9 @@ private fun LibraryChildren(component: LibraryComponent) {
         when (active) {
             is LibraryComponent.Child.List -> LibraryScreen(
                 viewModel = active.vm,
-                onAlbumClick = { album -> component.openAlbum(album) }
+                onAlbumClick = { album -> component.openAlbum(album) },
+                chromeCollapsed = chromeCollapsed,
+                onChromeCollapsedChange = onChromeCollapsedChange
             )
             is LibraryComponent.Child.Detail -> AlbumDetailScreen(
                 viewModel = active.vm,
