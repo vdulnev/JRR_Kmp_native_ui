@@ -1,11 +1,11 @@
-import SwiftUI
 import SharedLogic
+import SwiftUI
 
 private let log = SwiftLog("ui:iOS:MainShell")
 
 class SwiftMainShellSettings: NSObject, MainShellSettings {
     func getLastActiveZoneId() -> String? {
-        return UserDefaults.standard.string(forKey: "last_active_zone_id")
+        UserDefaults.standard.string(forKey: "last_active_zone_id")
     }
 
     func setLastActiveZoneId(zoneId: String?) {
@@ -13,7 +13,7 @@ class SwiftMainShellSettings: NSObject, MainShellSettings {
     }
 
     func getHasSavedServers() -> Bool {
-        return UserDefaults.standard.bool(forKey: "has_saved_servers")
+        UserDefaults.standard.bool(forKey: "has_saved_servers")
     }
 
     func setHasSavedServers(hasSaved: Bool) {
@@ -34,7 +34,7 @@ class MainShellObservable {
     var activeTab: Int = 1
     var isAutoConnecting: Bool = false
     var autoConnectServerName: String = ""
-    var toastMessage: String? = nil
+    var toastMessage: String?
 
     @ObservationIgnored private var observeTask: Task<Void, Never>?
 
@@ -58,10 +58,10 @@ class MainShellObservable {
     }
 
     private func sync(state: MainShellState) {
-        self.activeTab = Int(state.activeTab)
-        self.isAutoConnecting = state.isAutoConnecting
-        self.autoConnectServerName = state.autoConnectServerName
-        self.toastMessage = state.toastMessage
+        activeTab = Int(state.activeTab)
+        isAutoConnecting = state.isAutoConnecting
+        autoConnectServerName = state.autoConnectServerName
+        toastMessage = state.toastMessage
     }
 
     func performAutoConnect() {
@@ -82,6 +82,7 @@ class MainShellObservable {
 }
 
 // MARK: - Tab <-> RootConfig mapping
+
 //
 // The native TabView keeps its numeric `.tag`s (so UITabBarAppearance styling
 // is untouched); these helpers translate between those tags and the typed
@@ -89,21 +90,21 @@ class MainShellObservable {
 
 private func tabTag(for config: RootConfig) -> Int {
     switch onEnum(of: config) {
-    case .library: return 0
-    case .server: return 1
-    case .player: return 2
-    case .zones: return 3
-    case .settings: return 4
+    case .library: 0
+    case .server: 1
+    case .player: 2
+    case .zones: 3
+    case .settings: 4
     }
 }
 
 private func config(forTag tag: Int) -> RootConfig {
     switch tag {
-    case 0: return RootConfigLibrary.shared
-    case 2: return RootConfigPlayer.shared
-    case 3: return RootConfigZones.shared
-    case 4: return RootConfigSettings.shared
-    default: return RootConfigServer.shared
+    case 0: RootConfigLibrary.shared
+    case 2: RootConfigPlayer.shared
+    case 3: RootConfigZones.shared
+    case 4: RootConfigSettings.shared
+    default: RootConfigServer.shared
     }
 }
 
@@ -123,29 +124,29 @@ struct ContentView: View {
         // NowPlayingViewModel (facade-backed, read-only here). The Player tab's
         // NowPlayingView gets its VM from the Decompose component instead.
         let npVM = NowPlayingViewModel(facade: container.facade, mcwsClient: container.mcwsClient)
-        self._nowPlayingViewModel = State(initialValue: npVM)
-        self._nowPlayingObservable = State(initialValue: NowPlayingObservable(viewModel: npVM))
+        _nowPlayingViewModel = State(initialValue: npVM)
+        _nowPlayingObservable = State(initialValue: NowPlayingObservable(viewModel: npVM))
 
         // MainShellViewModel still owns auto-connect + toast (connection
         // business logic). Navigation comes from container.root.
         let settings = SwiftMainShellSettings()
         let shellVM = MainShellViewModel(facade: container.facade, serverRepository: container.serverRepository, settings: settings)
-        self._mainShellViewModel = State(initialValue: shellVM)
-        self._mainShellObservable = State(initialValue: MainShellObservable(viewModel: shellVM))
+        _mainShellViewModel = State(initialValue: shellVM)
+        _mainShellObservable = State(initialValue: MainShellObservable(viewModel: shellVM))
 
-        self._rootObservable = State(initialValue: RootStackObservable(container.root))
+        _rootObservable = State(initialValue: RootStackObservable(container.root))
 
         // Configure standard tab bar appearance with custom premium dark system theme
         let appearance = UITabBarAppearance()
         appearance.configureWithOpaqueBackground()
 
-        let barColor = UIColor(red: 22/255.0, green: 22/255.0, blue: 24/255.0, alpha: 1.0) // bg2: 0x161618
+        let barColor = UIColor(red: 22 / 255.0, green: 22 / 255.0, blue: 24 / 255.0, alpha: 1.0) // bg2: 0x161618
         let lineColor = UIColor.white.withAlphaComponent(0.06) // line
 
         appearance.backgroundColor = barColor
         appearance.shadowColor = lineColor
 
-        let goldAccent = UIColor(red: 200/255.0, green: 146/255.0, blue: 42/255.0, alpha: 1.0) // accentColor: 0xC8922A
+        let goldAccent = UIColor(red: 200 / 255.0, green: 146 / 255.0, blue: 42 / 255.0, alpha: 1.0) // accentColor: 0xC8922A
         let dimText = UIColor.white.withAlphaComponent(0.3)
 
         appearance.stackedLayoutAppearance.normal.iconColor = dimText
@@ -159,36 +160,44 @@ struct ContentView: View {
 
     // MARK: Active-tab helpers
 
-    private var activeTag: Int { tabTag(for: rootObservable.activeConfig) }
-    private var isServerActive: Bool { activeTag == 1 }
-    private var isPlayerActive: Bool { activeTag == 2 }
+    private var activeTag: Int {
+        tabTag(for: rootObservable.activeConfig)
+    }
+
+    private var isServerActive: Bool {
+        activeTag == 1
+    }
+
+    private var isPlayerActive: Bool {
+        activeTag == 2
+    }
 
     // MARK: Per-tab component lookup (stable instances from the live stack)
 
     private func libraryComponent() -> LibraryComponent? {
         for child in rootObservable.children {
-            if case .library(let c) = onEnum(of: child) { return c.component }
+            if case let .library(c) = onEnum(of: child) { return c.component }
         }
         return nil
     }
 
     private func playerComponent() -> PlayerComponent? {
         for child in rootObservable.children {
-            if case .player(let c) = onEnum(of: child) { return c.component }
+            if case let .player(c) = onEnum(of: child) { return c.component }
         }
         return nil
     }
 
     private func zonesComponent() -> ZonesComponent? {
         for child in rootObservable.children {
-            if case .zones(let c) = onEnum(of: child) { return c.component }
+            if case let .zones(c) = onEnum(of: child) { return c.component }
         }
         return nil
     }
 
     private func settingsComponent() -> SettingsComponent? {
         for child in rootObservable.children {
-            if case .settings(let c) = onEnum(of: child) { return c.component }
+            if case let .settings(c) = onEnum(of: child) { return c.component }
         }
         return nil
     }
@@ -215,7 +224,7 @@ struct ContentView: View {
                         withAnimation {
                             container.root.selectTab(config: config(forTag: newValue))
                         }
-                    }
+                    },
                 )) {
                     // Tab 2: Player (Now Playing → Queue)
                     Group {
@@ -252,7 +261,7 @@ struct ContentView: View {
                                     withAnimation {
                                         container.root.selectTab(config: RootConfigPlayer.shared)
                                     }
-                                }
+                                },
                             )
                         } else {
                             Color.bg1
@@ -276,7 +285,7 @@ struct ContentView: View {
                                 onDisconnectClick: {
                                     mainShellObservable.disconnect()
                                     container.root.onDisconnect()
-                                }
+                                },
                             )
                         } else {
                             Color.bg1
@@ -292,7 +301,7 @@ struct ContentView: View {
 
             // Floating MiniPlayer overlay — shown on every tab except Player and
             // the full-screen Server screen, when a track is loaded.
-            if !isPlayerActive && !isServerActive && nowPlayingObservable.trackTitle != "Idle" {
+            if !isPlayerActive, !isServerActive, nowPlayingObservable.trackTitle != "Idle" {
                 VStack {
                     Spacer()
 
@@ -319,7 +328,7 @@ struct ContentView: View {
                             withAnimation {
                                 container.root.selectTab(config: RootConfigPlayer.shared)
                             }
-                        }
+                        },
                     )
                     .padding(.horizontal, 16)
                     .padding(.bottom, 56) // Float above tab bar
@@ -364,7 +373,7 @@ struct ContentView: View {
                                 .background(Color.clear)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.line2, lineWidth: 1)
+                                        .stroke(Color.line2, lineWidth: 1),
                                 )
                         }
                     }
@@ -386,7 +395,7 @@ struct ContentView: View {
                         .cornerRadius(8)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.line2, lineWidth: 1)
+                                .stroke(Color.line2, lineWidth: 1),
                         )
                         .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
                         .padding(.bottom, !isPlayerActive && nowPlayingObservable.trackTitle != "Idle" ? 140 : 80) // Position above tab bar/miniplayer
@@ -415,14 +424,14 @@ struct PlayerTabContainerView: View {
 
     init(component: PlayerComponent) {
         self.component = component
-        self._stack = State(initialValue: PlayerStackObservable(component))
+        _stack = State(initialValue: PlayerStackObservable(component))
     }
 
     var body: some View {
         switch onEnum(of: stack.activeChild) {
-        case .nowPlaying(let child):
+        case let .nowPlaying(child):
             NowPlayingView(viewModel: child.vm, onQueueClick: { component.openQueue() })
-        case .queue(let child):
+        case let .queue(child):
             QueueView(viewModel: child.vm, onBackClick: { component.closeQueue() })
         }
     }
@@ -442,12 +451,12 @@ struct LibraryTabContainerView: View {
 
     init(component: LibraryComponent) {
         self.component = component
-        self._stack = State(initialValue: LibraryStackObservable(component))
+        _stack = State(initialValue: LibraryStackObservable(component))
     }
 
     private var listVM: LibraryViewModel? {
         for child in stack.children {
-            if case .list(let c) = onEnum(of: child) { return c.vm }
+            if case let .list(c) = onEnum(of: child) { return c.vm }
         }
         return nil
     }
@@ -457,14 +466,14 @@ struct LibraryTabContainerView: View {
     /// keeps the same id).
     private var detailPath: [String] {
         stack.children.compactMap { child in
-            if case .detail(let c) = onEnum(of: child) { return c.album.albumGroupId }
+            if case let .detail(c) = onEnum(of: child) { return c.album.albumGroupId }
             return nil
         }
     }
 
     private func detailChild(forGroupId groupId: String) -> LibraryComponentChildDetail? {
         for child in stack.children {
-            if case .detail(let c) = onEnum(of: child), c.album.albumGroupId == groupId {
+            if case let .detail(c) = onEnum(of: child), c.album.albumGroupId == groupId {
                 return c
             }
         }
@@ -479,9 +488,11 @@ struct LibraryTabContainerView: View {
                 // Forward the delta to Decompose (the source of truth).
                 let popCount = detailPath.count - newPath.count
                 if popCount > 0 {
-                    for _ in 0 ..< popCount { component.back() }
+                    for _ in 0 ..< popCount {
+                        component.back()
+                    }
                 }
-            }
+            },
         )) {
             Group {
                 if let listVM {
@@ -489,7 +500,7 @@ struct LibraryTabContainerView: View {
                         viewModel: listVM,
                         onAlbumClick: { album in
                             component.openAlbum(album: album)
-                        }
+                        },
                     )
                 } else {
                     Color.bg1
@@ -504,7 +515,7 @@ struct LibraryTabContainerView: View {
                     if let detail = detailChild(forGroupId: groupId) {
                         AlbumDetailView(
                             viewModel: detail.vm,
-                            onBackClick: { component.back() }
+                            onBackClick: { component.back() },
                         )
                         .background(Color.bg1)
                     } else {

@@ -1,5 +1,5 @@
-import SwiftUI
 import SharedLogic
+import SwiftUI
 
 private let log = SwiftLog("ui:iOS:AlbumDetail")
 
@@ -19,15 +19,15 @@ class AlbumDetailObservable {
     var isFavorite: Bool = false
     var isLoading: Bool = true
     var isOffline: Bool = true
-    var errorMessage: String? = nil
+    var errorMessage: String?
 
     @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: AlbumDetailViewModel) {
         log.d("init")
         self.viewModel = viewModel
-        self.albumName = viewModel.album.name
-        self.artistName = viewModel.album.albumArtist
+        albumName = viewModel.album.name
+        artistName = viewModel.album.albumArtist
 
         sync(state: viewModel.state.value)
 
@@ -51,58 +51,58 @@ class AlbumDetailObservable {
     }
 
     private func sync(state: AlbumDetailViewState) {
-        self.isOffline = state.isOfflineMode
-        self.transientError = state.transientError
+        isOffline = state.isOfflineMode
+        transientError = state.transientError
 
         switch onEnum(of: state.contentState) {
         case .loading:
-            self.tracks = []
-            self.downloadedTrackKeys = []
-            self.activeDownloadJobs = [:]
-            self.isFavorite = false
-            self.isLoading = true
-            self.errorMessage = nil
-        case .success(let success):
-            self.tracks = success.tracks
-            self.downloadedTrackKeys = success.downloadedTrackKeys
-            self.activeDownloadJobs = success.activeDownloadJobs
-            self.isFavorite = success.isFavorite
-            self.isLoading = false
-            self.errorMessage = nil
-        case .error(let error):
-            self.tracks = []
-            self.downloadedTrackKeys = []
-            self.activeDownloadJobs = [:]
-            self.isFavorite = false
-            self.isLoading = false
-            self.errorMessage = error.message
+            tracks = []
+            downloadedTrackKeys = []
+            activeDownloadJobs = [:]
+            isFavorite = false
+            isLoading = true
+            errorMessage = nil
+        case let .success(success):
+            tracks = success.tracks
+            downloadedTrackKeys = success.downloadedTrackKeys
+            activeDownloadJobs = success.activeDownloadJobs
+            isFavorite = success.isFavorite
+            isLoading = false
+            errorMessage = nil
+        case let .error(error):
+            tracks = []
+            downloadedTrackKeys = []
+            activeDownloadJobs = [:]
+            isFavorite = false
+            isLoading = false
+            errorMessage = error.message
         }
     }
-    
+
     func playTrack(_ track: Track) {
         viewModel.playTrack(track: track)
     }
-    
+
     func playAlbum() {
         viewModel.playAlbum()
     }
-    
+
     func shuffleAlbum() {
         viewModel.shuffleAlbum()
     }
-    
+
     func toggleFavorite() {
         viewModel.toggleFavorite()
     }
-    
+
     func startDownload(track: Track) {
         viewModel.startDownload(track: track)
     }
-    
+
     func addTrackToQueue(track: Track) {
         viewModel.addTrackToQueue(track: track)
     }
-    
+
     func playTrackNext(track: Track) {
         viewModel.playTrackNext(track: track)
     }
@@ -118,11 +118,11 @@ class AlbumDetailObservable {
     func downloadAlbum() {
         viewModel.downloadAlbum()
     }
-    
+
     func clearTransientError() {
         viewModel.clearTransientError()
     }
-    
+
     func retry() {
         viewModel.retry()
     }
@@ -146,7 +146,7 @@ struct AlbumDetailView: View {
             if let observable {
                 AlbumDetailContentView(
                     observable: observable,
-                    onBackClick: onBackClick
+                    onBackClick: onBackClick,
                 )
             } else {
                 Color.bg1.ignoresSafeArea()
@@ -184,14 +184,14 @@ private struct AlbumDetailContentView: View {
                     .foregroundColor(.textPrimary)
                     .frame(height: 44)
                 }
-                
+
                 Spacer()
-                
+
                 Text("ALBUM")
                     .styleSectionLabel()
-                
+
                 Spacer()
-                
+
                 HStack(spacing: 0) {
                     Button(action: { observable.toggleFavorite() }) {
                         Image(systemName: observable.isFavorite ? "star.fill" : "star")
@@ -199,7 +199,7 @@ private struct AlbumDetailContentView: View {
                             .foregroundColor(observable.isFavorite ? .accentColor : .textTertiary)
                             .frame(width: 44, height: 44)
                     }
-                    
+
                     Menu {
                         Button(action: { infoAlbum = observable.viewModel.album }) {
                             Label("Info", systemImage: "info.circle")
@@ -228,7 +228,7 @@ private struct AlbumDetailContentView: View {
             }
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
             .background(Color.bg1)
-            
+
             if observable.isLoading {
                 Spacer()
                 ProgressView()
@@ -253,7 +253,8 @@ private struct AlbumDetailContentView: View {
                             ZStack {
                                 let artworkUrl = observable.tracks.first.map { container.mcwsClient.buildImageUrl(fileKey: $0.fileKey) } ?? ""
                                 if !artworkUrl.isEmpty,
-                                   let url = URL(string: artworkUrl) {
+                                   let url = URL(string: artworkUrl)
+                                {
                                     JrrAsyncImage(url: url) { image in
                                         image
                                             .resizable()
@@ -270,7 +271,7 @@ private struct AlbumDetailContentView: View {
                                         context.stroke(
                                             path,
                                             with: .color(Color.accentColor.opacity(0.5)),
-                                            style: StrokeStyle(lineWidth: 4)
+                                            style: StrokeStyle(lineWidth: 4),
                                         )
                                     }
                                 }
@@ -279,16 +280,16 @@ private struct AlbumDetailContentView: View {
                             .cornerRadius(8)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.line2, lineWidth: 1)
+                                    .stroke(Color.line2, lineWidth: 1),
                             )
-                            
+
                             VStack(spacing: 4) {
                                 Text(observable.albumName)
                                     .font(AppFont.inter(size: 20, weight: .bold))
                                     .foregroundColor(.textPrimary)
                                     .lineLimit(2)
                                     .multilineTextAlignment(.center)
-                                
+
                                 Text(observable.artistName)
                                     .font(AppFont.inter(size: 13, weight: .regular))
                                     .foregroundColor(.textSecondary)
@@ -296,7 +297,7 @@ private struct AlbumDetailContentView: View {
                                     .multilineTextAlignment(.center)
                             }
                             .padding(.horizontal, 8)
-                            
+
                             // Play / Shuffle Buttons
                             HStack(spacing: 12) {
                                 Button(action: {
@@ -315,7 +316,7 @@ private struct AlbumDetailContentView: View {
                                     .background(Color.accentColor)
                                     .cornerRadius(6)
                                 }
-                                
+
                                 Button(action: {
                                     observable.shuffleAlbum()
                                 }) {
@@ -333,13 +334,13 @@ private struct AlbumDetailContentView: View {
                                     .cornerRadius(6)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6)
-                                            .stroke(Color.line2, lineWidth: 1)
+                                            .stroke(Color.line2, lineWidth: 1),
                                     )
                                 }
                             }
                         }
                         .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                        
+
                         // Tracks listing
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(sortedDiscKeys, id: \.self) { discNum in
@@ -347,7 +348,7 @@ private struct AlbumDetailContentView: View {
                                     discNum: discNum,
                                     discTracks: discGroups[discNum] ?? [],
                                     sortedTracks: sortedTracks,
-                                    sortedDiscKeys: sortedDiscKeys
+                                    sortedDiscKeys: sortedDiscKeys,
                                 )
                             }
                         }
@@ -365,31 +366,31 @@ private struct AlbumDetailContentView: View {
             InfoView(title: album.name, fields: album.toInfoFields())
         }
     }
-    
+
     private var sortedTracks: [Track] {
         observable.tracks.sorted { ($0.discNumber, $0.trackNumber) < ($1.discNumber, $1.trackNumber) }
     }
-    
+
     private var discGroups: [Int32: [Track]] {
         Dictionary(grouping: sortedTracks, by: { $0.discNumber })
     }
-    
+
     private var sortedDiscKeys: [Int32] {
         discGroups.keys.sorted()
     }
-    
-    private func trackRow(track: Track, displayIdx: Int32, sortedTracks: [Track]) -> some View {
+
+    private func trackRow(track: Track, displayIdx: Int32, sortedTracks _: [Track]) -> some View {
         HStack {
             Text(String(format: "%02d", displayIdx))
                 .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
                 .foregroundColor(.accentColor)
                 .frame(width: 36, alignment: .leading)
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(track.name)
                     .styleItemTitle()
                     .lineLimit(1)
-                
+
                 let durationSec = track.durationMs / 1000
                 let durationStr = String(format: "%d:%02d", durationSec / 60, durationSec % 60)
                 let subtitleText = track.artist != observable.artistName ? "\(track.artist) • \(durationStr)" : durationStr
@@ -397,16 +398,16 @@ private struct AlbumDetailContentView: View {
                     .styleItemSubtitle()
                     .lineLimit(1)
             }
-            
+
             Spacer()
-            
+
             if track.numberPlays > 0 {
                 Image(systemName: "headphones")
                     .font(.system(size: 12))
                     .foregroundColor(.textTertiary)
                     .padding(.trailing, 4)
             }
-            
+
             // Download status
             if !observable.isOffline {
                 if observable.downloadedTrackKeys.contains(track.fileKey) {
@@ -423,7 +424,7 @@ private struct AlbumDetailContentView: View {
                     }
                 }
             }
-            
+
             Menu {
                 Button(action: { infoTrack = track }) {
                     Label("Info", systemImage: "info.circle")
@@ -456,7 +457,7 @@ private struct AlbumDetailContentView: View {
             observable.playTrack(track)
         }
     }
-    
+
     private func discSection(discNum: Int32, discTracks: [Track], sortedTracks: [Track], sortedDiscKeys: [Int32]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
@@ -472,13 +473,13 @@ private struct AlbumDetailContentView: View {
             }
             .padding(.top, 16)
             .padding(.bottom, 8)
-            
+
             ForEach(discTracks, id: \.fileKey) { track in
                 let trackIdx = sortedTracks.firstIndex(of: track) ?? 0
                 let displayIdx = track.trackNumber != 0 ? track.trackNumber : Int32(trackIdx + 1)
-                
+
                 trackRow(track: track, displayIdx: displayIdx, sortedTracks: sortedTracks)
-                
+
                 Divider()
                     .background(Color.line)
             }

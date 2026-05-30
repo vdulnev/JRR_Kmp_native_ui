@@ -1,5 +1,5 @@
-import SwiftUI
 import SharedLogic
+import SwiftUI
 
 struct InfoView: View {
     let title: String
@@ -18,9 +18,9 @@ struct InfoView: View {
                     .font(AppFont.ibmPlexMono(size: 13, weight: .bold))
                     .foregroundColor(.accentColor)
                     .lineLimit(1)
-                
+
                 Spacer()
-                
+
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 16, weight: .bold))
@@ -30,14 +30,14 @@ struct InfoView: View {
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
             .padding(.top, 20)
             .padding(.bottom, 10)
-            
+
             Divider()
                 .background(Color.line)
-            
+
             // Fields List
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    ForEach(0..<fields.count, id: \.self) { idx in
+                    ForEach(0 ..< fields.count, id: \.self) { idx in
                         let field = fields[idx]
                         Button(action: {
                             UIPasteboard.general.string = field.value
@@ -46,15 +46,15 @@ struct InfoView: View {
                                 Text(field.label.uppercased())
                                     .font(AppFont.ibmPlexMono(size: 8, weight: .medium))
                                     .foregroundColor(.textTertiary)
-                                
+
                                 HStack {
                                     Text(field.value)
                                         .font(AppFont.inter(size: 14, weight: .medium))
                                         .foregroundColor(.textPrimary)
                                         .multilineTextAlignment(.leading)
-                                    
+
                                     Spacer()
-                                    
+
                                     Image(systemName: "doc.on.doc")
                                         .font(.system(size: 12))
                                         .foregroundColor(.textTertiary.opacity(0.5))
@@ -62,7 +62,7 @@ struct InfoView: View {
                             }
                         }
                         .buttonStyle(PlainButtonStyle())
-                        
+
                         Divider()
                             .background(Color.line.opacity(0.5))
                     }
@@ -70,10 +70,10 @@ struct InfoView: View {
                 .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                 .padding(.vertical, 16)
             }
-            
+
             Divider()
                 .background(Color.line)
-            
+
             // Actions
             HStack(spacing: 12) {
                 Button(action: {
@@ -90,11 +90,12 @@ struct InfoView: View {
                     .foregroundColor(.textPrimary)
                     .cornerRadius(8)
                 }
-                
+
                 Button(action: {
                     let av = UIActivityViewController(activityItems: [allText], applicationActivities: nil)
                     if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let rootVC = windowScene.windows.first?.rootViewController {
+                       let rootVC = windowScene.windows.first?.rootViewController
+                    {
                         rootVC.present(av, animated: true)
                     }
                 }) {
@@ -118,54 +119,58 @@ struct InfoView: View {
 }
 
 extension Track: @retroactive Identifiable {
-    public var id: String { fileKey }
+    public var id: String {
+        fileKey
+    }
 
     func toInfoFields() -> [(label: String, value: String)] {
-        let secs = self.durationMs / 1000
+        let secs = durationMs / 1000
         let timeStr = String(format: "%d:%02d", secs / 60, secs % 60)
-        
+
         let list: [(label: String, value: String)] = [
-            ("Title", self.name),
-            ("Artist", self.artist),
-            ("Album", self.album),
-            ("Album Artist", self.albumArtist),
-            ("Date", self.date),
-            ("Genre", self.genre),
-            ("Track Number", String(self.trackNumber)),
-            ("Disc Number", String(self.discNumber)),
-            ("Total Tracks", String(self.totalTracks)),
-            ("Total Discs", String(self.totalDiscs)),
+            ("Title", name),
+            ("Artist", artist),
+            ("Album", album),
+            ("Album Artist", albumArtist),
+            ("Date", date),
+            ("Genre", genre),
+            ("Track Number", String(trackNumber)),
+            ("Disc Number", String(discNumber)),
+            ("Total Tracks", String(totalTracks)),
+            ("Total Discs", String(totalDiscs)),
             ("Duration", timeStr),
-            ("Bitrate", self.bitrate > 0 ? "\(self.bitrate) kbps" : ""),
-            ("Bit Depth", self.bitDepth > 0 ? "\(self.bitDepth) bit" : ""),
-            ("Sample Rate", self.sampleRate > 0 ? "\(self.sampleRate) Hz" : ""),
-            ("Channels", self.channels > 0 ? String(self.channels) : ""),
-            ("File Type", self.fileType),
-            ("File Path", self.filePath),
-            ("Folder Path", self.folderPath),
-            ("Play Count", String(self.numberPlays)),
-            ("File Key", self.fileKey)
+            ("Bitrate", bitrate > 0 ? "\(bitrate) kbps" : ""),
+            ("Bit Depth", bitDepth > 0 ? "\(bitDepth) bit" : ""),
+            ("Sample Rate", sampleRate > 0 ? "\(sampleRate) Hz" : ""),
+            ("Channels", channels > 0 ? String(channels) : ""),
+            ("File Type", fileType),
+            ("File Path", filePath),
+            ("Folder Path", folderPath),
+            ("Play Count", String(numberPlays)),
+            ("File Key", fileKey),
         ]
-        
+
         return list.filter { !$0.value.isEmpty && $0.value != "0" }
     }
 }
 
 extension Album: @retroactive Identifiable {
-    public var id: String { name + folderPath }
+    public var id: String {
+        name + folderPath
+    }
 
     func toInfoFields() -> [(label: String, value: String)] {
         let list: [(label: String, value: String)] = [
-            ("Name", self.name),
-            ("Album Artist", self.albumArtist),
-            ("Folder Path", self.folderPath),
-            ("Parent Folder Path", self.parentFolderPath),
-            ("Date", self.date),
-            ("Artwork File Key", self.artworkFileKey),
-            ("Total Discs", String(self.totalDiscs)),
-            ("Disc Number", String(self.discNumber))
+            ("Name", name),
+            ("Album Artist", albumArtist),
+            ("Folder Path", folderPath),
+            ("Parent Folder Path", parentFolderPath),
+            ("Date", date),
+            ("Artwork File Key", artworkFileKey),
+            ("Total Discs", String(totalDiscs)),
+            ("Disc Number", String(discNumber)),
         ]
-        
+
         return list.filter { !$0.value.isEmpty && $0.value != "0" }
     }
 }

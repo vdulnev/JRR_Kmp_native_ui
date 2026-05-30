@@ -5,7 +5,6 @@ import UIKit
 private let log = SwiftLog("playback:NowPlayingCoordinator")
 
 class NowPlayingCoordinator {
-
     private var playHandler: (() -> Void)?
     private var pauseHandler: (() -> Void)?
     private var nextHandler: (() -> Void)?
@@ -15,13 +14,13 @@ class NowPlayingCoordinator {
     init() {
         setupRemoteCommands()
     }
-    
+
     func configure(
         playHandler: @escaping () -> Void,
         pauseHandler: @escaping () -> Void,
         nextHandler: @escaping () -> Void,
         prevHandler: @escaping () -> Void,
-        seekHandler: @escaping (Int64) -> Void
+        seekHandler: @escaping (Int64) -> Void,
     ) {
         self.playHandler = playHandler
         self.pauseHandler = pauseHandler
@@ -29,34 +28,34 @@ class NowPlayingCoordinator {
         self.prevHandler = prevHandler
         self.seekHandler = seekHandler
     }
-    
+
     private func setupRemoteCommands() {
         let commandCenter = MPRemoteCommandCenter.shared()
-        
+
         commandCenter.playCommand.isEnabled = true
-        commandCenter.playCommand.addTarget { [weak self] event in
+        commandCenter.playCommand.addTarget { [weak self] _ in
             self?.playHandler?()
             return .success
         }
-        
+
         commandCenter.pauseCommand.isEnabled = true
-        commandCenter.pauseCommand.addTarget { [weak self] event in
+        commandCenter.pauseCommand.addTarget { [weak self] _ in
             self?.pauseHandler?()
             return .success
         }
-        
+
         commandCenter.nextTrackCommand.isEnabled = true
-        commandCenter.nextTrackCommand.addTarget { [weak self] event in
+        commandCenter.nextTrackCommand.addTarget { [weak self] _ in
             self?.nextHandler?()
             return .success
         }
-        
+
         commandCenter.previousTrackCommand.isEnabled = true
-        commandCenter.previousTrackCommand.addTarget { [weak self] event in
+        commandCenter.previousTrackCommand.addTarget { [weak self] _ in
             self?.prevHandler?()
             return .success
         }
-        
+
         commandCenter.changePlaybackPositionCommand.isEnabled = true
         commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
             if let positionEvent = event as? MPChangePlaybackPositionCommandEvent {
@@ -67,7 +66,7 @@ class NowPlayingCoordinator {
             return .commandFailed
         }
     }
-    
+
     func updateNowPlaying(
         title: String?,
         artist: String?,
@@ -75,29 +74,29 @@ class NowPlayingCoordinator {
         positionMs: Int64,
         durationMs: Int64,
         isPlaying: Bool,
-        artworkUrl: String? = nil
+        artworkUrl: String? = nil,
     ) {
         var nowPlayingInfo = [String: Any]()
-        
-        if let title = title {
+
+        if let title {
             nowPlayingInfo[MPMediaItemPropertyTitle] = title
         }
-        if let artist = artist {
+        if let artist {
             nowPlayingInfo[MPMediaItemPropertyArtist] = artist
         }
-        if let album = album {
+        if let album {
             nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = album
         }
-        
+
         nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = Double(durationMs) / 1000.0
         nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = Double(positionMs) / 1000.0
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
-        
-        if let artworkUrl = artworkUrl, let url = URL(string: artworkUrl) {
+
+        if let artworkUrl, let url = URL(string: artworkUrl) {
             fetchArtwork(url: url) { image in
-                if let image = image {
-                    let artwork = MPMediaItemArtwork(boundsSize: image.size) { size in
-                        return image
+                if let image {
+                    let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in
+                        image
                     }
                     var updatedInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
                     updatedInfo[MPMediaItemPropertyArtwork] = artwork
@@ -105,10 +104,10 @@ class NowPlayingCoordinator {
                 }
             }
         }
-        
+
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
-    
+
     private func fetchArtwork(url: URL, completion: @escaping (UIImage?) -> Void) {
         Task {
             do {

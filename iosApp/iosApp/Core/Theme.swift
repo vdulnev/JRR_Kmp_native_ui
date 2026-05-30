@@ -1,6 +1,7 @@
 import SwiftUI
 
 // MARK: - Color Tokens
+
 extension Color {
     static let bg0 = Color(hex: 0x080809)
     static let bg1 = Color(hex: 0x0E0E10)
@@ -10,15 +11,15 @@ extension Color {
     static let line = Color(.sRGB, red: 1.0, green: 1.0, blue: 1.0, opacity: 0.06)
     static let line2 = Color(.sRGB, red: 1.0, green: 1.0, blue: 1.0, opacity: 0.10)
     static let textPrimary = Color(hex: 0xF0EDE8)
-    static let textSecondary = Color(.sRGB, red: 240/255, green: 237/255, blue: 232/255, opacity: 0.55)
-    static let textTertiary = Color(.sRGB, red: 240/255, green: 237/255, blue: 232/255, opacity: 0.30)
+    static let textSecondary = Color(.sRGB, red: 240 / 255, green: 237 / 255, blue: 232 / 255, opacity: 0.55)
+    static let textTertiary = Color(.sRGB, red: 240 / 255, green: 237 / 255, blue: 232 / 255, opacity: 0.30)
     static let accentColor = Color(hex: 0xC8922A)
     static let accentDim = Color(hex: 0xC8922A).opacity(0.13)
     static let accentSoft = Color(hex: 0xC8922A).opacity(0.32)
     static let errorColor = Color(hex: 0xE5484D)
     static let successColor = Color(hex: 0x5BCE8A)
-    
-    // Hex initializer
+
+    /// Hex initializer
     init(hex: UInt32, alpha: Double = 1.0) {
         let r = Double((hex >> 16) & 0xFF) / 255.0
         let g = Double((hex >> 8) & 0xFF) / 255.0
@@ -28,38 +29,38 @@ extension Color {
 }
 
 // MARK: - Typography & Fonts
-struct AppFont {
+
+enum AppFont {
     static func inter(size: CGFloat, weight: Font.Weight) -> Font {
         let systemFont = Font.system(size: size, weight: weight)
-        let fontName: String
-        switch weight {
-        case .bold: fontName = "Inter-Bold"
-        case .semibold: fontName = "Inter-SemiBold"
-        case .medium: fontName = "Inter-Medium"
-        default: fontName = "Inter-Regular"
+        let fontName = switch weight {
+        case .bold: "Inter-Bold"
+        case .semibold: "Inter-SemiBold"
+        case .medium: "Inter-Medium"
+        default: "Inter-Regular"
         }
         return Font.custom(fontName, size: size).fallback(to: systemFont)
     }
-    
+
     static func ibmPlexMono(size: CGFloat, weight: Font.Weight) -> Font {
         let systemFont = Font.system(size: size, weight: weight, design: .monospaced)
-        let fontName: String
-        switch weight {
-        case .medium: fontName = "IBMPlexMono-Medium"
-        default: fontName = "IBMPlexMono-Regular"
+        let fontName = switch weight {
+        case .medium: "IBMPlexMono-Medium"
+        default: "IBMPlexMono-Regular"
         }
         return Font.custom(fontName, size: size).fallback(to: systemFont)
     }
 }
 
 extension Font {
-    func fallback(to fallbackFont: Font) -> Font {
+    func fallback(to _: Font) -> Font {
         // SwiftUI handles custom font fallbacks gracefully. Returning self.
-        return self
+        self
     }
 }
 
 // MARK: - Typography Style Tokens
+
 struct ScreenTitleModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
@@ -152,32 +153,62 @@ struct ChipMonoModifier: ViewModifier {
 }
 
 extension View {
-    func styleScreenTitle() -> some View { modifier(ScreenTitleModifier()) }
-    func styleSubScreenTitle() -> some View { modifier(SubScreenTitleModifier()) }
-    func styleNowPlayingTitle() -> some View { modifier(NowPlayingTitleModifier()) }
-    func styleItemTitle() -> some View { modifier(ItemTitleModifier()) }
-    func styleItemSubtitle() -> some View { modifier(ItemSubtitleModifier()) }
-    func styleLabelLarge() -> some View { modifier(LabelLargeModifier()) }
-    func styleSectionLabel() -> some View { modifier(SectionLabelModifier()) }
-    func styleSectionHeading() -> some View { modifier(SectionHeadingModifier()) }
-    func styleMonoLabel() -> some View { modifier(MonoLabelModifier()) }
-    func styleChipMono() -> some View { modifier(ChipMonoModifier()) }
+    func styleScreenTitle() -> some View {
+        modifier(ScreenTitleModifier())
+    }
+
+    func styleSubScreenTitle() -> some View {
+        modifier(SubScreenTitleModifier())
+    }
+
+    func styleNowPlayingTitle() -> some View {
+        modifier(NowPlayingTitleModifier())
+    }
+
+    func styleItemTitle() -> some View {
+        modifier(ItemTitleModifier())
+    }
+
+    func styleItemSubtitle() -> some View {
+        modifier(ItemSubtitleModifier())
+    }
+
+    func styleLabelLarge() -> some View {
+        modifier(LabelLargeModifier())
+    }
+
+    func styleSectionLabel() -> some View {
+        modifier(SectionLabelModifier())
+    }
+
+    func styleSectionHeading() -> some View {
+        modifier(SectionHeadingModifier())
+    }
+
+    func styleMonoLabel() -> some View {
+        modifier(MonoLabelModifier())
+    }
+
+    func styleChipMono() -> some View {
+        modifier(ChipMonoModifier())
+    }
 }
 
 // MARK: - Spacing & Layout Tokens
-struct AppSpacing {
+
+enum AppSpacing {
     static let screenHorizontalMargin: CGFloat = 20
     static let nowPlayingHorizontalMargin: CGFloat = 24
     static let rowVerticalPadding: CGFloat = 12
     static let headerVerticalPaddingTop: CGFloat = 14
     static let headerVerticalPaddingBottom: CGFloat = 16
     static let cardPadding: CGFloat = 16
-    
+
     // Radii
     static let radiusList: CGFloat = 10
     static let radiusArt: CGFloat = 4
     static let radiusPill: CGFloat = 999
-    
-    // Hairline
+
+    /// Hairline
     static let hairline: CGFloat = 1.0
 }

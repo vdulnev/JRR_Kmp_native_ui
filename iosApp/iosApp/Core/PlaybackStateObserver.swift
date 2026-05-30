@@ -4,8 +4,7 @@ import SharedLogic
 private let log = SwiftLog("ui:iOS:PlaybackStateObserver")
 
 class PlaybackStateObserver: ObservableObject {
-
-    @Published var activeZone: Zone = Zone.offline
+    @Published var activeZone: Zone = .offline
     @Published var playerStatus: PlayerStatus? = nil
     @Published var localQueue: [Track] = []
 
@@ -31,12 +30,12 @@ class PlaybackStateObserver: ObservableObject {
 
         observationTasks.insert(Task { @MainActor [weak self] in
             for await status in facade.playerStatus {
-                guard let self = self else { return }
-                self.playerStatus = status
+                guard let self else { return }
+                playerStatus = status
 
                 // Update lock screen controls when playing on local/offline zone
-                if let status = status {
-                    let isActiveZoneLocalOrOffline = self.activeZone.isLocal || self.activeZone.isOffline
+                if let status {
+                    let isActiveZoneLocalOrOffline = activeZone.isLocal || activeZone.isOffline
                     if isActiveZoneLocalOrOffline {
                         self.nowPlayingCoordinator.updateNowPlaying(
                             title: status.trackName,
@@ -44,7 +43,7 @@ class PlaybackStateObserver: ObservableObject {
                             album: status.trackAlbum,
                             positionMs: status.positionMs,
                             durationMs: status.durationMs,
-                            isPlaying: status.state == .playing
+                            isPlaying: status.state == .playing,
                         )
                     }
                 }

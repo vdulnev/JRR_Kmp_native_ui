@@ -10,7 +10,7 @@ struct MiniPlayer: View {
     let onNextClick: () -> Void
     let onPrevClick: () -> Void
     let onBodyClick: () -> Void
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // 1. Flush Top-edge 2px gold progress indicator
@@ -20,12 +20,12 @@ struct MiniPlayer: View {
                     .frame(width: width, height: 2)
             }
             .frame(height: 2)
-            
+
             // 2. Mini-Player Body
             HStack(spacing: 10) {
                 // 38dp Artwork preview
                 ZStack {
-                    if let imageUrl = imageUrl, let url = URL(string: imageUrl) {
+                    if let imageUrl, let url = URL(string: imageUrl) {
                         JrrAsyncImage(url: url) { image in
                             image
                                 .resizable()
@@ -43,7 +43,7 @@ struct MiniPlayer: View {
                             context.stroke(
                                 path,
                                 with: .color(Color.accentColor.opacity(0.5)),
-                                style: StrokeStyle(lineWidth: 4)
+                                style: StrokeStyle(lineWidth: 4),
                             )
                         }
                     }
@@ -52,24 +52,24 @@ struct MiniPlayer: View {
                 .cornerRadius(4)
                 .overlay(
                     RoundedRectangle(cornerRadius: 4)
-                        .stroke(Color.line2, lineWidth: 1)
+                        .stroke(Color.line2, lineWidth: 1),
                 )
-                
+
                 // Track metadata
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(AppFont.inter(size: 13.5, weight: .medium))
                         .foregroundColor(.textPrimary)
                         .lineLimit(1)
-                    
+
                     Text(artist)
                         .font(AppFont.inter(size: 11.5, weight: .regular))
                         .foregroundColor(.textSecondary)
                         .lineLimit(1)
                 }
-                
+
                 Spacer()
-                
+
                 // Transport Row Controls: Prev -> Play Disc -> Next
                 HStack(spacing: 6) {
                     // Previous Button
@@ -80,7 +80,7 @@ struct MiniPlayer: View {
                             pathBar.move(to: CGPoint(x: size.width * 0.2, y: size.height * 0.2))
                             pathBar.addLine(to: CGPoint(x: size.width * 0.2, y: size.height * 0.8))
                             context.stroke(pathBar, with: .color(.textSecondary), style: StrokeStyle(lineWidth: 1.5))
-                            
+
                             // Left-pointing triangle outline
                             var pathTri = Path()
                             pathTri.move(to: CGPoint(x: size.width * 0.8, y: size.height * 0.2))
@@ -92,7 +92,7 @@ struct MiniPlayer: View {
                         .frame(width: 16, height: 16)
                     }
                     .frame(width: 36, height: 36)
-                    
+
                     // Play / Pause gold disc
                     Button(action: onPlayPauseClick) {
                         ZStack {
@@ -100,7 +100,7 @@ struct MiniPlayer: View {
                                 .fill(Color.accentColor)
                                 .frame(width: 32, height: 32)
                                 .shadow(color: Color.accentColor.opacity(0.45), radius: 8, x: 0, y: 0)
-                            
+
                             Canvas { context, size in
                                 if isPlaying {
                                     let barWidth = size.width * 0.2
@@ -122,7 +122,7 @@ struct MiniPlayer: View {
                         }
                     }
                     .frame(width: 32, height: 32)
-                    
+
                     // Next Button
                     Button(action: onNextClick) {
                         Canvas { context, size in
@@ -133,7 +133,7 @@ struct MiniPlayer: View {
                             pathTri.addLine(to: CGPoint(x: size.width * 0.2, y: size.height * 0.8))
                             pathTri.closeSubpath()
                             context.stroke(pathTri, with: .color(.textSecondary), style: StrokeStyle(lineWidth: 1.5))
-                            
+
                             // Vertical bar
                             var pathBar = Path()
                             pathBar.move(to: CGPoint(x: size.width * 0.8, y: size.height * 0.2))
@@ -153,7 +153,7 @@ struct MiniPlayer: View {
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.line2, lineWidth: 1)
+                .stroke(Color.line2, lineWidth: 1),
         )
         .shadow(color: Color.black.opacity(0.55), radius: 16, x: 0, y: 8)
         .onTapGesture(perform: onBodyClick)
@@ -172,7 +172,7 @@ struct MiniPlayer: View {
             onPlayPauseClick: {},
             onNextClick: {},
             onPrevClick: {},
-            onBodyClick: {}
+            onBodyClick: {},
         )
         .padding(.horizontal, 16)
     }

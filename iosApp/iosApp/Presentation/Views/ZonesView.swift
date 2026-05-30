@@ -1,5 +1,5 @@
-import SwiftUI
 import SharedLogic
+import SwiftUI
 
 private let log = SwiftLog("ui:iOS:Zones")
 
@@ -14,7 +14,7 @@ class ZonesObservable {
     var currentVolume: Float = 0.5
     var isLoading: Bool = false
     var isOfflineMode: Bool = true
-    var transientError: String? = nil
+    var transientError: String?
 
     @ObservationIgnored private var observeTask: Task<Void, Never>?
 
@@ -36,29 +36,29 @@ class ZonesObservable {
         log.d("deinit")
         observeTask?.cancel()
     }
-    
+
     private func sync(state: ZonesViewState) {
-        self.serverZones = state.serverZones
-        self.deviceZones = state.deviceZones
-        self.activeZoneId = state.activeZoneId
-        self.currentVolume = state.currentVolume
-        self.isLoading = state.isLoading
-        self.isOfflineMode = state.isOfflineMode
-        self.transientError = state.transientError
+        serverZones = state.serverZones
+        deviceZones = state.deviceZones
+        activeZoneId = state.activeZoneId
+        currentVolume = state.currentVolume
+        isLoading = state.isLoading
+        isOfflineMode = state.isOfflineMode
+        transientError = state.transientError
     }
-    
+
     func refreshZones() {
         viewModel.refreshZones()
     }
-    
+
     func selectZone(_ zone: Zone) {
         viewModel.selectZone(zone: zone)
     }
-    
+
     func setVolume(_ level: Float) {
         viewModel.setVolume(level: level)
     }
-    
+
     func clearTransientError() {
         viewModel.clearTransientError()
     }
@@ -66,14 +66,14 @@ class ZonesObservable {
 
 struct ZonesView: View {
     @State private var observable: ZonesObservable
-    
+
     let onBackClick: () -> Void
-    
+
     init(viewModel: ZonesViewModel, onBackClick: @escaping () -> Void) {
-        self._observable = State(initialValue: ZonesObservable(viewModel: viewModel))
+        _observable = State(initialValue: ZonesObservable(viewModel: viewModel))
         self.onBackClick = onBackClick
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -88,21 +88,21 @@ struct ZonesView: View {
                     .foregroundColor(.textPrimary)
                     .frame(height: 44)
                 }
-                
+
                 Spacer()
-                
+
                 Text("ZONES")
                     .styleSectionLabel()
-                
+
                 Spacer()
-                
+
                 // Placeholder to balance back button
                 Spacer()
                     .frame(width: 60)
             }
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
             .background(Color.bg1)
-            
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     // Server Outputs Section
@@ -111,7 +111,7 @@ struct ZonesView: View {
                             .styleSectionHeading()
                             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                             .padding(.top, 16)
-                        
+
                         if observable.isLoading {
                             HStack {
                                 Spacer()
@@ -138,20 +138,20 @@ struct ZonesView: View {
                                         },
                                         onVolumeChange: { newVolume in
                                             observable.setVolume(newVolume)
-                                        }
+                                        },
                                     )
                                 }
                             }
                             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                         }
                     }
-                    
+
                     // On Device Section
                     Text("ON DEVICE")
                         .styleSectionHeading()
                         .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                         .padding(.top, 10)
-                    
+
                     VStack(spacing: 12) {
                         ForEach(observable.deviceZones) { zone in
                             let isActive = zone.id == observable.activeZoneId
@@ -164,7 +164,7 @@ struct ZonesView: View {
                                 },
                                 onVolumeChange: { newVolume in
                                     observable.setVolume(newVolume)
-                                }
+                                },
                             )
                         }
                     }
@@ -181,14 +181,14 @@ struct ZonesView: View {
             "Error",
             isPresented: Binding(
                 get: { observable.transientError != nil },
-                set: { if !$0 { observable.clearTransientError() } }
+                set: { if !$0 { observable.clearTransientError() } },
             ),
             actions: {
                 Button("OK", role: .cancel) {}
             },
             message: {
                 Text(observable.transientError ?? "")
-            }
+            },
         )
     }
 }
@@ -199,7 +199,7 @@ struct ZoneRow: View {
     let volume: Float
     let onZoneClick: () -> Void
     let onVolumeChange: (Float) -> Void
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -207,14 +207,14 @@ struct ZoneRow: View {
                     Text(zone.name)
                         .font(AppFont.inter(size: 16, weight: .medium))
                         .foregroundColor(isActive ? .accentColor : .textPrimary)
-                    
+
                     Text(zoneSubtext)
                         .font(AppFont.inter(size: 12, weight: .regular))
                         .foregroundColor(.textSecondary)
                 }
-                
+
                 Spacer()
-                
+
                 if isActive {
                     Text("ACTIVE")
                         .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
@@ -223,23 +223,23 @@ struct ZoneRow: View {
             }
             .contentShape(Rectangle())
             .onTapGesture(perform: onZoneClick)
-            
+
             if isActive {
                 VStack(spacing: 0) {
                     Spacer()
                         .frame(height: 16)
-                    
+
                     HStack(spacing: 12) {
                         Image(systemName: "speaker.wave.2.fill")
                             .font(.system(size: 14))
                             .foregroundColor(.accentColor)
-                        
+
                         Slider(
                             value: Binding(
                                 get: { volume },
-                                set: { onVolumeChange($0) }
+                                set: { onVolumeChange($0) },
                             ),
-                            in: 0.0...1.0
+                            in: 0.0 ... 1.0,
                         )
                         .tint(.accentColor)
                     }
@@ -251,24 +251,23 @@ struct ZoneRow: View {
         .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isActive ? Color.accentColor : Color.line, lineWidth: 1)
+                .stroke(isActive ? Color.accentColor : Color.line, lineWidth: 1),
         )
     }
-    
+
     private var zoneSubtext: String {
         if zone.isLocal {
-            return "Local Playback"
+            "Local Playback"
         } else if zone.isOffline {
-            return "Offline Library"
+            "Offline Library"
         } else if zone.isAndroidAuto {
-            return "Car System"
+            "Car System"
         } else if zone.isDLNA {
-            return "DLNA Renderer"
+            "DLNA Renderer"
         } else {
-            return "Network Zone"
+            "Network Zone"
         }
     }
 }
 
 extension Zone: @retroactive Identifiable {}
-

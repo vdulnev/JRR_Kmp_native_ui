@@ -4,18 +4,18 @@ import SharedLogic
 
 private let log = SwiftLog("ui:iOS:RootNav")
 
-/// Bridges Decompose `Value<ChildStack<…>>` into SwiftUI-observable state.
-///
-/// SKIE surfaces `ChildStack<C, T>` as a two-parameter generic whose erased
-/// config/child are existential protocols — awkward to name in a stored
-/// property. These purpose-built observers sidestep that by only ever touching
-/// the generic *inside* the `subscribe` closure (where Swift infers it) and
-/// exposing the active config/child (and the live tab set) as plain
-/// existentials. This is the "concrete accessor" escape hatch the migration
-/// plan calls for (§6).
-///
-/// Decompose's `Value.subscribe` returns a `Cancellation`; mutating an
-/// `@Observable` property invalidates any SwiftUI view reading it.
+// Bridges Decompose `Value<ChildStack<…>>` into SwiftUI-observable state.
+//
+// SKIE surfaces `ChildStack<C, T>` as a two-parameter generic whose erased
+// config/child are existential protocols — awkward to name in a stored
+// property. These purpose-built observers sidestep that by only ever touching
+// the generic *inside* the `subscribe` closure (where Swift infers it) and
+// exposing the active config/child (and the live tab set) as plain
+// existentials. This is the "concrete accessor" escape hatch the migration
+// plan calls for (§6).
+//
+// Decompose's `Value.subscribe` returns a `Cancellation`; mutating an
+// `@Observable` property invalidates any SwiftUI view reading it.
 
 @Observable
 @MainActor
@@ -31,13 +31,13 @@ final class RootStackObservable {
 
     init(_ root: RootComponent) {
         let stack = root.stack.value
-        self.activeConfig = stack.active.configuration
-        self.activeChild = stack.active.instance
-        self.children = stack.items.map { $0.instance }
-        self.cancellable = root.stack.subscribe { [weak self] newStack in
+        activeConfig = stack.active.configuration
+        activeChild = stack.active.instance
+        children = stack.items.map(\.instance)
+        cancellable = root.stack.subscribe { [weak self] newStack in
             self?.activeConfig = newStack.active.configuration
             self?.activeChild = newStack.active.instance
-            self?.children = newStack.items.map { $0.instance }
+            self?.children = newStack.items.map(\.instance)
             log.d("stack -> active=\(newStack.active.configuration) depth=\(newStack.items.count)")
         }
     }
@@ -57,11 +57,11 @@ final class LibraryStackObservable {
     @ObservationIgnored private var cancellable: Cancellation?
 
     init(_ component: LibraryComponent) {
-        self.activeChild = component.stack.value.active.instance
-        self.children = component.stack.value.items.map { $0.instance }
-        self.cancellable = component.stack.subscribe { [weak self] newStack in
+        activeChild = component.stack.value.active.instance
+        children = component.stack.value.items.map(\.instance)
+        cancellable = component.stack.subscribe { [weak self] newStack in
             self?.activeChild = newStack.active.instance
-            self?.children = newStack.items.map { $0.instance }
+            self?.children = newStack.items.map(\.instance)
         }
     }
 
@@ -75,8 +75,8 @@ final class PlayerStackObservable {
     @ObservationIgnored private var cancellable: Cancellation?
 
     init(_ component: PlayerComponent) {
-        self.activeChild = component.stack.value.active.instance
-        self.cancellable = component.stack.subscribe { [weak self] newStack in
+        activeChild = component.stack.value.active.instance
+        cancellable = component.stack.subscribe { [weak self] newStack in
             self?.activeChild = newStack.active.instance
         }
     }

@@ -1,5 +1,5 @@
-import SwiftUI
 import SharedLogic
+import SwiftUI
 
 private let log = SwiftLog("ui:iOS:ServerManager")
 
@@ -8,9 +8,9 @@ struct ServerManagerView: View {
     @EnvironmentObject private var stateObserver: PlaybackStateObserver
 
     let onConnectSuccess: () -> Void
-    
+
     @State private var savedServers: [SavedServerEntity] = []
-    
+
     @State private var activeTab = 0 // 0 = Access Key, 1 = Manual IP
     @State private var accessKey = ""
     @State private var host = ""
@@ -21,7 +21,7 @@ struct ServerManagerView: View {
     @State private var password = ""
     @State private var isConnecting = false
     @State private var errorMessage: String? = nil
-    
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -31,20 +31,20 @@ struct ServerManagerView: View {
                         .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
                         .tracking(2.5)
                         .foregroundColor(.accentColor)
-                    
+
                     Text("Server Manager")
                         .font(AppFont.inter(size: 24, weight: .bold))
                         .foregroundColor(.textPrimary)
                 }
                 .padding(.top, 20)
-                
+
                 // Connection Status Card if connected
                 if let status = stateObserver.playerStatus, !stateObserver.activeZone.isOffline {
                     activeServerCard(friendlyName: status.zoneName)
-                } else if !stateObserver.activeZone.isOffline && container.facade.currentServerHost != nil {
+                } else if !stateObserver.activeZone.isOffline, container.facade.currentServerHost != nil {
                     activeServerCard(friendlyName: "JRiver Server")
                 }
-                
+
                 // Form Card
                 VStack(spacing: 0) {
                     // Segmented Control
@@ -55,11 +55,11 @@ struct ServerManagerView: View {
                     .background(Color.bg0)
                     .cornerRadius(8)
                     .padding(16)
-                    
+
                     VStack(spacing: 12) {
                         if activeTab == 0 {
                             customTextField(title: "6-Digit Access Key", text: $accessKey, placeholder: "e.g. A1B2C3")
-                                .onChange(of: accessKey) { oldVal, newVal in
+                                .onChange(of: accessKey) { _, newVal in
                                     if newVal.count > 6 {
                                         accessKey = String(newVal.prefix(6))
                                     }
@@ -67,11 +67,11 @@ struct ServerManagerView: View {
                                 }
                         } else {
                             customTextField(title: "Host Address / IP", text: $host, placeholder: "e.g. 192.168.1.100")
-                            
+
                             HStack(spacing: 12) {
                                 customTextField(title: "Port", text: useSsl ? $sslPort : $port, placeholder: useSsl ? "52200" : "52199")
                                     .keyboardType(.numberPad)
-                                
+
                                 Toggle(isOn: $useSsl) {
                                     Text("Use SSL")
                                         .font(AppFont.inter(size: 13, weight: .regular))
@@ -82,18 +82,18 @@ struct ServerManagerView: View {
                                 .padding(.top, 24)
                             }
                         }
-                        
+
                         customTextField(title: "Username (Optional)", text: $username, placeholder: "username")
-                        
+
                         customSecureField(title: "Password (Optional)", text: $password, placeholder: "password")
-                        
+
                         if let error = errorMessage {
                             Text(error)
                                 .font(AppFont.inter(size: 13, weight: .medium))
                                 .foregroundColor(.errorColor)
                                 .padding(.top, 4)
                         }
-                        
+
                         // Connect Button
                         Button(action: triggerConnect) {
                             HStack {
@@ -115,7 +115,7 @@ struct ServerManagerView: View {
                         }
                         .disabled(isConnecting)
                         .padding(.top, 12)
-                        
+
                         // Offline Mode Button
                         Button(action: enterOfflineMode) {
                             Text("ENTER OFFLINE MODE")
@@ -126,7 +126,7 @@ struct ServerManagerView: View {
                                 .frame(height: 48)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10)
-                                        .stroke(Color.line2, lineWidth: 1)
+                                        .stroke(Color.line2, lineWidth: 1),
                                 )
                         }
                     }
@@ -136,9 +136,9 @@ struct ServerManagerView: View {
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.line2, lineWidth: 1)
+                        .stroke(Color.line2, lineWidth: 1),
                 )
-                
+
                 // Saved Connections List
                 if !savedServers.isEmpty {
                     Text("SAVED CONNECTIONS")
@@ -146,7 +146,7 @@ struct ServerManagerView: View {
                         .tracking(1.6)
                         .foregroundColor(.textTertiary)
                         .padding(.top, 10)
-                    
+
                     VStack(spacing: 8) {
                         ForEach(savedServers, id: \.id) { server in
                             HStack {
@@ -154,14 +154,14 @@ struct ServerManagerView: View {
                                     Text(server.friendlyName ?? "JRiver Server")
                                         .font(AppFont.inter(size: 16, weight: .medium))
                                         .foregroundColor(.textPrimary)
-                                    
+
                                     Text("\(server.host):\(server.useSsl ? server.sslPort : server.port)")
                                         .font(AppFont.inter(size: 13, weight: .regular))
                                         .foregroundColor(.textSecondary)
                                 }
-                                
+
                                 Spacer()
-                                
+
                                 Button(action: {
                                     deleteServer(server)
                                 }) {
@@ -175,7 +175,7 @@ struct ServerManagerView: View {
                             .cornerRadius(10)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.line, lineWidth: 1)
+                                    .stroke(Color.line, lineWidth: 1),
                             )
                             .onTapGesture {
                                 fillFormAndConnect(server: server)
@@ -192,8 +192,8 @@ struct ServerManagerView: View {
             loadServers()
         }
     }
-    
-    // Custom active server card component
+
+    /// Custom active server card component
     private func activeServerCard(friendlyName: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -201,9 +201,9 @@ struct ServerManagerView: View {
                     .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
                     .tracking(2.5)
                     .foregroundColor(.accentColor)
-                
+
                 Spacer()
-                
+
                 HStack(spacing: 6) {
                     Circle()
                         .fill(Color.successColor)
@@ -214,27 +214,27 @@ struct ServerManagerView: View {
                         .foregroundColor(.successColor)
                 }
             }
-            
+
             Text(friendlyName)
                 .font(AppFont.inter(size: 17, weight: .bold))
                 .foregroundColor(.textPrimary)
-            
+
             if let host = container.facade.currentServerHost {
                 let port = container.facade.currentServerUseSsl ? container.facade.currentServerSslPort : container.facade.currentServerPort
                 Text("\(host):\(port)")
                     .font(AppFont.ibmPlexMono(size: 11.5, weight: .regular))
                     .foregroundColor(.textSecondary)
             }
-            
+
             HStack(spacing: 20) {
                 Button(action: {
                     // Fill input fields with current connection info
                     if let host = container.facade.currentServerHost {
                         self.host = host
-                        self.port = String(container.facade.currentServerPort)
-                        self.useSsl = container.facade.currentServerUseSsl
-                        self.sslPort = String(container.facade.currentServerSslPort)
-                        self.activeTab = 1
+                        port = String(container.facade.currentServerPort)
+                        useSsl = container.facade.currentServerUseSsl
+                        sslPort = String(container.facade.currentServerSslPort)
+                        activeTab = 1
                     }
                 }) {
                     Text("EDIT")
@@ -242,7 +242,7 @@ struct ServerManagerView: View {
                         .tracking(1.6)
                         .foregroundColor(.accentColor)
                 }
-                
+
                 Button(action: disconnectActiveServer) {
                     Text("LOGOUT")
                         .font(AppFont.ibmPlexMono(size: 10, weight: .medium))
@@ -257,16 +257,16 @@ struct ServerManagerView: View {
             LinearGradient(
                 colors: [Color.accentColor.opacity(0.08), Color.accentColor.opacity(0.02)],
                 startPoint: .top,
-                endPoint: .bottom
-            )
+                endPoint: .bottom,
+            ),
         )
         .cornerRadius(AppSpacing.radiusList)
         .overlay(
             RoundedRectangle(cornerRadius: AppSpacing.radiusList)
-                .stroke(Color.accentSoft, lineWidth: 1)
+                .stroke(Color.accentSoft, lineWidth: 1),
         )
     }
-    
+
     private func tabButton(title: String, index: Int) -> some View {
         Button(action: {
             activeTab = index
@@ -281,13 +281,13 @@ struct ServerManagerView: View {
                 .cornerRadius(6)
         }
     }
-    
+
     private func customTextField(title: String, text: Binding<String>, placeholder: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(AppFont.inter(size: 12, weight: .regular))
                 .foregroundColor(.textTertiary)
-            
+
             TextField(placeholder, text: text)
                 .font(AppFont.inter(size: 14, weight: .regular))
                 .foregroundColor(.textPrimary)
@@ -297,19 +297,19 @@ struct ServerManagerView: View {
                 .cornerRadius(6)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.line2, lineWidth: 1)
+                        .stroke(Color.line2, lineWidth: 1),
                 )
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
         }
     }
-    
+
     private func customSecureField(title: String, text: Binding<String>, placeholder: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(AppFont.inter(size: 12, weight: .regular))
                 .foregroundColor(.textTertiary)
-            
+
             SecureField(placeholder, text: text)
                 .font(AppFont.inter(size: 14, weight: .regular))
                 .foregroundColor(.textPrimary)
@@ -319,13 +319,13 @@ struct ServerManagerView: View {
                 .cornerRadius(6)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.line2, lineWidth: 1)
+                        .stroke(Color.line2, lineWidth: 1),
                 )
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
         }
     }
-    
+
     private func loadServers() {
         Task {
             do {
@@ -336,18 +336,18 @@ struct ServerManagerView: View {
                     return t1 > t2
                 }
                 await MainActor.run {
-                    self.savedServers = sorted
+                    savedServers = sorted
                 }
             } catch {
                 log.e("Failed to load servers: \(error)")
             }
         }
     }
-    
+
     private func triggerConnect() {
         errorMessage = nil
         isConnecting = true
-        
+
         Task {
             do {
                 var resolvedHost = host
@@ -355,17 +355,17 @@ struct ServerManagerView: View {
                 var resolvedSslPort = Int(sslPort) ?? 52200
                 var resolvedUseSsl = useSsl
                 var friendlyName = "JRiver Server"
-                
+
                 if activeTab == 0 {
                     // Access Key Lookup
                     guard accessKey.count == 6 else {
                         throw NSError(domain: "jrr", code: 1, userInfo: [NSLocalizedDescriptionKey: "Please enter a valid 6-digit access key"])
                     }
-                    
+
                     guard let result = try await container.serverRepository.lookupAccessKey(key: accessKey) else {
                         throw NSError(domain: "jrr", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to look up Access Key"])
                     }
-                    
+
                     resolvedHost = (result.localIpList.first) ?? result.ip
                     resolvedPort = Int(result.port?.intValue ?? 52199)
                     resolvedSslPort = Int(result.httpsPort?.intValue ?? 52200)
@@ -376,7 +376,7 @@ struct ServerManagerView: View {
                         throw NSError(domain: "jrr", code: 3, userInfo: [NSLocalizedDescriptionKey: "Please enter a host IP or address"])
                     }
                 }
-                
+
                 // Authenticate
                 guard let token = try await container.serverRepository.authenticate(
                     host: resolvedHost,
@@ -384,22 +384,22 @@ struct ServerManagerView: View {
                     useSsl: resolvedUseSsl,
                     sslPort: Int32(resolvedSslPort),
                     username: username,
-                    passwordVal: password
+                    passwordVal: password,
                 ) else {
                     throw NSError(domain: "jrr", code: 4, userInfo: [NSLocalizedDescriptionKey: "Authentication failed. Check credentials"])
                 }
-                
+
                 // Check Alive
                 if let name = try await container.serverRepository.checkAlive(
                     host: resolvedHost,
                     port: Int32(resolvedPort),
                     useSsl: resolvedUseSsl,
                     sslPort: Int32(resolvedSslPort),
-                    token: token
+                    token: token,
                 ) {
                     friendlyName = name
                 }
-                
+
                 // Save Server to Room Database
                 let serverId = "\(resolvedHost):\(resolvedUseSsl ? resolvedSslPort : resolvedPort)"
                 let servers = try await container.serverRepository.getAllServers()
@@ -415,23 +415,21 @@ struct ServerManagerView: View {
                     lastUsedAt: Int64(Date().timeIntervalSince1970 * 1000),
                     authToken: token,
                     useSsl: resolvedUseSsl,
-                    sslPort: Int32(resolvedSslPort)
+                    sslPort: Int32(resolvedSslPort),
                 )
-                
+
                 try await container.serverRepository.saveServer(server: newServer)
                 UserDefaults.standard.set(true, forKey: "has_saved_servers")
-                
+
                 // Configure handler
                 container.facade.setServerConnection(
                     host: resolvedHost,
                     port: Int32(resolvedPort),
                     useSsl: resolvedUseSsl,
                     sslPort: Int32(resolvedSslPort),
-                    authToken: token
+                    authToken: token,
                 )
-                
 
-                
                 isConnecting = false
                 loadServers()
                 onConnectSuccess()
@@ -441,19 +439,19 @@ struct ServerManagerView: View {
             }
         }
     }
-    
+
     private func fillFormAndConnect(server: SavedServerEntity) {
-        self.host = server.host
-        self.port = String(server.port)
-        self.useSsl = server.useSsl
-        self.sslPort = String(server.sslPort)
-        self.username = server.username
-        self.password = server.passwordKey
-        self.activeTab = 1
-        
+        host = server.host
+        port = String(server.port)
+        useSsl = server.useSsl
+        sslPort = String(server.sslPort)
+        username = server.username
+        password = server.passwordKey
+        activeTab = 1
+
         triggerConnect()
     }
-    
+
     private func deleteServer(_ server: SavedServerEntity) {
         Task {
             do {
@@ -467,13 +465,13 @@ struct ServerManagerView: View {
             }
         }
     }
-    
+
     private func enterOfflineMode() {
         container.facade.setServerConnection(host: "", port: 0, useSsl: false, sslPort: 0, authToken: nil)
         container.facade.setZone(zone: Zone.offline, skipLoadQueue: false)
         onConnectSuccess()
     }
-    
+
     private func disconnectActiveServer() {
         container.facade.setServerConnection(host: "", port: 0, useSsl: false, sslPort: 0, authToken: nil)
         container.facade.setZone(zone: Zone.offline, skipLoadQueue: false)

@@ -8,7 +8,8 @@ import SwiftUI
 /// their own sections in sort order.
 func sectionLetter(for label: String) -> Character {
     guard let first = label.trimmingCharacters(in: .whitespacesAndNewlines).first,
-          let upper = first.uppercased().first else {
+          let upper = first.uppercased().first
+    else {
         return "#"
     }
     return upper.isLetter ? upper : "#"
@@ -90,9 +91,9 @@ struct AlphabetIndexBar: View {
                                     // material blurs the list behind it.
                                     .fill(.ultraThinMaterial)
                                     .overlay(
-                                        Circle().stroke(Color.accentColor.opacity(0.7), lineWidth: 1.5)
+                                        Circle().stroke(Color.accentColor.opacity(0.7), lineWidth: 1.5),
                                     )
-                                    .shadow(color: .black.opacity(0.4), radius: 10, x: 0, y: 3)
+                                    .shadow(color: .black.opacity(0.4), radius: 10, x: 0, y: 3),
                             )
                             .offset(x: -68, y: min(max(touchY - 30, 0), usableHeight - 60))
                             .transition(.scale(scale: 0.6).combined(with: .opacity))
@@ -116,7 +117,7 @@ struct AlphabetIndexBar: View {
                                 isDragging = false
                                 activeLetter = nil
                             }
-                        }
+                        },
                 )
             }
             .frame(width: 24)

@@ -13,7 +13,6 @@ private let log = SwiftLog("di:AppContainer")
 
 @Observable
 final class AppContainer {
-
     let database: JrrDatabase
     let serverRepository: ServerRepository
     let mcwsClient: McwsClient
@@ -39,13 +38,13 @@ final class AppContainer {
         self.database = database
 
         let engine = IosLocalPlayerEngine()
-        self.localPlayerEngine = engine
+        localPlayerEngine = engine
 
         // Build the MCWS networking stack (httpClient + ServerRepository +
         // McwsClient share the same underlying ktor client).
         log.d("building McwsCore")
         let mcwsCore = McwsCore.companion.create(database: database)
-        self.serverRepository = mcwsCore.serverRepository
+        serverRepository = mcwsCore.serverRepository
         self.mcwsClient = mcwsCore.mcwsClient
 
         let facade = AudioPlayerFacade(
@@ -64,20 +63,20 @@ final class AppContainer {
             },
             loadLocalAudioQuality: {
                 UserDefaults.standard.string(forKey: "local_audio_quality")
-            }
+            },
         )
         self.facade = facade
 
-        self.corePlayer = CorePlayer(
+        corePlayer = CorePlayer(
             engine: engine,
             database: database,
-            facade: facade
+            facade: facade,
         )
 
         let libraryRepository = LibraryRepository(
             database: database,
             mcwsClient: mcwsCore.mcwsClient,
-            isOfflineProvider: FacadeOfflineModeProvider(facade: facade)
+            isOfflineProvider: FacadeOfflineModeProvider(facade: facade),
         )
         self.libraryRepository = libraryRepository
 
@@ -87,21 +86,21 @@ final class AppContainer {
             pauseHandler: { facade.pause() },
             nextHandler: { facade.next() },
             prevHandler: { facade.previous() },
-            seekHandler: { pos in facade.seekTo(positionMs: pos) }
+            seekHandler: { pos in facade.seekTo(positionMs: pos) },
         )
         self.nowPlayingCoordinator = nowPlayingCoordinator
 
-        self.playbackStateObserver = PlaybackStateObserver(
+        playbackStateObserver = PlaybackStateObserver(
             facade: facade,
             database: database,
-            nowPlayingCoordinator: nowPlayingCoordinator
+            nowPlayingCoordinator: nowPlayingCoordinator,
         )
 
-        self.downloadManager = DownloadManager(
+        downloadManager = DownloadManager(
             database: database,
-            facade: facade
+            facade: facade,
         )
-        self.downloadManager.setup(libraryRepository: self.libraryRepository)
+        downloadManager.setup(libraryRepository: self.libraryRepository)
 
         // ---- Decompose navigation tree (Phase 3 groundwork) ----
         //
@@ -110,9 +109,9 @@ final class AppContainer {
         // These capture local lets — not `self` — so they're valid before init
         // finishes.
         #if DEBUG
-        let isDebugBuild = true
+            let isDebugBuild = true
         #else
-        let isDebugBuild = false
+            let isDebugBuild = false
         #endif
         let clearPhysicalDownloads: () -> Void = {
             let fileManager = FileManager.default
@@ -141,7 +140,7 @@ final class AppContainer {
                     album: album,
                     libraryRepository: libraryRepository,
                     facade: facade,
-                    database: database
+                    database: database,
                 )
             },
             nowPlayingViewModel: {
@@ -158,9 +157,9 @@ final class AppContainer {
                     facade: facade,
                     database: database,
                     clearPhysicalDownloads: clearPhysicalDownloads,
-                    isDebugBuild: isDebugBuild
+                    isDebugBuild: isDebugBuild,
                 )
-            }
+            },
         )
 
         // iOS has no `defaultComponentContext`; build the context manually from
@@ -172,15 +171,15 @@ final class AppContainer {
             lifecycle: lifecycle,
             stateKeeper: nil,
             instanceKeeper: nil,
-            backHandler: nil
+            backHandler: nil,
         )
         let settings = SwiftMainShellSettings()
         let root = RootComponent(
             componentContext: componentContext,
             deps: deps,
-            initialConfig: RootComponent.companion.initialConfig(settings: settings)
+            initialConfig: RootComponent.companion.initialConfig(settings: settings),
         )
-        self.rootLifecycle = lifecycle
+        rootLifecycle = lifecycle
         self.root = root
 
         LifecycleRegistryExtKt.resume(lifecycle)
@@ -205,6 +204,6 @@ private final class FacadeOfflineModeProvider: OfflineModeProvider {
     }
 
     func isOffline() -> Bool {
-        return facade.activeZone.value == Zone.offline
+        facade.activeZone.value == Zone.offline
     }
 }

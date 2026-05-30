@@ -23,7 +23,6 @@ import SharedLogic
 /// throwable model, and we already preserve `error.localizedDescription`
 /// in the log line.
 struct SwiftLog {
-
     private let tag: String
 
     init(_ tag: String) {

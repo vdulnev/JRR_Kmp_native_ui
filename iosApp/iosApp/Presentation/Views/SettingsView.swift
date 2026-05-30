@@ -1,5 +1,5 @@
-import SwiftUI
 import SharedLogic
+import SwiftUI
 
 private let log = SwiftLog("ui:iOS:Settings")
 
@@ -7,9 +7,9 @@ private let log = SwiftLog("ui:iOS:Settings")
 @MainActor
 class SettingsObservable {
     private let viewModel: SettingsViewModel
-    
+
     var isOfflineMode: Bool = true
-    var serverHost: String? = nil
+    var serverHost: String?
     var useSsl: Bool = false
     var serverPort: Int32 = 52199
     var serverSslPort: Int32 = 52200
@@ -18,16 +18,16 @@ class SettingsObservable {
     var isDebugBuild: Bool = false
     var logSeverity: Kermit_coreSeverity = .info
     var localAudioQuality: LocalAudioQuality = .lossless
-    var transientError: String? = nil
-    
+    var transientError: String?
+
     @ObservationIgnored private var observeTask: Task<Void, Never>?
-    
+
     init(viewModel: SettingsViewModel) {
         log.d("init")
         self.viewModel = viewModel
-        
+
         sync(state: viewModel.state.value)
-        
+
         observeTask = Task { @MainActor [weak self] in
             guard let stateFlow = self?.viewModel.state else { return }
             for await state in stateFlow {
@@ -35,24 +35,24 @@ class SettingsObservable {
             }
         }
     }
-    
+
     deinit {
         log.d("deinit")
         observeTask?.cancel()
     }
-    
+
     private func sync(state: SettingsViewState) {
-        self.isOfflineMode = state.isOfflineMode
-        self.serverHost = state.serverHost
-        self.useSsl = state.useSsl
-        self.serverPort = state.serverPort
-        self.serverSslPort = state.serverSslPort
-        self.downloadedTracksCount = state.downloadedTracksCount
-        self.downloadJobs = state.downloadJobs
-        self.isDebugBuild = state.isDebugBuild
-        self.logSeverity = state.logSeverity
-        self.localAudioQuality = state.localAudioQuality
-        self.transientError = state.transientError
+        isOfflineMode = state.isOfflineMode
+        serverHost = state.serverHost
+        useSsl = state.useSsl
+        serverPort = state.serverPort
+        serverSslPort = state.serverSslPort
+        downloadedTracksCount = state.downloadedTracksCount
+        downloadJobs = state.downloadJobs
+        isDebugBuild = state.isDebugBuild
+        logSeverity = state.logSeverity
+        localAudioQuality = state.localAudioQuality
+        transientError = state.transientError
     }
 
     func clearDownloads() {
@@ -81,13 +81,13 @@ struct SettingsView: View {
     let onDisconnectClick: () -> Void
 
     @State private var observable: SettingsObservable
-    
+
     init(viewModel: SettingsViewModel, onBackClick: @escaping () -> Void, onDisconnectClick: @escaping () -> Void) {
         _observable = State(initialValue: SettingsObservable(viewModel: viewModel))
         self.onBackClick = onBackClick
         self.onDisconnectClick = onDisconnectClick
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -102,21 +102,21 @@ struct SettingsView: View {
                     .foregroundColor(.textPrimary)
                     .frame(height: 44)
                 }
-                
+
                 Spacer()
-                
+
                 Text("SETTINGS")
                     .styleSectionLabel()
-                
+
                 Spacer()
-                
+
                 // Placeholder to balance back button
                 Spacer()
                     .frame(width: 60)
             }
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
             .background(Color.bg1)
-            
+
             List {
                 // Section 1: Connection
                 Section {
@@ -125,11 +125,11 @@ struct SettingsView: View {
                             Text("OFFLINE MODE")
                                 .font(AppFont.ibmPlexMono(size: 12, weight: .bold))
                                 .foregroundColor(.accentColor)
-                            
+
                             Text("Playing cached and local files only")
                                 .font(AppFont.inter(size: 13, weight: .regular))
                                 .foregroundColor(.textSecondary)
-                            
+
                             Button(action: onDisconnectClick) {
                                 Text("CONNECT TO SERVER")
                                     .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
@@ -143,17 +143,17 @@ struct SettingsView: View {
                             Text("CONNECTED SERVER")
                                 .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                                 .foregroundColor(.textTertiary)
-                            
+
                             Text("Host: \(observable.serverHost ?? "")")
                                 .font(AppFont.inter(size: 15, weight: .medium))
                                 .foregroundColor(.textPrimary)
-                            
+
                             let port = observable.useSsl ? observable.serverSslPort : observable.serverPort
                             let type = observable.useSsl ? "SSL" : "HTTP"
                             Text("Port: \(port) (\(type))")
                                 .font(AppFont.inter(size: 13, weight: .regular))
                                 .foregroundColor(.textSecondary)
-                            
+
                             Button(action: onDisconnectClick) {
                                 Text("DISCONNECT / CHANGE SERVER")
                                     .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
@@ -162,7 +162,7 @@ struct SettingsView: View {
                                     .frame(height: 38)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6)
-                                            .stroke(Color.errorColor, lineWidth: 1)
+                                            .stroke(Color.errorColor, lineWidth: 1),
                                     )
                             }
                             .padding(.top, 4)
@@ -182,15 +182,15 @@ struct SettingsView: View {
                         Text("DOWNLOADED TRACKS")
                             .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                             .foregroundColor(.textTertiary)
-                        
+
                         Text("\(observable.downloadedTracksCount) Tracks cached")
                             .font(AppFont.inter(size: 15, weight: .medium))
                             .foregroundColor(.textPrimary)
-                        
+
                         Text("Occupies space offline for lag-free playback")
                             .font(AppFont.inter(size: 13, weight: .regular))
                             .foregroundColor(.textSecondary)
-                        
+
                         Button(action: {
                             observable.clearDownloads()
                         }) {
@@ -202,7 +202,7 @@ struct SettingsView: View {
                                 .background(observable.downloadedTracksCount == 0 ? Color.bg3 : Color.clear)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .stroke(observable.downloadedTracksCount == 0 ? Color.clear : Color.errorColor, lineWidth: 1)
+                                        .stroke(observable.downloadedTracksCount == 0 ? Color.clear : Color.errorColor, lineWidth: 1),
                                 )
                         }
                         .disabled(observable.downloadedTracksCount == 0)
@@ -238,7 +238,7 @@ struct SettingsView: View {
                                     .background(selected ? Color.accentColor : Color.clear)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6)
-                                            .stroke(selected ? Color.accentColor : Color.line2, lineWidth: 1)
+                                            .stroke(selected ? Color.accentColor : Color.line2, lineWidth: 1),
                                     )
                             }
                         }
@@ -264,7 +264,8 @@ struct SettingsView: View {
 
                         ShareLink(item: observable.exportLogText(),
                                   subject: Text("JRR debug log"),
-                                  preview: SharePreview("JRR debug log")) {
+                                  preview: SharePreview("JRR debug log"))
+                        {
                             Text("SHARE LOG")
                                 .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                                 .foregroundColor(.accentColor)
@@ -272,7 +273,7 @@ struct SettingsView: View {
                                 .frame(height: 38)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color.accentColor, lineWidth: 1)
+                                        .stroke(Color.accentColor, lineWidth: 1),
                                 )
                         }
 
@@ -293,7 +294,7 @@ struct SettingsView: View {
                                     (Kermit_coreSeverity.info, "I"),
                                     (Kermit_coreSeverity.warn, "W"),
                                     (Kermit_coreSeverity.error, "E"),
-                                ], id: \.0) { (sev, label) in
+                                ], id: \.0) { sev, label in
                                     let selected = observable.logSeverity == sev
                                     Button(action: { observable.setLogSeverity(sev) }) {
                                         Text(label)
@@ -304,7 +305,7 @@ struct SettingsView: View {
                                             .background(selected ? Color.accentColor : Color.clear)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 6)
-                                                    .stroke(selected ? Color.accentColor : Color.line2, lineWidth: 1)
+                                                    .stroke(selected ? Color.accentColor : Color.line2, lineWidth: 1),
                                             )
                                     }
                                 }
@@ -331,23 +332,21 @@ struct SettingsView: View {
                                                 .font(AppFont.inter(size: 15, weight: .medium))
                                                 .foregroundColor(.textPrimary)
                                                 .lineLimit(1)
-                                            
-                                            let stateText: String = {
-                                                switch job.state {
-                                                case "QUEUED": return "Queued"
-                                                case "DOWNLOADING": return "Downloading"
-                                                case "FAILED": return "Failed"
-                                                default: return job.state
-                                                }
-                                            }()
+
+                                            let stateText: String = switch job.state {
+                                            case "QUEUED": "Queued"
+                                            case "DOWNLOADING": "Downloading"
+                                            case "FAILED": "Failed"
+                                            default: job.state
+                                            }
                                             Text("\(job.artist) · \(stateText)")
                                                 .font(AppFont.inter(size: 13, weight: .regular))
                                                 .foregroundColor(.textSecondary)
                                         }
                                         Spacer()
                                     }
-                                    
-                                    if job.state == "DOWNLOADING" && job.bytesTotal > 0 {
+
+                                    if job.state == "DOWNLOADING", job.bytesTotal > 0 {
                                         let pct = Double(job.bytesDownloaded) / Double(job.bytesTotal)
                                         ProgressView(value: pct)
                                             .tint(.accentColor)
@@ -355,7 +354,7 @@ struct SettingsView: View {
                                     }
                                 }
                                 .padding(.vertical, 4)
-                                
+
                                 if job.id != observable.downloadJobs.last?.id {
                                     Divider()
                                         .background(Color.line2)

@@ -1,5 +1,5 @@
-import SwiftUI
 import SharedLogic
+import SwiftUI
 
 private let log = SwiftLog("ui:iOS:NowPlaying")
 
@@ -20,7 +20,7 @@ class NowPlayingObservable {
     var repeatMode: RepeatMode = .off
     var sampleRate: Int32 = 0
     var activeZoneName: String = "No Zone Selected"
-    var transientError: String? = nil
+    var transientError: String?
     var imageUrl: String = ""
 
     @ObservationIgnored private var observeTask: Task<Void, Never>?
@@ -43,60 +43,60 @@ class NowPlayingObservable {
         log.d("deinit")
         observeTask?.cancel()
     }
-    
+
     private func sync(state: NowPlayingViewState) {
-        self.trackTitle = state.trackTitle
-        self.artistName = state.artistName
-        self.albumTitle = state.albumTitle
-        self.isPlaying = state.isPlaying
-        self.positionMs = state.positionMs
-        self.durationMs = state.durationMs
-        self.volume = state.volume
-        self.isMuted = state.isMuted
-        self.shuffleMode = state.shuffleMode
-        self.repeatMode = state.repeatMode
-        self.sampleRate = state.sampleRate
-        self.activeZoneName = state.activeZoneName
-        self.transientError = state.transientError
-        self.imageUrl = state.imageUrl
+        trackTitle = state.trackTitle
+        artistName = state.artistName
+        albumTitle = state.albumTitle
+        isPlaying = state.isPlaying
+        positionMs = state.positionMs
+        durationMs = state.durationMs
+        volume = state.volume
+        isMuted = state.isMuted
+        shuffleMode = state.shuffleMode
+        repeatMode = state.repeatMode
+        sampleRate = state.sampleRate
+        activeZoneName = state.activeZoneName
+        transientError = state.transientError
+        imageUrl = state.imageUrl
     }
-    
+
     func play() {
         viewModel.play()
     }
-    
+
     func pause() {
         viewModel.pause()
     }
-    
+
     func stop() {
         viewModel.stop()
     }
-    
+
     func next() {
         viewModel.next()
     }
-    
+
     func previous() {
         viewModel.previous()
     }
-    
+
     func seekTo(positionMs: Int64) {
         viewModel.seekTo(positionMs: positionMs)
     }
-    
+
     func setVolume(level: Float) {
         viewModel.setVolume(level: level)
     }
-    
+
     func toggleShuffle() {
         viewModel.toggleShuffle()
     }
-    
+
     func toggleRepeat() {
         viewModel.toggleRepeat()
     }
-    
+
     func clearTransientError() {
         viewModel.clearTransientError()
     }
@@ -105,35 +105,35 @@ class NowPlayingObservable {
 struct NowPlayingView: View {
     @State private var observable: NowPlayingObservable
     let onQueueClick: () -> Void
-    
+
     @State private var isScrubbing = false
     @State private var scrubProgress: Double = 0.0
-    
+
     init(viewModel: NowPlayingViewModel, onQueueClick: @escaping () -> Void) {
-        self._observable = State(initialValue: NowPlayingObservable(viewModel: viewModel))
+        _observable = State(initialValue: NowPlayingObservable(viewModel: viewModel))
         self.onQueueClick = onQueueClick
     }
-    
+
     var body: some View {
         let isPlaying = observable.isPlaying
         let currentPosition = observable.positionMs
         let duration = observable.durationMs
         let displayProgress = isScrubbing ? scrubProgress : (duration > 0 ? Double(currentPosition) / Double(duration) : 0.0)
-        
+
         VStack(spacing: 0) {
             // Header
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("NOW PLAYING")
                         .styleSectionLabel()
-                    
+
                     Text(observable.activeZoneName)
                         .font(AppFont.inter(size: 14, weight: .semibold))
                         .foregroundColor(.textSecondary)
                 }
-                
+
                 Spacer()
-                
+
                 Button(action: onQueueClick) {
                     Image(systemName: "list.bullet")
                         .font(.system(size: 18, weight: .medium))
@@ -143,9 +143,9 @@ struct NowPlayingView: View {
             }
             .padding(.horizontal, AppSpacing.nowPlayingHorizontalMargin)
             .padding(.top, 16)
-            
+
             Spacer()
-            
+
             // Vinyl Sleeve Hero
             VinylSleeve(
                 albumTitle: observable.albumTitle,
@@ -153,24 +153,24 @@ struct NowPlayingView: View {
                 year: "2026", // Fallback decorative year
                 side: "SIDE A",
                 imageUrl: observable.imageUrl.isEmpty ? nil : observable.imageUrl,
-                isPlaying: isPlaying
+                isPlaying: isPlaying,
             )
             .padding(.vertical, 20)
-            
+
             Spacer()
-            
+
             // Metadata & details
             VStack(spacing: 8) {
                 Text(observable.trackTitle)
                     .styleNowPlayingTitle()
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
-                
+
                 Text(observable.artistName + " — " + observable.albumTitle)
                     .styleItemSubtitle()
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
-                
+
                 // Format Badge
                 if observable.sampleRate > 0 {
                     Text("AUDIO | \(observable.sampleRate / 1000)KHZ")
@@ -183,14 +183,14 @@ struct NowPlayingView: View {
                         .cornerRadius(4)
                         .overlay(
                             RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.line2, lineWidth: 1)
+                                .stroke(Color.line2, lineWidth: 1),
                         )
                 }
             }
             .padding(.horizontal, AppSpacing.nowPlayingHorizontalMargin)
-            
+
             Spacer()
-            
+
             // Scrub Slider
             VStack(spacing: 6) {
                 Slider(
@@ -199,9 +199,9 @@ struct NowPlayingView: View {
                         set: { newValue in
                             isScrubbing = true
                             scrubProgress = newValue
-                        }
+                        },
                     ),
-                    in: 0.0...1.0,
+                    in: 0.0 ... 1.0,
                     onEditingChanged: { editing in
                         if !editing {
                             isScrubbing = false
@@ -209,29 +209,29 @@ struct NowPlayingView: View {
                                 observable.seekTo(positionMs: Int64(scrubProgress * Double(duration)))
                             }
                         }
-                    }
+                    },
                 )
                 .tint(.accentColor)
-                
+
                 HStack {
                     let currentSecs = isScrubbing ? Int64(scrubProgress * Double(duration) / 1000) : currentPosition / 1000
                     let totalSecs = duration / 1000
-                    
+
                     Text(formatTime(seconds: currentSecs))
                         .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
                         .foregroundColor(.textSecondary)
-                    
+
                     Spacer()
-                    
+
                     Text("-" + formatTime(seconds: max(0, totalSecs - currentSecs)))
                         .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
                         .foregroundColor(.textSecondary)
                 }
             }
             .padding(.horizontal, AppSpacing.nowPlayingHorizontalMargin)
-            
+
             Spacer()
-            
+
             // Transport Controls Row
             HStack(spacing: 0) {
                 // Shuffle Button
@@ -249,9 +249,9 @@ struct NowPlayingView: View {
                     .foregroundColor(observable.shuffleMode != .off ? .accentColor : .textTertiary)
                     .frame(width: 44, height: 44)
                 }
-                
+
                 Spacer()
-                
+
                 // Previous Button
                 Button(action: { observable.previous() }) {
                     Image(systemName: "backward.end.fill")
@@ -259,9 +259,9 @@ struct NowPlayingView: View {
                         .foregroundColor(.textPrimary)
                         .frame(width: 44, height: 44)
                 }
-                
+
                 Spacer()
-                
+
                 // Play / Pause Circle Disc
                 Button(action: {
                     if isPlaying {
@@ -275,16 +275,16 @@ struct NowPlayingView: View {
                             .fill(Color.accentColor)
                             .frame(width: 60, height: 60)
                             .shadow(color: Color.accentColor.opacity(0.45), radius: 24, x: 0, y: 8)
-                        
+
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: 24))
                             .foregroundColor(.bg0)
                             .offset(x: isPlaying ? 0 : 2) // optical centering
                     }
                 }
-                
+
                 Spacer()
-                
+
                 // Next Button
                 Button(action: { observable.next() }) {
                     Image(systemName: "forward.end.fill")
@@ -292,9 +292,9 @@ struct NowPlayingView: View {
                         .foregroundColor(.textPrimary)
                         .frame(width: 44, height: 44)
                 }
-                
+
                 Spacer()
-                
+
                 // Repeat Button
                 Button(action: {
                     observable.toggleRepeat()
@@ -306,9 +306,9 @@ struct NowPlayingView: View {
                 }
             }
             .padding(.horizontal, AppSpacing.nowPlayingHorizontalMargin)
-            
+
             Spacer()
-            
+
             // Volume Slider Row
             HStack(spacing: 12) {
                 let volume = observable.volume
@@ -316,16 +316,16 @@ struct NowPlayingView: View {
                     .font(.system(size: 14))
                     .foregroundColor(.textTertiary)
                     .frame(width: 20)
-                
+
                 Slider(
                     value: Binding(
                         get: { Double(volume) },
-                        set: { observable.setVolume(level: Float($0)) }
+                        set: { observable.setVolume(level: Float($0)) },
                     ),
-                    in: 0.0...1.0
+                    in: 0.0 ... 1.0,
                 )
                 .tint(.textSecondary)
-                
+
                 Text("\(Int(volume * 100))")
                     .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
                     .foregroundColor(.textTertiary)
@@ -336,7 +336,7 @@ struct NowPlayingView: View {
         }
         .background(Color.bg1.ignoresSafeArea())
     }
-    
+
     private func formatTime(seconds: Int64) -> String {
         let m = seconds / 60
         let s = seconds % 60

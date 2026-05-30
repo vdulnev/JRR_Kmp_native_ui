@@ -1,5 +1,5 @@
-import SwiftUI
 import SharedLogic
+import SwiftUI
 
 private let log = SwiftLog("ui:iOS:Queue")
 
@@ -13,7 +13,7 @@ class QueueObservable {
     var isPlaying: Bool = false
     var isLoading: Bool = false
     var isLocal: Bool = true
-    var transientError: String? = nil
+    var transientError: String?
     var downloadedTrackKeys: Set<String> = []
 
     @ObservationIgnored private var observeTask: Task<Void, Never>?
@@ -36,33 +36,33 @@ class QueueObservable {
         log.d("deinit")
         observeTask?.cancel()
     }
-    
+
     private func sync(state: QueueViewState) {
-        self.queueTracks = state.queueTracks
-        self.activeIndex = Int(state.activeIndex)
-        self.isPlaying = state.isPlaying
-        self.isLoading = state.isLoading
-        self.isLocal = state.isLocal
-        self.transientError = state.transientError
-        self.downloadedTrackKeys = state.downloadedTrackKeys
+        queueTracks = state.queueTracks
+        activeIndex = Int(state.activeIndex)
+        isPlaying = state.isPlaying
+        isLoading = state.isLoading
+        isLocal = state.isLocal
+        transientError = state.transientError
+        downloadedTrackKeys = state.downloadedTrackKeys
     }
-    
+
     func playByIndex(index: Int) {
         viewModel.playByIndex(index: Int32(index))
     }
-    
+
     func removeQueueTrack(index: Int) {
         viewModel.removeQueueTrack(index: Int32(index))
     }
-    
+
     func moveQueueTrack(from: Int, to: Int) {
         viewModel.moveQueueTrack(from: Int32(from), to: Int32(to))
     }
-    
+
     func clearQueue() {
         viewModel.clearQueue()
     }
-    
+
     func clearTransientError() {
         viewModel.clearTransientError()
     }
@@ -71,14 +71,14 @@ class QueueObservable {
 struct QueueView: View {
     @State private var observable: QueueObservable
     let onBackClick: () -> Void
-    
+
     @State private var editMode: EditMode = .inactive
-    
+
     init(viewModel: QueueViewModel, onBackClick: @escaping () -> Void) {
-        self._observable = State(initialValue: QueueObservable(viewModel: viewModel))
+        _observable = State(initialValue: QueueObservable(viewModel: viewModel))
         self.onBackClick = onBackClick
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -93,14 +93,14 @@ struct QueueView: View {
                     .foregroundColor(.textPrimary)
                     .frame(height: 44)
                 }
-                
+
                 Spacer()
-                
+
                 Text("PLAY QUEUE")
                     .styleSectionLabel()
-                
+
                 Spacer()
-                
+
                 HStack(spacing: 12) {
                     Button(action: {
                         withAnimation {
@@ -112,7 +112,7 @@ struct QueueView: View {
                             .foregroundColor(.accentColor)
                             .frame(height: 44)
                     }
-                    
+
                     Button(action: { observable.clearQueue() }) {
                         Text("CLEAR")
                             .font(AppFont.ibmPlexMono(size: 11, weight: .medium))
@@ -123,7 +123,7 @@ struct QueueView: View {
             }
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
             .background(Color.bg1)
-            
+
             // Queue Content
             if observable.isLoading {
                 Spacer()
@@ -140,7 +140,7 @@ struct QueueView: View {
                 List {
                     ForEach(Array(observable.queueTracks.enumerated()), id: \.element.fileKey) { index, track in
                         let isActive = index == observable.activeIndex
-                        
+
                         HStack(spacing: 12) {
                             // Index / VuMeter
                             Group {
@@ -153,36 +153,36 @@ struct QueueView: View {
                                 }
                             }
                             .frame(width: 24, alignment: .leading)
-                            
+
                             // Track info
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(track.name)
                                     .font(AppFont.inter(size: 15, weight: .medium))
                                     .foregroundColor(isActive ? .accentColor : .textPrimary)
                                     .lineLimit(1)
-                                
+
                                 Text(track.artist)
                                     .font(AppFont.inter(size: 12, weight: .regular))
                                     .foregroundColor(.textSecondary)
                                     .lineLimit(1)
                             }
-                            
+
                             Spacer()
-                            
+
                             let isDownloaded = observable.downloadedTrackKeys.contains(track.fileKey)
-                            
+
                             if track.numberPlays > 0 {
                                 Image(systemName: "headphones")
                                     .font(.system(size: 12))
                                     .foregroundColor(.textTertiary)
                             }
-                            
+
                             if isDownloaded {
                                 Image(systemName: "square.and.arrow.down")
                                     .font(.system(size: 14))
                                     .foregroundColor(.accentColor)
                             }
-                            
+
                             let durationSec = track.durationMs / 1000
                             Text(String(format: "%d:%02d", durationSec / 60, durationSec % 60))
                                 .styleMonoLabel()
@@ -204,8 +204,8 @@ struct QueueView: View {
                                     RoundedRectangle(cornerRadius: 8)
                                         .stroke(isActive ? Color.accentColor : Color.line, lineWidth: 1)
                                         .padding(.vertical, 4)
-                                        .padding(.horizontal, 16)
-                                )
+                                        .padding(.horizontal, 16),
+                                ),
                         )
                     }
                     .onDelete(perform: deleteTracks)
@@ -219,13 +219,13 @@ struct QueueView: View {
         }
         .background(Color.bg1.ignoresSafeArea())
     }
-    
+
     private func deleteTracks(at offsets: IndexSet) {
         for index in offsets {
             observable.removeQueueTrack(index: index)
         }
     }
-    
+
     private func moveTracks(from source: IndexSet, to destination: Int) {
         guard let fromIndex = source.first else { return }
         // Adjust destination index because of the item removed from source

@@ -2,6 +2,7 @@ import Foundation
 import SharedLogic
 
 // MARK: - Zone constants
+
 //
 // Kotlin exposes the Zone constants on the data class's `companion object`,
 // which Swift sees as `Zone.companion.Offline` — verbose at every call site.
@@ -11,8 +12,8 @@ import SharedLogic
 // SKIE 0.10.x does not auto-flatten companion-object members onto the type,
 // so this extension is still required despite the migration.
 
-extension Zone {
-    public static let offline: Zone = Zone.companion.Offline
-    public static let local: Zone = Zone.companion.Local
-    public static let androidAuto: Zone = Zone.companion.AndroidAuto
+public extension Zone {
+    static let offline: Zone = .companion.Offline
+    static let local: Zone = .companion.Local
+    static let androidAuto: Zone = .companion.AndroidAuto
 }
