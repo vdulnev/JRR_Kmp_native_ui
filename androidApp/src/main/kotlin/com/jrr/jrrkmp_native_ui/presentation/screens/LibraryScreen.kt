@@ -72,6 +72,7 @@ fun LibraryScreen(
 
     val artistsListState = rememberLazyListState()
     val artistAlbumsListState = rememberLazyListState()
+    val compilationArtistsListState = rememberLazyListState()
     val randomAlbumsGridState = rememberLazyGridState()
 
     LaunchedEffect(state.transientError) {
@@ -211,11 +212,15 @@ fun LibraryScreen(
                         artists = state.artists,
                         selectedArtist = state.selectedArtist,
                         artistAlbums = state.artistAlbums,
+                        compilationMode = state.compilationMode,
+                        compilationArtists = state.compilationArtists,
                         isLoadingArtists = state.isLoading || state.isTabLoading,
                         isLoadingAlbums = state.isLoading || state.isTabLoading,
                         artistsListState = artistsListState,
                         artistAlbumsListState = artistAlbumsListState,
+                        compilationArtistsListState = compilationArtistsListState,
                         onArtistClick = { viewModel.selectArtist(it) },
+                        onCompilationArtistClick = { viewModel.selectCompilationArtist(it) },
                         onAlbumClick = onAlbumClick,
                         onPlayAlbum = { viewModel.playAlbum(it) },
                         onPlayAlbumNext = { viewModel.playAlbumNext(it) },
@@ -317,11 +322,15 @@ fun ArtistsTab(
     artists: List<String>,
     selectedArtist: String?,
     artistAlbums: List<Album>,
+    compilationMode: Boolean,
+    compilationArtists: List<String>,
     isLoadingArtists: Boolean,
     isLoadingAlbums: Boolean,
     artistsListState: LazyListState,
     artistAlbumsListState: LazyListState,
+    compilationArtistsListState: LazyListState,
     onArtistClick: (String) -> Unit,
+    onCompilationArtistClick: (String?) -> Unit,
     onAlbumClick: (Album) -> Unit,
     onPlayAlbum: (Album) -> Unit,
     onPlayAlbumNext: (Album) -> Unit,
@@ -389,6 +398,70 @@ fun ArtistsTab(
                 }
             }
         }
+    } else if (compilationMode) {
+        // Compilations drill-down: "All" + the artists that appear inside
+        // compilation albums. Picking one shows the matching compilations.
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onBackClick)
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Compilations", style = AppTypography.subScreenTitle)
+            }
+            if (isLoadingArtists) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = AppColors.accent)
+                }
+            } else {
+                val compScope = rememberCoroutineScope()
+                val compSections = remember(compilationArtists) {
+                    compilationArtists.map { sectionLetterFor(it) }
+                }
+                val compLetters = remember(compSections) { compSections.distinct() }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = compilationArtistsListState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 16.dp, end = 28.dp, top = 8.dp, bottom = 16.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item {
+                            CompilationArtistRow(
+                                label = "All",
+                                avatarText = "∗",
+                                highlighted = true,
+                                onClick = { onCompilationArtistClick(null) }
+                            )
+                        }
+                        items(compilationArtists) { artist ->
+                            CompilationArtistRow(
+                                label = artist,
+                                avatarText = artist.take(1).uppercase(),
+                                highlighted = false,
+                                onClick = { onCompilationArtistClick(artist) }
+                            )
+                        }
+                    }
+                    AlphabetIndexBar(
+                        letters = compLetters,
+                        onLetterSelected = { letter ->
+                            val idx = compSections.indexOf(letter)
+                            // +1 to skip the leading "All" row.
+                            if (idx >= 0) compScope.launch {
+                                compilationArtistsListState.scrollToItem(idx + 1)
+                            }
+                        },
+                    )
+                }
+            }
+        }
     } else {
         if (isLoadingArtists) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -443,6 +516,49 @@ fun ArtistsTab(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun CompilationArtistRow(
+    label: String,
+    avatarText: String,
+    highlighted: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(AppColors.bg2)
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(if (highlighted) AppColors.accent else AppColors.accentDim),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = avatarText,
+                style = AppTypography.chipMono.copy(
+                    color = if (highlighted) AppColors.bg0 else AppColors.accent,
+                    fontSize = 14.sp
+                )
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            label,
+            style = if (highlighted) {
+                AppTypography.itemTitle.copy(color = AppColors.accent)
+            } else {
+                AppTypography.itemTitle
+            }
+        )
     }
 }
 

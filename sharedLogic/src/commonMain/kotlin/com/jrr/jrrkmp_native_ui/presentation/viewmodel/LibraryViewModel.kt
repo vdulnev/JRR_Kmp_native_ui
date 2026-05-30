@@ -7,6 +7,7 @@ import com.jrr.jrrkmp_native_ui.core.logging.logged
 import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
 import com.jrr.jrrkmp_native_ui.data.api.BrowseNode
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
+import com.jrr.jrrkmp_native_ui.data.repository.MULTIPLE_ARTISTS_SENTINEL
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
@@ -43,6 +44,12 @@ data class LibraryViewState(
     val artists: List<String> = emptyList(),
     val selectedArtist: String? = null,
     val artistAlbums: List<Album> = emptyList(),
+    // Compilations drill-down (the "(Multiple Artists)" branch). When
+    // [compilationMode] is true and [selectedArtist] is null, the UI shows the
+    // intermediate "contributing artists" list ([compilationArtists]) with an
+    // "All" entry; picking one loads [artistAlbums] of the matching compilations.
+    val compilationMode: Boolean = false,
+    val compilationArtists: List<String> = emptyList(),
     val randomAlbums: List<Album> = emptyList(),
     val browseStack: List<BrowseNode> = listOf(BrowseNode("Library", "-1")),
     val browseChildren: List<BrowseItem> = emptyList(),
@@ -95,6 +102,8 @@ class LibraryViewModel(
                         // visible after going offline and fails to play.
                         selectedArtist = if (offlineFlipped) null else it.selectedArtist,
                         artistAlbums = if (offlineFlipped) emptyList() else it.artistAlbums,
+                        compilationMode = if (offlineFlipped) false else it.compilationMode,
+                        compilationArtists = if (offlineFlipped) emptyList() else it.compilationArtists,
                         searchQuery = if (offlineFlipped) "" else it.searchQuery,
                         searchResults = if (offlineFlipped) emptyList() else it.searchResults,
                     )
@@ -132,34 +141,106 @@ class LibraryViewModel(
             it.copy(
                 currentTab = tab,
                 selectedArtist = null,
-                artistAlbums = emptyList()
+                artistAlbums = emptyList(),
+                compilationMode = false,
+                compilationArtists = emptyList(),
             )
         }
         loadTabContent()
     }
 
+    /**
+     * Top-level artist-row tap. `null` acts as a back gesture. Tapping the
+     * compilations row ([MULTIPLE_ARTISTS_SENTINEL]) opens the compilations
+     * drill-down instead of loading albums directly.
+     */
     fun selectArtist(artistName: String?) {
         log.d { "selectArtist($artistName)" }
-        _state.update { it.copy(selectedArtist = artistName) }
-        if (artistName != null) {
-            viewModelScope.launch {
-                _state.update { it.copy(isTabLoading = true) }
-                try {
-                    val albums = libraryRepository.getAlbumsByArtist(artistName)
-                    log.d { "loaded ${albums.size} albums for artist=$artistName" }
-                    _state.update { it.copy(artistAlbums = albums, isTabLoading = false) }
-                } catch (e: Exception) {
-                    log.e(e) { "selectArtist failed artist=$artistName" }
-                    _state.update {
-                        it.copy(
-                            isTabLoading = false,
-                            transientError = "Failed to load albums: ${e.message}"
-                        )
-                    }
+        when {
+            artistName == null -> artistsBack()
+            artistName.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) -> openCompilations()
+            else -> {
+                _state.update { it.copy(selectedArtist = artistName) }
+                loadArtistAlbums { libraryRepository.getAlbumsByArtist(artistName) }
+            }
+        }
+    }
+
+    /** Enter the compilations branch: show the contributing-artists list. */
+    private fun openCompilations() {
+        log.d { "openCompilations()" }
+        _state.update {
+            it.copy(
+                compilationMode = true,
+                selectedArtist = null,
+                artistAlbums = emptyList(),
+                isTabLoading = true,
+            )
+        }
+        viewModelScope.launch {
+            try {
+                val artists = libraryRepository.getCompilationArtists()
+                log.d { "loaded ${artists.size} compilation artists" }
+                _state.update { it.copy(compilationArtists = artists, isTabLoading = false) }
+            } catch (e: Exception) {
+                log.e(e) { "openCompilations failed" }
+                _state.update {
+                    it.copy(
+                        isTabLoading = false,
+                        transientError = "Failed to load compilation artists: ${e.message}",
+                    )
                 }
             }
-        } else {
-            _state.update { it.copy(artistAlbums = emptyList()) }
+        }
+    }
+
+    /**
+     * Pick an entry from the compilations contributing-artists list. `null`
+     * selects "All" (every compilation); otherwise the compilations that
+     * contain [artistName].
+     */
+    fun selectCompilationArtist(artistName: String?) {
+        log.d { "selectCompilationArtist($artistName)" }
+        _state.update { it.copy(selectedArtist = artistName ?: MULTIPLE_ARTISTS_SENTINEL) }
+        loadArtistAlbums {
+            if (artistName == null) {
+                libraryRepository.getAlbumsByArtist(MULTIPLE_ARTISTS_SENTINEL)
+            } else {
+                libraryRepository.getCompilationAlbumsByArtist(artistName)
+            }
+        }
+    }
+
+    /** Back within the Artists tab — unwinds the compilations drill-down too. */
+    private fun artistsBack() {
+        _state.update {
+            when {
+                it.compilationMode && it.selectedArtist != null ->
+                    it.copy(selectedArtist = null, artistAlbums = emptyList())
+                it.compilationMode ->
+                    it.copy(compilationMode = false, compilationArtists = emptyList())
+                else ->
+                    it.copy(selectedArtist = null, artistAlbums = emptyList())
+            }
+        }
+    }
+
+    private fun loadArtistAlbums(fetch: suspend () -> List<Album>) {
+        viewModelScope.launch {
+            _state.update { it.copy(isTabLoading = true) }
+            try {
+                val albums = fetch()
+                log.d { "loaded ${albums.size} albums" }
+                _state.update { it.copy(artistAlbums = albums, isTabLoading = false) }
+            } catch (e: Exception) {
+                log.e(e) { "loadArtistAlbums failed" }
+                _state.update {
+                    it.copy(
+                        isTabLoading = false,
+                        transientError = "Failed to load albums: ${e.message}",
+                    )
+                }
+            }
         }
     }
 
