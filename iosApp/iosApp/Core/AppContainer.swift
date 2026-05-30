@@ -148,7 +148,7 @@ final class AppContainer {
                 NowPlayingViewModel(facade: facade, mcwsClient: mcwsClient)
             },
             queueViewModel: {
-                QueueViewModel(facade: facade, libraryRepository: libraryRepository)
+                QueueViewModel(facade: facade, libraryRepository: libraryRepository, database: database)
             },
             zonesViewModel: {
                 ZonesViewModel(facade: facade, libraryRepository: libraryRepository)
