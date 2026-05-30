@@ -90,23 +90,19 @@ class RootComponent(
         selectTab(RootConfig.Player)
     }
 
-    /** Disconnect → Server tab. Business teardown (facade) stays in the host. */
+    /** Disconnect → Player/offline tab. Business teardown (facade) stays in the host. */
     fun onDisconnect() {
         log.d { "onDisconnect()" }
-        selectTab(RootConfig.Server)
+        selectTab(RootConfig.Player)
     }
 
     companion object {
         /**
-         * Ports `MainShellViewModel.init` initial-tab selection
-         * (`MainShellViewModel.kt:60-66`): start on Player when an Offline zone
-         * was last active or saved servers exist, otherwise the Server screen.
+         * Always start on the Player tab (offline or connected). The Server
+         * screen is only entered explicitly via Settings → Connect, so the user
+         * never lands on a "login wall" on cold start or after logout.
          */
-        fun initialConfig(settings: MainShellSettings): RootConfig =
-            when {
-                settings.getLastActiveZoneId() == Zone.Offline.id -> RootConfig.Player
-                settings.getHasSavedServers() -> RootConfig.Player
-                else -> RootConfig.Server
-            }
+        @Suppress("UNUSED_PARAMETER")
+        fun initialConfig(settings: MainShellSettings): RootConfig = RootConfig.Player
     }
 }

@@ -74,6 +74,10 @@ class LibraryViewModel(
             .distinctUntilChanged()
             .onEach { (isOffline, _) ->
                 log.d { "connection change isOffline=$isOffline" }
+                // Only wipe the drill-down when offline-ness actually flips —
+                // not on a mere token refresh while staying online — so we don't
+                // yank the user out of an artist they're browsing.
+                val offlineFlipped = _state.value.isOffline != isOffline
                 _state.update {
                     val nextTab =
                         if (isOffline && (it.currentTab == "random" || it.currentTab == "browse")) {
@@ -82,7 +86,18 @@ class LibraryViewModel(
                         } else {
                             it.currentTab
                         }
-                    it.copy(isOffline = isOffline, currentTab = nextTab)
+                    it.copy(
+                        isOffline = isOffline,
+                        currentTab = nextTab,
+                        // Drop any drill-down / search loaded for the previous
+                        // connection state. Otherwise an artist's album grid
+                        // browsed online (with un-downloaded server albums) stays
+                        // visible after going offline and fails to play.
+                        selectedArtist = if (offlineFlipped) null else it.selectedArtist,
+                        artistAlbums = if (offlineFlipped) emptyList() else it.artistAlbums,
+                        searchQuery = if (offlineFlipped) "" else it.searchQuery,
+                        searchResults = if (offlineFlipped) emptyList() else it.searchResults,
+                    )
                 }
                 loadTabContent()
             }
