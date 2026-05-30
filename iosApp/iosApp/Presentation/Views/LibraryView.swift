@@ -239,6 +239,14 @@ struct LibraryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.bg1.ignoresSafeArea())
+        // Reserve room at the bottom for the floating mini-player (shown on the
+        // Library tab whenever a track is loaded) so the last list row isn't
+        // hidden behind it. Insets every descendant scroll view at once.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !(stateObserver.playerStatus?.trackName ?? "").isEmpty {
+                Color.clear.frame(height: 76)
+            }
+        }
         .onAppear {
             if observable.artists.isEmpty {
                 observable.retry()
