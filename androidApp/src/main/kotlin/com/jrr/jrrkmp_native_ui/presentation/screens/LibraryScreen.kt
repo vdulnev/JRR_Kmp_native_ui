@@ -70,7 +70,6 @@ fun LibraryScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var isSearching by remember { mutableStateOf(false) }
     var infoTrack by remember { mutableStateOf<Track?>(null) }
     var infoAlbum by remember { mutableStateOf<Album?>(null) }
 
@@ -105,202 +104,146 @@ fun LibraryScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            if (isSearching) {
-                OutlinedTextField(
-                    value = state.searchQuery,
-                    onValueChange = {
-                        viewModel.updateSearchQuery(it)
-                    },
-                    placeholder = { Text("Search tracks, artists...", color = AppColors.text3) },
-                    singleLine = true,
-                    colors = outlinedTextFieldColors(),
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = AppColors.text3) },
-                    trailingIcon = {
-                        IconButton(onClick = {
-                            isSearching = false
-                            viewModel.updateSearchQuery("")
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close Search", tint = AppColors.text)
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            } else {
-                Text(
-                    text = "Library".uppercase(),
-                    style = AppTypography.screenTitle,
-                    color = AppColors.text
-                )
-
-                IconButton(onClick = { isSearching = true }) {
-                    Icon(Icons.Default.Search, contentDescription = "Search", tint = AppColors.text)
-                }
-            }
+            Text(
+                text = "Library".uppercase(),
+                style = AppTypography.screenTitle,
+                color = AppColors.text
+            )
         }
 
-        if (isSearching) {
-            // Render Search Results
-            if (state.isTabLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = AppColors.accent)
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(state.searchResults) { track ->
-                        TrackRowItem(
-                            track = track,
-                            onPlay = { viewModel.playTrack(track) },
-                            onPlayNext = { viewModel.playTrackNext(track) },
-                            onAddToQueue = { viewModel.addTrackToQueue(track) },
-                            onDownload = { viewModel.downloadTrack(track) },
-                            isOffline = state.isOffline,
-                            onInfoClick = { infoTrack = track },
-                            onClick = {
-                                viewModel.playTrack(track)
-                            }
-                        )
-                    }
-                }
-            }
+        val tabs = if (state.isOffline) {
+            listOf("Artists" to "artists", "Downloads" to "downloads", "Favorites" to "favorites")
         } else {
-            val tabs = if (state.isOffline) {
-                listOf("Artists" to "artists", "Downloads" to "downloads", "Favorites" to "favorites")
-            } else {
-                listOf("Artists" to "artists", "Random" to "random", "Browse" to "browse", "Downloads" to "downloads", "Favorites" to "favorites")
-            }
+            listOf("Artists" to "artists", "Random" to "random", "Browse" to "browse", "Downloads" to "downloads", "Favorites" to "favorites")
+        }
 
-            val selectedIndex = tabs.indexOfFirst { it.second == state.currentTab }.coerceAtLeast(0)
+        val selectedIndex = tabs.indexOfFirst { it.second == state.currentTab }.coerceAtLeast(0)
 
-            // Tabs Row
-            SecondaryTabRow(
-                selectedTabIndex = selectedIndex,
-                containerColor = Color.Transparent,
-                contentColor = AppColors.accent,
-                indicator = {
-                    if (selectedIndex < tabs.size) {
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(selectedIndex)
-                        )
-                    }
-                },
-                divider = {},
-                tabs = {
-                    tabs.forEach { (label, tabId) ->
-                        Tab(
-                            selected = state.currentTab == tabId,
-                            onClick = { viewModel.switchTab(tabId) },
-                            text = {
-                                Text(
-                                    label.uppercase(),
-                                    style = AppTypography.chipMono,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            },
-                        )
-                    }
-                },
-            )
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                when (state.currentTab) {
-                    "artists" -> ArtistsTab(
-                        artists = state.artists,
-                        selectedArtist = state.selectedArtist,
-                        artistAlbums = state.artistAlbums,
-                        compilationMode = state.compilationMode,
-                        compilationArtists = state.compilationArtists,
-                        artistsFilter = state.artistsFilter,
-                        onFilterChange = { viewModel.setArtistsFilter(it) },
-                        isLoadingArtists = state.isLoading || state.isTabLoading,
-                        isLoadingAlbums = state.isLoading || state.isTabLoading,
-                        artistsListState = artistsListState,
-                        artistAlbumsListState = artistAlbumsListState,
-                        compilationArtistsListState = compilationArtistsListState,
-                        onArtistClick = { viewModel.selectArtist(it) },
-                        onCompilationArtistClick = { viewModel.selectCompilationArtist(it) },
-                        onAlbumClick = onAlbumClick,
-                        onPlayAlbum = { viewModel.playAlbum(it) },
-                        onPlayAlbumNext = { viewModel.playAlbumNext(it) },
-                        onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
-                        onDownloadAlbum = { viewModel.downloadAlbum(it) },
-                        isOffline = state.isOffline,
-                        onAlbumInfoClick = { infoAlbum = it },
-                        onBackClick = { viewModel.selectArtist(null) }
-                    )
-                    "random" -> RandomTab(
-                        albums = state.randomAlbums,
-                        isLoading = state.isLoading,
-                        gridState = randomAlbumsGridState,
-                        onAlbumClick = onAlbumClick,
-                        onPlayAlbum = { viewModel.playAlbum(it) },
-                        onPlayAlbumNext = { viewModel.playAlbumNext(it) },
-                        onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
-                        onDownloadAlbum = { viewModel.downloadAlbum(it) },
-                        isOffline = state.isOffline,
-                        onAlbumInfoClick = { infoAlbum = it },
-                        onRefresh = {
-                            viewModel.retry()
-                        }
-                    )
-                    "browse" -> BrowseTab(
-                        stack = state.browseStack,
-                        children = state.browseChildren,
-                        tracks = state.browseTracks,
-                        isLoading = state.isLoading || state.isTabLoading,
-                        onNodeClick = { label, id ->
-                            viewModel.pushBrowseNode(label, id)
-                        },
-                        onTrackClick = { clickedTrack, allTracks ->
-                            val startIndex = allTracks.indexOf(clickedTrack).coerceAtLeast(0)
-                            viewModel.playTracks(allTracks, startIndex)
-                        },
-                        onPlayTrack = { viewModel.playTrack(it) },
-                        onPlayTrackNext = { viewModel.playTrackNext(it) },
-                        onAddTrackToQueue = { viewModel.addTrackToQueue(it) },
-                        onDownloadTrack = { viewModel.downloadTrack(it) },
-                        onPlayBrowseItem = { viewModel.playBrowseItem(it) },
-                        onPlayBrowseItemNext = { viewModel.playBrowseItemNext(it) },
-                        onAddBrowseItemToQueue = { viewModel.addBrowseItemToQueue(it) },
-                        onDownloadBrowseItem = { viewModel.downloadBrowseItem(it) },
-                        isOffline = state.isOffline,
-                        onTrackInfoClick = { infoTrack = it },
-                        onBackClick = {
-                            viewModel.popBrowseNode()
-                        }
-                    )
-                    "downloads" -> DownloadsTab(
-                        tracks = state.downloadedTracks,
-                        isLoading = state.isLoading,
-                        onTrackClick = { clickedTrack, allTracks ->
-                            val startIndex = allTracks.indexOf(clickedTrack).coerceAtLeast(0)
-                            viewModel.playTracks(allTracks, startIndex)
-                        },
-                        onPlayTracks = { viewModel.playTracks(it, 0) },
-                        onPlayTracksShuffled = { viewModel.playTracksShuffled(it) },
-                        onPlayTracksNext = { viewModel.playTracksNext(it) },
-                        onAddTracksToQueue = { viewModel.addTracksToQueue(it) },
-                        onTrackInfoClick = { infoTrack = it },
-                        onAlbumInfoClick = { infoAlbum = it }
-                    )
-                    "favorites" -> FavoritesTab(
-                        onAlbumClick = onAlbumClick,
-                        onPlayAlbum = { viewModel.playAlbum(it) },
-                        onPlayAlbumNext = { viewModel.playAlbumNext(it) },
-                        onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
-                        onDownloadAlbum = { viewModel.downloadAlbum(it) },
-                        isOffline = state.isOffline,
-                        onAlbumInfoClick = { infoAlbum = it }
+        // Tabs Row
+        SecondaryTabRow(
+            selectedTabIndex = selectedIndex,
+            containerColor = Color.Transparent,
+            contentColor = AppColors.accent,
+            indicator = {
+                if (selectedIndex < tabs.size) {
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(selectedIndex)
                     )
                 }
+            },
+            divider = {},
+            tabs = {
+                tabs.forEach { (label, tabId) ->
+                    Tab(
+                        selected = state.currentTab == tabId,
+                        onClick = { viewModel.switchTab(tabId) },
+                        text = {
+                            Text(
+                                label.uppercase(),
+                                style = AppTypography.chipMono,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                    )
+                }
+            },
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            when (state.currentTab) {
+                "artists" -> ArtistsTab(
+                    artists = state.artists,
+                    selectedArtist = state.selectedArtist,
+                    artistAlbums = state.artistAlbums,
+                    compilationMode = state.compilationMode,
+                    compilationArtists = state.compilationArtists,
+                    artistsFilter = state.artistsFilter,
+                    onFilterChange = { viewModel.setArtistsFilter(it) },
+                    isLoadingArtists = state.isLoading || state.isTabLoading,
+                    isLoadingAlbums = state.isLoading || state.isTabLoading,
+                    artistsListState = artistsListState,
+                    artistAlbumsListState = artistAlbumsListState,
+                    compilationArtistsListState = compilationArtistsListState,
+                    onArtistClick = { viewModel.selectArtist(it) },
+                    onCompilationArtistClick = { viewModel.selectCompilationArtist(it) },
+                    onAlbumClick = onAlbumClick,
+                    onPlayAlbum = { viewModel.playAlbum(it) },
+                    onPlayAlbumNext = { viewModel.playAlbumNext(it) },
+                    onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
+                    onDownloadAlbum = { viewModel.downloadAlbum(it) },
+                    isOffline = state.isOffline,
+                    onAlbumInfoClick = { infoAlbum = it },
+                    onBackClick = { viewModel.selectArtist(null) }
+                )
+                "random" -> RandomTab(
+                    albums = state.randomAlbums,
+                    isLoading = state.isLoading,
+                    gridState = randomAlbumsGridState,
+                    onAlbumClick = onAlbumClick,
+                    onPlayAlbum = { viewModel.playAlbum(it) },
+                    onPlayAlbumNext = { viewModel.playAlbumNext(it) },
+                    onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
+                    onDownloadAlbum = { viewModel.downloadAlbum(it) },
+                    isOffline = state.isOffline,
+                    onAlbumInfoClick = { infoAlbum = it },
+                    onRefresh = {
+                        viewModel.retry()
+                    }
+                )
+                "browse" -> BrowseTab(
+                    stack = state.browseStack,
+                    children = state.browseChildren,
+                    tracks = state.browseTracks,
+                    isLoading = state.isLoading || state.isTabLoading,
+                    onNodeClick = { label, id ->
+                        viewModel.pushBrowseNode(label, id)
+                    },
+                    onTrackClick = { clickedTrack, allTracks ->
+                        val startIndex = allTracks.indexOf(clickedTrack).coerceAtLeast(0)
+                        viewModel.playTracks(allTracks, startIndex)
+                    },
+                    onPlayTrack = { viewModel.playTrack(it) },
+                    onPlayTrackNext = { viewModel.playTrackNext(it) },
+                    onAddTrackToQueue = { viewModel.addTrackToQueue(it) },
+                    onDownloadTrack = { viewModel.downloadTrack(it) },
+                    onPlayBrowseItem = { viewModel.playBrowseItem(it) },
+                    onPlayBrowseItemNext = { viewModel.playBrowseItemNext(it) },
+                    onAddBrowseItemToQueue = { viewModel.addBrowseItemToQueue(it) },
+                    onDownloadBrowseItem = { viewModel.downloadBrowseItem(it) },
+                    isOffline = state.isOffline,
+                    onTrackInfoClick = { infoTrack = it },
+                    onBackClick = {
+                        viewModel.popBrowseNode()
+                    }
+                )
+                "downloads" -> DownloadsTab(
+                    tracks = state.downloadedTracks,
+                    isLoading = state.isLoading,
+                    onTrackClick = { clickedTrack, allTracks ->
+                        val startIndex = allTracks.indexOf(clickedTrack).coerceAtLeast(0)
+                        viewModel.playTracks(allTracks, startIndex)
+                    },
+                    onPlayTracks = { viewModel.playTracks(it, 0) },
+                    onPlayTracksShuffled = { viewModel.playTracksShuffled(it) },
+                    onPlayTracksNext = { viewModel.playTracksNext(it) },
+                    onAddTracksToQueue = { viewModel.addTracksToQueue(it) },
+                    onTrackInfoClick = { infoTrack = it },
+                    onAlbumInfoClick = { infoAlbum = it }
+                )
+                "favorites" -> FavoritesTab(
+                    onAlbumClick = onAlbumClick,
+                    onPlayAlbum = { viewModel.playAlbum(it) },
+                    onPlayAlbumNext = { viewModel.playAlbumNext(it) },
+                    onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
+                    onDownloadAlbum = { viewModel.downloadAlbum(it) },
+                    isOffline = state.isOffline,
+                    onAlbumInfoClick = { infoAlbum = it }
+                )
             }
         }
     }

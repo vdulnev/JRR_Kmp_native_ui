@@ -32,14 +32,11 @@ private fun LibraryViewState.summary(): String = buildString {
     if (browseStack.size > 1) append(" browse=${browseStack.joinToString("/") { it.label }}")
     if (browseChildren.isNotEmpty()) append(" children=${browseChildren.size}")
     if (browseTracks.isNotEmpty()) append(" browseTracks=${browseTracks.size}")
-    if (searchQuery.isNotEmpty()) append(" q='$searchQuery' results=${searchResults.size}")
     append(" offline=$isOffline loading=$isLoading tabLoading=$isTabLoading")
     if (transientError != null) append(" err=$transientError")
 }
 
 data class LibraryViewState(
-    val searchQuery: String = "",
-    val searchResults: List<Track> = emptyList(),
     val currentTab: String = "artists",
     val artists: List<String> = emptyList(),
     val selectedArtist: String? = null,
@@ -109,8 +106,6 @@ class LibraryViewModel(
                         compilationMode = if (offlineFlipped) false else it.compilationMode,
                         compilationArtists = if (offlineFlipped) emptyList() else it.compilationArtists,
                         artistsFilter = if (offlineFlipped) "" else it.artistsFilter,
-                        searchQuery = if (offlineFlipped) "" else it.searchQuery,
-                        searchResults = if (offlineFlipped) emptyList() else it.searchResults,
                     )
                 }
                 loadTabContent()
@@ -119,25 +114,6 @@ class LibraryViewModel(
 
         // Mirror state to Verbose for change tracing.
         state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
-    }
-
-    fun updateSearchQuery(query: String) {
-        log.d { "updateSearchQuery(q='$query')" }
-        _state.update { it.copy(searchQuery = query) }
-        if (query.isNotEmpty()) {
-            viewModelScope.launch {
-                try {
-                    val results = libraryRepository.searchFiles(query)
-                    log.d { "search returned ${results.size} results for q='$query'" }
-                    _state.update { it.copy(searchResults = results) }
-                } catch (e: Exception) {
-                    log.e(e) { "search failed q='$query'" }
-                    _state.update { it.copy(transientError = "Search failed: ${e.message ?: "unknown error"}") }
-                }
-            }
-        } else {
-            _state.update { it.copy(searchResults = emptyList()) }
-        }
     }
 
     fun switchTab(tab: String) {

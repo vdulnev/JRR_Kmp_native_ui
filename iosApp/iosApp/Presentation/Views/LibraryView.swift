@@ -8,8 +8,6 @@ private let log = SwiftLog("ui:iOS:Library")
 class LibraryObservable {
     let viewModel: LibraryViewModel
 
-    var searchQuery: String = ""
-    var searchResults: [Track] = []
     var currentTab: String = "artists"
     var artists: [String] = []
     var selectedArtist: String?
@@ -49,8 +47,6 @@ class LibraryObservable {
     }
 
     private func sync(state: LibraryViewState) {
-        searchQuery = state.searchQuery
-        searchResults = state.searchResults
         currentTab = state.currentTab
         artists = state.artists
         selectedArtist = state.selectedArtist
@@ -67,10 +63,6 @@ class LibraryObservable {
         isLoading = state.isLoading
         isTabLoading = state.isTabLoading
         transientError = state.transientError
-    }
-
-    func updateSearchQuery(_ query: String) {
-        viewModel.updateSearchQuery(query: query)
     }
 
     func switchTab(_ tab: String) {
@@ -177,8 +169,6 @@ struct LibraryView: View {
     @EnvironmentObject private var stateObserver: PlaybackStateObserver
     @State private var observable: LibraryObservable
     let onAlbumClick: (Album) -> Void // AlbumName, ArtistName
-    @State private var isSearching = false
-    @State private var searchQueryText = ""
     @State private var selectedArtist: String? = nil
     @State private var selectedAlbumGroupId: String? = nil
     @State private var infoTrack: Track? = nil
@@ -201,130 +191,52 @@ struct LibraryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with search toggle
+            // Header
             HStack {
-                if isSearching {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.textTertiary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("LIBRARY")
+                        .styleSectionLabel()
 
-                        TextField("Search tracks, artists...", text: $searchQueryText)
-                            .foregroundColor(.textPrimary)
-                            .font(AppFont.inter(size: 14, weight: .regular))
-                            .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                            .onChange(of: searchQueryText) { _, newValue in
-                                observable.updateSearchQuery(newValue)
-                            }
-
-                        if !searchQueryText.isEmpty {
-                            Button(action: {
-                                searchQueryText = ""
-                                observable.updateSearchQuery("")
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.textSecondary)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 38)
-                    .background(Color.bg2)
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.line2, lineWidth: 1),
-                    )
-
-                    Button(action: {
-                        isSearching = false
-                        searchQueryText = ""
-                        observable.updateSearchQuery("")
-                    }) {
-                        Text("Cancel")
-                            .font(AppFont.inter(size: 14, weight: .medium))
-                            .foregroundColor(.accentColor)
-                    }
-                    .padding(.leading, 8)
-                } else {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("LIBRARY")
-                            .styleSectionLabel()
-
-                        Text("Browse")
-                            .styleScreenTitle()
-                    }
-
-                    Spacer()
-
-                    Button(action: { isSearching = true }) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.textPrimary)
-                            .frame(width: 44, height: 44)
-                    }
+                    Text("Browse")
+                        .styleScreenTitle()
                 }
+
+                Spacer()
             }
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
             .padding(.vertical, 12)
             .background(Color.bg1)
 
-            if isSearching {
-                // Search Results
-                if observable.isTabLoading {
-                    VStack {
-                        Spacer()
-                        ProgressView()
-                            .tint(.accentColor)
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(observable.searchResults, id: \.fileKey) { track in
-                                trackRowItem(track: track) {
-                                    observable.playTrack(track)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                        .padding(.top, 8)
-                    }
-                    .background(Color.bg1)
+            // Tab strip
+            HStack(spacing: 0) {
+                tabButton(title: "Artists", id: "artists")
+                if !observable.isOffline {
+                    tabButton(title: "Random", id: "random")
+                    tabButton(title: "Browse", id: "browse")
                 }
-            } else {
-                // Tab strip
-                HStack(spacing: 0) {
-                    tabButton(title: "Artists", id: "artists")
-                    if !observable.isOffline {
-                        tabButton(title: "Random", id: "random")
-                        tabButton(title: "Browse", id: "browse")
-                    }
-                    tabButton(title: "Downloads", id: "downloads")
-                    tabButton(title: "Favorites", id: "favorites")
-                }
-                .background(Color.bg1)
-
-                // Tab Content
-                Group {
-                    switch observable.currentTab {
-                    case "artists":
-                        artistsTab()
-                    case "random":
-                        randomTab()
-                    case "browse":
-                        browseTab()
-                    case "downloads":
-                        downloadsTab()
-                    case "favorites":
-                        favoritesTab()
-                    default:
-                        EmptyView()
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                tabButton(title: "Downloads", id: "downloads")
+                tabButton(title: "Favorites", id: "favorites")
             }
+            .background(Color.bg1)
+
+            // Tab Content
+            Group {
+                switch observable.currentTab {
+                case "artists":
+                    artistsTab()
+                case "random":
+                    randomTab()
+                case "browse":
+                    browseTab()
+                case "downloads":
+                    downloadsTab()
+                case "favorites":
+                    favoritesTab()
+                default:
+                    EmptyView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.bg1.ignoresSafeArea())
         .onAppear {

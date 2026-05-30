@@ -304,25 +304,6 @@ class LibraryRepository(
     fun esc(value: String): String =
         value.replace(ESC_REGEX) { "/${it.value}" }
 
-    suspend fun searchFiles(query: String): List<Track> = withContext(Dispatchers.IO) {
-        val offline = isOfflineProvider.isOffline()
-        log.d { "searchFiles(q='$query') offline=$offline" }
-        if (offline) {
-            val db = database ?: return@withContext emptyList()
-            return@withContext db.downloadedTrackDao().getAllTracks()
-                .filter {
-                    it.name.contains(query, ignoreCase = true) ||
-                            it.artist.contains(query, ignoreCase = true) ||
-                            it.album.contains(query, ignoreCase = true)
-                }
-                .map { it.toTrack() }
-                .also { log.d { "searchFiles offline → ${it.size} from cache" } }
-        }
-        val mcwsQuery =
-            "[Media Type]=Audio ([Name]=\"$query\" OR [Artist]=\"$query\" OR [Album]=\"$query\")"
-        mcwsClient.searchTracks(mcwsQuery)
-    }
-
     suspend fun getDownloadedTracks(): List<Track> = withContext(Dispatchers.IO) {
         val db = database ?: return@withContext emptyList()
         db.downloadedTrackDao().getAllTracks().map { it.toTrack() }
