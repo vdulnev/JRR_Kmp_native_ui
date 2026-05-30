@@ -32,14 +32,17 @@ private val log = Logger.withTag("repo:Library")
 // matched as `[A-Za-z0-9А-Яа-я]+`.
 private const val DISC_WORDS = """(?:Disc|Disk|CD|Диск)"""
 
+// Separator tolerated between the disc keyword and its index: nothing,
+// whitespace, hyphen, or dot — so `CD 1`, `CD1`, `CD-1`, `CD.1`, `Disc-2`
+// all parse. Hyphenated folder/name markers are common in real rips.
+private const val DISC_SEP = """[\s.\-]*"""
+
 // (Disc N) / (Disk N) / (CD N) / (CD-1) / (Disc A) / (Disc One) when the
 // bracket content is JUST a disc marker. NOT anchored to end-of-string —
 // strips the marker even when followed by another parens block carrying
-// release info, e.g. `Garage Inc. (Disc 1) [SHM-CD, UICY-94670]`. The
-// `[\s.\-]*` between the keyword and the index tolerates `CD-1` / `CD.1`
-// separators, not just `CD 1` / `CD1`.
+// release info, e.g. `Garage Inc. (Disc 1) [SHM-CD, UICY-94670]`.
 private val DISC_PAREN_ONLY = Regex(
-    """\s*[(\[]\s*$DISC_WORDS[\s.\-]*[A-Za-zА-Яа-я0-9]+\s*[)\]]""",
+    """\s*[(\[]\s*$DISC_WORDS$DISC_SEP[A-Za-zА-Яа-я0-9]+\s*[)\]]""",
     RegexOption.IGNORE_CASE,
 )
 
@@ -48,14 +51,14 @@ private val DISC_PAREN_ONLY = Regex(
 // comma) so the rest of the release metadata is preserved as a distinguishing
 // feature between releases of the same multi-disc album.
 private val DISC_INSIDE_LARGER_PARENS = Regex(
-    """\s*,\s*$DISC_WORDS\s*\d+\b""",
+    """\s*,\s*$DISC_WORDS$DISC_SEP\d+\b""",
     RegexOption.IGNORE_CASE,
 )
 
 // Mid-name `\s+CDN(\s+|\()` — e.g. `... In Tokyo CD1 (2015, …)`. Replaced
 // with a single space so the trailing parens block stays attached cleanly.
 private val DISC_MID_NAME = Regex(
-    """\s+$DISC_WORDS\s*\d+(?=\s|\(|$)""",
+    """\s+$DISC_WORDS$DISC_SEP\d+(?=\s|\(|$)""",
     RegexOption.IGNORE_CASE,
 )
 
@@ -63,25 +66,26 @@ private val DISC_MID_NAME = Regex(
 // `100,000,000 BON JOVI Fans...CD01`. Word-boundary handles the `.→C`
 // transition; doesn't match catalog tokens like `HNECD032` (no digit AFTER).
 private val DISC_TRAILING_BARE = Regex(
-    """\b$DISC_WORDS\s*\d+\s*$""",
+    """\b$DISC_WORDS$DISC_SEP\d+\s*$""",
     RegexOption.IGNORE_CASE,
 )
 
-// A folder whose own name is JUST a disc bucket — `CD 1`, `CD01`, `Disc 2`,
-// `Disk 3`, `Диск 4`. Plenty of real-world rips put the disc split ONLY in
-// sibling subfolders (…/KuschelRock 28 [3CD] (2014)/CD 1, …/CD 2, …/CD 3)
+// A folder whose own name is JUST a disc bucket — `CD 1`, `CD01`, `CD-1`,
+// `Disc 2`, `Disk 3`, `Диск 4`. Plenty of real-world rips put the disc split
+// ONLY in sibling subfolders (…/KuschelRock 28 [3CD] (2014)/CD 1, …/CD 2, …)
 // while leaving the album NAME free of a per-disc marker and Total Discs at 1.
 // Recognising that folder lets us fold those siblings the same way we fold
 // name-marked discs.
 private val DISC_FOLDER_LEAF = Regex(
-    """^$DISC_WORDS\s*\d+$""",
+    """^$DISC_WORDS$DISC_SEP\d+$""",
     RegexOption.IGNORE_CASE,
 )
 
 // Same shape as DISC_FOLDER_LEAF but captures the number, so we can recover a
-// disc index from a `CD 3` folder when the file tags don't carry `Disc #`.
+// disc index from a `CD 3` / `CD-3` folder when the file tags don't carry
+// `Disc #`.
 private val DISC_FOLDER_NUM = Regex(
-    """^$DISC_WORDS\s*(\d+)$""",
+    """^$DISC_WORDS$DISC_SEP(\d+)$""",
     RegexOption.IGNORE_CASE,
 )
 

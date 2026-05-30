@@ -507,6 +507,22 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun discNumberFromFolder_parsesHyphenatedDiscBuckets() {
+        // Pandora's Box (C3K 86567): discs live in `CD-1` / `CD-2` / `CD-3`
+        // folders. Without recovering the disc index here, getAlbumTracks can't
+        // split the set by disc and the tracks render interleaved.
+        assertEquals(
+            1,
+            discNumberFromFolder(
+                """D:\music\_cd_rip\Aerosmith\...\2002 - Pandora's Box (C3K 86567) USA\CD-1\""",
+            ),
+        )
+        assertEquals(2, discNumberFromFolder("/m/box/CD-2/"))
+        assertEquals(3, discNumberFromFolder("/m/box/Disc-3/"))
+        assertEquals(2, discNumberFromFolder("/m/box/CD.2/"))
+    }
+
+    @Test
     fun discNumberFromFolder_nullForNonDiscFolders() {
         // Not a disc bucket — the album's real folder.
         assertEquals(null, discNumberFromFolder("D:/music/KuschelRock 28 [3CD] (2014)/"))
