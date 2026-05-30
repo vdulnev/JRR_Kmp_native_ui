@@ -167,6 +167,9 @@ private struct AlbumDetailContentView: View {
     let observable: AlbumDetailObservable
     let onBackClick: () -> Void
 
+    @State private var infoTrack: Track? = nil
+    @State private var infoAlbum: Album? = nil
+
     var body: some View {
         VStack(spacing: 0) {
             // Top Bar
@@ -198,6 +201,9 @@ private struct AlbumDetailContentView: View {
                     }
                     
                     Menu {
+                        Button(action: { infoAlbum = observable.viewModel.album }) {
+                            Label("Info", systemImage: "info.circle")
+                        }
                         Button(action: { observable.playAlbum() }) {
                             Label("Play Album", systemImage: "play.fill")
                         }
@@ -352,6 +358,12 @@ private struct AlbumDetailContentView: View {
             }
         }
         .background(Color.bg1.ignoresSafeArea())
+        .sheet(item: $infoTrack) { track in
+            InfoView(title: track.name, fields: track.toInfoFields())
+        }
+        .sheet(item: $infoAlbum) { album in
+            InfoView(title: album.name, fields: album.toInfoFields())
+        }
     }
     
     private var sortedTracks: [Track] {
@@ -413,6 +425,9 @@ private struct AlbumDetailContentView: View {
             }
             
             Menu {
+                Button(action: { infoTrack = track }) {
+                    Label("Info", systemImage: "info.circle")
+                }
                 Button(action: { observable.playTrack(track) }) {
                     Label("Play", systemImage: "play.fill")
                 }

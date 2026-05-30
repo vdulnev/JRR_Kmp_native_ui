@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.outlined.Star
@@ -33,6 +34,9 @@ import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.domain.model.Track
+import com.jrr.jrrkmp_native_ui.domain.model.Album
+import com.jrr.jrrkmp_native_ui.presentation.components.InfoDialog
+import com.jrr.jrrkmp_native_ui.presentation.components.toInfoFields
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.AlbumDetailContentState
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.AlbumDetailViewModel
 
@@ -47,6 +51,8 @@ fun AlbumDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var infoTrack by remember { mutableStateOf<Track?>(null) }
+    var infoAlbum by remember { mutableStateOf<Album?>(null) }
 
     LaunchedEffect(state.transientError) {
         state.transientError?.let { error ->
@@ -92,7 +98,7 @@ fun AlbumDetailScreen(
                 Box {
                     IconButton(onClick = { showAlbumMenu = true }) {
                         Icon(
-                            imageVector = Icons.Default.MoreVert,
+                            imageVector = Icons.Default.MoreHoriz,
                             contentDescription = "Album Options",
                             tint = AppColors.text
                         )
@@ -102,6 +108,13 @@ fun AlbumDetailScreen(
                         onDismissRequest = { showAlbumMenu = false },
                         modifier = Modifier.background(AppColors.bg2)
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("Info", style = AppTypography.itemTitle) },
+                            onClick = {
+                                showAlbumMenu = false
+                                infoAlbum = viewModel.album
+                            }
+                        )
                         DropdownMenuItem(
                             text = { Text("Play Album", style = AppTypography.itemTitle) },
                             onClick = {
@@ -336,6 +349,13 @@ fun AlbumDetailScreen(
                                         modifier = Modifier.background(AppColors.bg2)
                                     ) {
                                         DropdownMenuItem(
+                                            text = { Text("Info", style = AppTypography.itemTitle) },
+                                            onClick = {
+                                                showMenu = false
+                                                infoTrack = track
+                                            }
+                                        )
+                                        DropdownMenuItem(
                                             text = { Text("Play", style = AppTypography.itemTitle) },
                                             onClick = {
                                                 showMenu = false
@@ -374,5 +394,21 @@ fun AlbumDetailScreen(
                 }
             }
         }
+    }
+
+    infoTrack?.let { track ->
+        InfoDialog(
+            title = track.name,
+            fields = track.toInfoFields(),
+            onDismiss = { infoTrack = null }
+        )
+    }
+
+    infoAlbum?.let { album ->
+        InfoDialog(
+            title = album.name,
+            fields = album.toInfoFields(),
+            onDismiss = { infoAlbum = null }
+        )
     }
 }

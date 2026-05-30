@@ -165,6 +165,8 @@ struct LibraryView: View {
     @State private var searchQueryText = ""
     @State private var selectedArtist: String? = nil
     @State private var selectedAlbumGroupId: String? = nil
+    @State private var infoTrack: Track? = nil
+    @State private var infoAlbum: Album? = nil
     
     init(viewModel: LibraryViewModel, onAlbumClick: @escaping (Album) -> Void) {
         self._observable = State(initialValue: LibraryObservable(viewModel: viewModel))
@@ -309,6 +311,12 @@ struct LibraryView: View {
                 selectedArtist = nil
                 selectedAlbumGroupId = nil
             }
+        }
+        .sheet(item: $infoTrack) { track in
+            InfoView(title: track.name, fields: track.toInfoFields())
+        }
+        .sheet(item: $infoAlbum) { album in
+            InfoView(title: album.name, fields: album.toInfoFields())
         }
     }
     
@@ -765,6 +773,9 @@ struct LibraryView: View {
                             Spacer()
                             
                             Menu {
+                                Button(action: { infoAlbum = album }) {
+                                    Label("Info", systemImage: "info.circle")
+                                }
                                 Button(action: { observable.playAlbum(album) }) {
                                     Label("Play", systemImage: "play.fill")
                                 }
@@ -900,7 +911,9 @@ struct LibraryView: View {
                                                     playAction: { observable.playTracks([track], startIndex: 0) },
                                                     playShuffleAction: { observable.playTracksShuffled([track]) },
                                                     playNextAction: { observable.playTracksNext([track]) },
-                                                    addToQueueAction: { observable.addTracksToQueue([track]) }
+                                                    addToQueueAction: { observable.addTracksToQueue([track]) },
+                                                    infoAction: { infoTrack = track },
+                                                    rotateEllipsis: true
                                                 )
                                             }
                                             .padding(8)
@@ -997,7 +1010,12 @@ struct LibraryView: View {
                                                 playAction: { observable.playTracks(albumTracks, startIndex: 0) },
                                                 playShuffleAction: { observable.playTracksShuffled(albumTracks) },
                                                 playNextAction: { observable.playTracksNext(albumTracks) },
-                                                addToQueueAction: { observable.addTracksToQueue(albumTracks) }
+                                                addToQueueAction: { observable.addTracksToQueue(albumTracks) },
+                                                infoAction: {
+                                                    if let ft = albumTracks.first {
+                                                        infoAlbum = Album(track: ft)
+                                                    }
+                                                }
                                             )
                                         }
                                         .padding(8)
@@ -1270,6 +1288,9 @@ struct LibraryView: View {
             }
             
             Menu {
+                Button(action: { infoTrack = track }) {
+                    Label("Info", systemImage: "info.circle")
+                }
                 Button(action: { observable.playTrack(track) }) {
                     Label("Play", systemImage: "play.fill")
                 }
@@ -1358,6 +1379,9 @@ struct LibraryView: View {
             Spacer()
             
             Menu {
+                Button(action: { infoAlbum = album }) {
+                    Label("Info", systemImage: "info.circle")
+                }
                 Button(action: { observable.playAlbum(album) }) {
                     Label("Play", systemImage: "play.fill")
                 }
@@ -1403,6 +1427,8 @@ struct PlaybackActionMenu: View {
     let playShuffleAction: () -> Void
     let playNextAction: () -> Void
     let addToQueueAction: () -> Void
+    var infoAction: (() -> Void)? = nil
+    var rotateEllipsis: Bool = false
     
     var body: some View {
         Menu {
@@ -1418,12 +1444,24 @@ struct PlaybackActionMenu: View {
             Button(action: addToQueueAction) {
                 Label("Add to Queue", systemImage: "plus")
             }
+            if let infoAction {
+                Button(action: infoAction) {
+                    Label("Info", systemImage: "info.circle")
+                }
+            }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.textSecondary)
-                .rotationEffect(.degrees(90))
-                .frame(width: 32, height: 32)
+            if rotateEllipsis {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.textSecondary)
+                    .rotationEffect(.degrees(90))
+                    .frame(width: 32, height: 32)
+            } else {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.textSecondary)
+                    .frame(width: 32, height: 32)
+            }
         }
         .buttonStyle(PlainButtonStyle())
     }

@@ -24,7 +24,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Headphones
+import com.jrr.jrrkmp_native_ui.presentation.components.InfoDialog
+import com.jrr.jrrkmp_native_ui.presentation.components.toInfoFields
 import com.jrr.jrrkmp_native_ui.core.di.appContainer
 import androidx.compose.material3.*
 import androidx.compose.material3.SecondaryTabRow
@@ -64,6 +67,8 @@ fun LibraryScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var isSearching by remember { mutableStateOf(false) }
+    var infoTrack by remember { mutableStateOf<Track?>(null) }
+    var infoAlbum by remember { mutableStateOf<Album?>(null) }
 
     val artistsListState = rememberLazyListState()
     val artistAlbumsListState = rememberLazyListState()
@@ -148,6 +153,7 @@ fun LibraryScreen(
                             onAddToQueue = { viewModel.addTrackToQueue(track) },
                             onDownload = { viewModel.downloadTrack(track) },
                             isOffline = state.isOffline,
+                            onInfoClick = { infoTrack = track },
                             onClick = {
                                 viewModel.playTrack(track)
                             }
@@ -205,19 +211,18 @@ fun LibraryScreen(
                         artists = state.artists,
                         selectedArtist = state.selectedArtist,
                         artistAlbums = state.artistAlbums,
-                        isLoadingArtists = state.isLoading,
-                        isLoadingAlbums = state.isTabLoading,
+                        isLoadingArtists = state.isLoading || state.isTabLoading,
+                        isLoadingAlbums = state.isLoading || state.isTabLoading,
                         artistsListState = artistsListState,
                         artistAlbumsListState = artistAlbumsListState,
-                        onArtistClick = { artistName ->
-                            viewModel.selectArtist(artistName)
-                        },
+                        onArtistClick = { viewModel.selectArtist(it) },
                         onAlbumClick = onAlbumClick,
                         onPlayAlbum = { viewModel.playAlbum(it) },
                         onPlayAlbumNext = { viewModel.playAlbumNext(it) },
                         onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
                         onDownloadAlbum = { viewModel.downloadAlbum(it) },
                         isOffline = state.isOffline,
+                        onAlbumInfoClick = { infoAlbum = it },
                         onBackClick = { viewModel.selectArtist(null) }
                     )
                     "random" -> RandomTab(
@@ -230,6 +235,7 @@ fun LibraryScreen(
                         onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
                         onDownloadAlbum = { viewModel.downloadAlbum(it) },
                         isOffline = state.isOffline,
+                        onAlbumInfoClick = { infoAlbum = it },
                         onRefresh = {
                             viewModel.retry()
                         }
@@ -255,6 +261,7 @@ fun LibraryScreen(
                         onAddBrowseItemToQueue = { viewModel.addBrowseItemToQueue(it) },
                         onDownloadBrowseItem = { viewModel.downloadBrowseItem(it) },
                         isOffline = state.isOffline,
+                        onTrackInfoClick = { infoTrack = it },
                         onBackClick = {
                             viewModel.popBrowseNode()
                         }
@@ -269,7 +276,9 @@ fun LibraryScreen(
                         onPlayTracks = { viewModel.playTracks(it, 0) },
                         onPlayTracksShuffled = { viewModel.playTracksShuffled(it) },
                         onPlayTracksNext = { viewModel.playTracksNext(it) },
-                        onAddTracksToQueue = { viewModel.addTracksToQueue(it) }
+                        onAddTracksToQueue = { viewModel.addTracksToQueue(it) },
+                        onTrackInfoClick = { infoTrack = it },
+                        onAlbumInfoClick = { infoAlbum = it }
                     )
                     "favorites" -> FavoritesTab(
                         onAlbumClick = onAlbumClick,
@@ -277,7 +286,8 @@ fun LibraryScreen(
                         onPlayAlbumNext = { viewModel.playAlbumNext(it) },
                         onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
                         onDownloadAlbum = { viewModel.downloadAlbum(it) },
-                        isOffline = state.isOffline
+                        isOffline = state.isOffline,
+                        onAlbumInfoClick = { infoAlbum = it }
                     )
                 }
             }
@@ -301,6 +311,7 @@ fun ArtistsTab(
     onAddAlbumToQueue: (Album) -> Unit,
     onDownloadAlbum: (Album) -> Unit,
     isOffline: Boolean,
+    onAlbumInfoClick: (Album) -> Unit,
     onBackClick: () -> Unit
 ) {
     if (selectedArtist != null) {
@@ -344,6 +355,7 @@ fun ArtistsTab(
                                 onAddToQueue = { onAddAlbumToQueue(album) },
                                 onDownload = { onDownloadAlbum(album) },
                                 isOffline = isOffline,
+                                onInfoClick = { onAlbumInfoClick(album) },
                                 onClick = { onAlbumClick(album) }
                             )
                         }
@@ -428,6 +440,7 @@ fun RandomTab(
     onAddAlbumToQueue: (Album) -> Unit,
     onDownloadAlbum: (Album) -> Unit,
     isOffline: Boolean,
+    onAlbumInfoClick: (Album) -> Unit,
     onRefresh: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -503,7 +516,7 @@ fun RandomTab(
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.MoreVert,
+                                        imageVector = Icons.Default.MoreHoriz,
                                         contentDescription = "More options",
                                         tint = AppColors.text3,
                                         modifier = Modifier.size(20.dp)
@@ -514,6 +527,13 @@ fun RandomTab(
                                     onDismissRequest = { showMenu = false },
                                     modifier = Modifier.background(AppColors.bg2)
                                 ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Info", style = AppTypography.itemTitle) },
+                                        onClick = {
+                                            showMenu = false
+                                            onAlbumInfoClick(album)
+                                        }
+                                    )
                                     DropdownMenuItem(
                                         text = { Text("Play", style = AppTypography.itemTitle) },
                                         onClick = {
@@ -571,6 +591,7 @@ fun BrowseTab(
     onAddBrowseItemToQueue: (BrowseItem) -> Unit,
     onDownloadBrowseItem: (BrowseItem) -> Unit,
     isOffline: Boolean,
+    onTrackInfoClick: (Track) -> Unit,
     onBackClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -688,6 +709,7 @@ fun BrowseTab(
                             onAddToQueue = { onAddTrackToQueue(track) },
                             onDownload = { onDownloadTrack(track) },
                             isOffline = isOffline,
+                            onInfoClick = { onTrackInfoClick(track) },
                             onClick = { onTrackClick(track, tracks) }
                         )
                     }
@@ -712,7 +734,9 @@ fun DownloadsTab(
     onPlayTracks: (List<Track>) -> Unit,
     onPlayTracksShuffled: (List<Track>) -> Unit,
     onPlayTracksNext: (List<Track>) -> Unit,
-    onAddTracksToQueue: (List<Track>) -> Unit
+    onAddTracksToQueue: (List<Track>) -> Unit,
+    onTrackInfoClick: (Track) -> Unit,
+    onAlbumInfoClick: (Album) -> Unit
 ) {
     var selectedArtist by remember { mutableStateOf<String?>(null) }
     var selectedAlbumGroupId by remember { mutableStateOf<String?>(null) }
@@ -789,7 +813,8 @@ fun DownloadsTab(
                                     onPlayTracks = onPlayTracks,
                                     onPlayTracksShuffled = onPlayTracksShuffled,
                                     onPlayTracksNext = onPlayTracksNext,
-                                    onAddTracksToQueue = onAddTracksToQueue
+                                    onAddTracksToQueue = onAddTracksToQueue,
+                                    onInfoClick = { onTrackInfoClick(track) }
                                 )
                             }
                         }
@@ -834,6 +859,7 @@ fun DownloadsTab(
                                 val albumTracks = remember(artistTracks, album.groupId) {
                                     artistTracks.filter { it.albumGroupId == album.groupId }
                                 }
+                                val firstTrack = remember(albumTracks) { albumTracks.firstOrNull() }
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -868,11 +894,16 @@ fun DownloadsTab(
                                         Text("${album.trackCount} ${if (album.trackCount == 1) "track" else "tracks"}", style = AppTypography.itemSubtitle, color = AppColors.text2)
                                     }
 
+                                    val albumObj = remember(firstTrack) {
+                                        firstTrack?.let { Album(it) }
+                                    }
                                     TrackActionMenu(
                                         onPlay = { onPlayTracks(albumTracks) },
                                         onPlayShuffle = { onPlayTracksShuffled(albumTracks) },
                                         onPlayNext = { onPlayTracksNext(albumTracks) },
-                                        onAddToQueue = { onAddTracksToQueue(albumTracks) }
+                                        onAddToQueue = { onAddTracksToQueue(albumTracks) },
+                                        onInfoClick = albumObj?.let { { onAlbumInfoClick(it) } },
+                                        icon = Icons.Default.MoreHoriz
                                     )
                                 }
                             }
@@ -1032,6 +1063,7 @@ fun GroupedTrackRowItem(
     onPlayTracksShuffled: (List<Track>) -> Unit,
     onPlayTracksNext: (List<Track>) -> Unit,
     onAddTracksToQueue: (List<Track>) -> Unit,
+    onInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -1090,7 +1122,8 @@ fun GroupedTrackRowItem(
             onPlay = { onPlayTracks(listOf(track)) },
             onPlayShuffle = { onPlayTracksShuffled(listOf(track)) },
             onPlayNext = { onPlayTracksNext(listOf(track)) },
-            onAddToQueue = { onAddTracksToQueue(listOf(track)) }
+            onAddToQueue = { onAddTracksToQueue(listOf(track)) },
+            onInfoClick = onInfoClick
         )
     }
 }
@@ -1101,6 +1134,8 @@ fun TrackActionMenu(
     onPlayShuffle: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
+    onInfoClick: (() -> Unit)? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.MoreVert,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -1110,7 +1145,7 @@ fun TrackActionMenu(
             modifier = Modifier.size(24.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.MoreVert,
+                imageVector = icon,
                 contentDescription = "More options",
                 tint = AppColors.text3,
                 modifier = Modifier.size(20.dp)
@@ -1149,6 +1184,15 @@ fun TrackActionMenu(
                     onAddToQueue()
                 }
             )
+            onInfoClick?.let {
+                DropdownMenuItem(
+                    text = { Text("Info", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        it()
+                    }
+                )
+            }
         }
     }
 }
@@ -1160,7 +1204,8 @@ fun FavoritesTab(
     onPlayAlbumNext: (Album) -> Unit,
     onAddAlbumToQueue: (Album) -> Unit,
     onDownloadAlbum: (Album) -> Unit,
-    isOffline: Boolean
+    isOffline: Boolean,
+    onAlbumInfoClick: (Album) -> Unit
 ) {
     val context = LocalContext.current
     val database = remember { context.appContainer.database }
@@ -1211,6 +1256,7 @@ fun FavoritesTab(
                     onAddToQueue = { onAddAlbumToQueue(album) },
                     onDownload = { onDownloadAlbum(album) },
                     isOffline = isOffline,
+                    onInfoClick = { onAlbumInfoClick(album) },
                     onClick = { onAlbumClick(album) }
                 )
             }
@@ -1226,6 +1272,7 @@ fun TrackRowItem(
     onAddToQueue: () -> Unit,
     onDownload: () -> Unit,
     isOffline: Boolean,
+    onInfoClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -1343,6 +1390,7 @@ fun AlbumRowItem(
     onAddToQueue: () -> Unit,
     onDownload: () -> Unit,
     isOffline: Boolean,
+    onInfoClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -1408,7 +1456,7 @@ fun AlbumRowItem(
                 modifier = Modifier.size(24.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.MoreVert,
+                    imageVector = Icons.Default.MoreHoriz,
                     contentDescription = "More options",
                     tint = AppColors.text3,
                     modifier = Modifier.size(20.dp)
@@ -1446,6 +1494,15 @@ fun AlbumRowItem(
                         onClick = {
                             showMenu = false
                             onDownload()
+                        }
+                    )
+                }
+                onInfoClick?.let {
+                    DropdownMenuItem(
+                        text = { Text("Info", style = AppTypography.itemTitle) },
+                        onClick = {
+                            showMenu = false
+                            it()
                         }
                     )
                 }
