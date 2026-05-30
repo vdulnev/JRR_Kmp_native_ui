@@ -4,6 +4,7 @@ import com.jrr.jrrkmp_native_ui.data.api.parseMcwsTracksJson
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class LibraryRepositoryTest {
@@ -603,6 +604,46 @@ class LibraryRepositoryTest {
         assertTrue(parseMcwsTracksJson("").isEmpty())
         assertTrue(parseMcwsTracksJson("[]").isEmpty())
         assertTrue(parseMcwsTracksJson("invalid-json").isEmpty())
+    }
+
+    // ---- isVariousArtistsSet ----------------------------------------------
+
+    @Test
+    fun various_mixedArtistsWithSentinel_isVarious() {
+        // The Pandora's Box case: CD1/CD3 → "(Multiple Artists)", CD2 → "Aerosmith".
+        assertTrue(
+            isVariousArtistsSet(setOf("Aerosmith", MULTIPLE_ARTISTS_SENTINEL)),
+        )
+    }
+
+    @Test
+    fun various_sentinelMatchIsCaseInsensitive() {
+        assertTrue(isVariousArtistsSet(setOf("Aerosmith", "(multiple artists)")))
+    }
+
+    @Test
+    fun various_singleArtistMultiDisc_isNotVarious() {
+        // A normal 2-CD album by one artist must stay under that artist.
+        assertFalse(isVariousArtistsSet(setOf("Aerosmith")))
+    }
+
+    @Test
+    fun various_onlySentinel_isNotVarious() {
+        // A single internally-mixed compilation already lives under the sentinel;
+        // there's no second artist to fold away from.
+        assertFalse(isVariousArtistsSet(setOf(MULTIPLE_ARTISTS_SENTINEL)))
+    }
+
+    @Test
+    fun various_artistSplitWithoutSentinel_isNotVarious() {
+        // CD1 = Artist A, CD2 = Artist B, neither disc internally mixed and no
+        // sentinel present: keep it visible under each artist rather than hiding.
+        assertFalse(isVariousArtistsSet(setOf("Artist A", "Artist B")))
+    }
+
+    @Test
+    fun various_emptySet_isNotVarious() {
+        assertFalse(isVariousArtistsSet(emptySet()))
     }
 }
 

@@ -11,6 +11,8 @@ import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 
 private val log = Logger.withTag("repo:Library")
@@ -249,6 +251,32 @@ internal fun groupAlbumsByGroupId(albums: List<Album>): List<Album> =
         }
 
 /**
+ * JRiver's auto album-artist sentinel for an album whose tracks span more than
+ * one artist (`[Album Artist (auto)]`).
+ */
+internal const val MULTIPLE_ARTISTS_SENTINEL = "(Multiple Artists)"
+
+/**
+ * Whether [albumArtists] — the distinct `[Album Artist (auto)]` values observed
+ * across a multi-disc box set's disc folders — mark it as a *various-artists*
+ * set.
+ *
+ * True only when the discs disagree (more than one distinct artist) **and** at
+ * least one disc already resolved to [MULTIPLE_ARTISTS_SENTINEL]. Requiring the
+ * sentinel keeps a genuine artist split that JRiver never collapsed (e.g.
+ * `CD1 = Artist A`, `CD2 = Artist B`, neither disc internally mixed) visible
+ * under each artist, rather than making the set vanish from every list.
+ *
+ * Example (the bug this guards): a 3-CD set with `CD1 = (Multiple Artists)`,
+ * `CD2 = Aerosmith`, `CD3 = (Multiple Artists)` → `{Aerosmith, (Multiple
+ * Artists)}` → various, so it shows only under `(Multiple Artists)` and not also
+ * under `Aerosmith`.
+ */
+internal fun isVariousArtistsSet(albumArtists: Set<String>): Boolean =
+    albumArtists.size > 1 &&
+        albumArtists.any { it.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) }
+
+/**
  * Resolves whether the app is currently in offline mode. Modelled as a SAM
  * interface so Swift can implement it directly without the
  * `() -> Boolean` -> `() -> KotlinBoolean` boxing dance the closure form
@@ -320,22 +348,73 @@ class LibraryRepository(
         log.d { "getAlbumsByArtist($artistName) offline=$offline" }
         if (offline) {
             val db = database ?: return@withContext emptyList()
-            val albums = db.downloadedTrackDao().getAllTracks()
+            val allTracks = db.downloadedTrackDao().getAllTracks()
+            val albums = allTracks
                 .asSequence()
                 .filter { it.artist.equals(artistName, ignoreCase = true) }
                 .filter { it.album.trim().isNotEmpty() }
                 .map { Album(it.toTrack()) }
                 .toList()
-            return@withContext groupAlbumsByGroupId(albums)
-                .sortedBy { it.name.lowercase() }
+            val grouped = groupAlbumsByGroupId(albums).sortedBy { it.name.lowercase() }
+            val filtered = if (artistName.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true)) {
+                grouped
+            } else {
+                grouped.filterNot { album ->
+                    album.totalDiscs > 1 && isVariousArtistsSet(
+                        allTracks.asSequence()
+                            .filter {
+                                it.folderPath.startsWith(album.folderPath, ignoreCase = true)
+                            }
+                            .map { it.albumArtist }
+                            .toSet()
+                    )
+                }
+            }
+            return@withContext filtered
                 .also { log.d { "getAlbumsByArtist offline → ${it.size} from cache" } }
         }
         val mcwsQuery =
             "[Album Artist (auto)]=[${esc(artistName)}] ~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
         val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
-        groupAlbumsByGroupId(raw)
-            .sortedBy { it.name.lowercase() }
-            .also { log.d { "getAlbumsByArtist → ${it.size} groups (from ${raw.size} disc-level entries)" } }
+        val grouped = groupAlbumsByGroupId(raw).sortedBy { it.name.lowercase() }
+        // A multi-disc box set whose discs carry mixed album artists otherwise
+        // surfaces under each disc's artist (e.g. CD2 tagged "Aerosmith" next to
+        // CD1/CD3 resolved to "(Multiple Artists)"). When browsing a specific
+        // artist, drop such various-artists sets so they appear only under the
+        // multiple-artists sentinel. One prefix-match query per folded set —
+        // `[Filename (path)]="<parent>"` spans every disc subfolder.
+        val filtered = if (artistName.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true)) {
+            grouped
+        } else {
+            coroutineScope {
+                val variousFlags = grouped.map { album ->
+                    async {
+                        album.totalDiscs > 1 &&
+                            isVariousArtistsSet(albumArtistsUnderFolder(album.folderPath))
+                    }
+                }
+                grouped.filterIndexed { index, _ -> !variousFlags[index].await() }
+            }
+        }
+        filtered.also {
+            log.d {
+                "getAlbumsByArtist → ${it.size} groups (from ${raw.size} disc-level " +
+                    "entries, ${grouped.size - it.size} various-artist sets hidden)"
+            }
+        }
+    }
+
+    /**
+     * Distinct `[Album Artist (auto)]` values across every disc under
+     * [folderPath] (a box set's parent folder). `[Filename (path)]="<path>"` is
+     * a prefix match in JRiver, so a single query spans all disc subfolders.
+     */
+    private suspend fun albumArtistsUnderFolder(folderPath: String): Set<String> {
+        if (folderPath.isEmpty()) return emptySet()
+        val query =
+            "[Media Type]=Audio [Filename (path)]=\"${esc(folderPath)}\" " +
+                "~limit=-1,1,[Album Artist (auto)]"
+        return mcwsClient.searchTracks(query).map { it.albumArtist }.toSet()
     }
 
     suspend fun getAlbumTracks(album: Album): List<Track> = withContext(Dispatchers.IO) {
