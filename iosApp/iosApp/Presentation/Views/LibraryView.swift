@@ -14,6 +14,8 @@ class LibraryObservable {
     var artists: [String] = []
     var selectedArtist: String?
     var artistAlbums: [Album] = []
+    var compilationMode: Bool = false
+    var compilationArtists: [String] = []
     var randomAlbums: [Album] = []
     var browseStack: [BrowseNode] = []
     var browseChildren: [BrowseItem] = []
@@ -52,6 +54,8 @@ class LibraryObservable {
         artists = state.artists
         selectedArtist = state.selectedArtist
         artistAlbums = state.artistAlbums
+        compilationMode = state.compilationMode
+        compilationArtists = state.compilationArtists
         randomAlbums = state.randomAlbums
         browseStack = state.browseStack
         browseChildren = state.browseChildren
@@ -73,6 +77,12 @@ class LibraryObservable {
 
     func selectArtist(_ artistName: String?) {
         viewModel.selectArtist(artistName: artistName)
+    }
+
+    /// Pick an entry from the compilations contributing-artists list.
+    /// `nil` selects "All" (every compilation).
+    func selectCompilationArtist(_ artistName: String?) {
+        viewModel.selectCompilationArtist(artistName: artistName)
     }
 
     func pushBrowseNode(browseItem: BrowseItem) {
@@ -167,6 +177,13 @@ struct LibraryView: View {
     @State private var selectedAlbumGroupId: String? = nil
     @State private var infoTrack: Track? = nil
     @State private var infoAlbum: Album? = nil
+    /// Persisted top-visible row id of the compilations contributing-artists
+    /// list, so its scroll position survives drilling into a compilation and
+    /// back (a plain ScrollView resets to top when occluded and reshown).
+    @State private var compilationScrollID: String? = nil
+    /// Stable id for the leading "All" row; namespaced so it can't collide with
+    /// an artist name.
+    private let compilationAllRowID = "\u{1}__all_compilations__"
 
     init(viewModel: LibraryViewModel, onAlbumClick: @escaping (Album) -> Void) {
         _observable = State(initialValue: LibraryObservable(viewModel: viewModel))
@@ -411,8 +428,17 @@ struct LibraryView: View {
                     }
                 }
             }
-            .opacity(observable.selectedArtist == nil ? 1 : 0)
-            .disabled(observable.selectedArtist != nil)
+            .opacity(observable.selectedArtist == nil && !observable.compilationMode ? 1 : 0)
+            .disabled(observable.selectedArtist != nil || observable.compilationMode)
+
+            // Compilations drill-down: "All" + the artists found inside
+            // compilation albums. Kept mounted (opacity-gated) so its scroll
+            // position survives drilling into a compilation and back.
+            let showCompilations = observable.compilationMode && observable.selectedArtist == nil
+            compilationArtistsList()
+                .background(Color.bg1)
+                .opacity(showCompilations ? 1 : 0)
+                .disabled(!showCompilations)
 
             // Selected Artist's Albums List
             if let artist = observable.selectedArtist {
@@ -469,6 +495,108 @@ struct LibraryView: View {
                 .background(Color.bg1)
             }
         }
+    }
+
+    // MARK: - Compilations contributing-artists list
+
+    private func compilationArtistsList() -> some View {
+        VStack(spacing: 0) {
+            // Back to the artists list
+            Button(action: { observable.selectArtist(nil) }) {
+                HStack {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(.accentColor)
+                        .font(.system(size: 16, weight: .bold))
+
+                    Text("Compilations")
+                        .styleSubScreenTitle()
+
+                    Spacer()
+                }
+                .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                .padding(.vertical, 12)
+            }
+
+            if observable.isTabLoading {
+                Spacer()
+                ProgressView().tint(.accentColor)
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        compilationRow(label: "All", avatar: "∗", highlighted: true) {
+                            observable.selectCompilationArtist(nil)
+                        }
+                        .id(compilationAllRowID)
+                        ForEach(observable.compilationArtists, id: \.self) { artist in
+                            compilationRow(
+                                label: artist,
+                                avatar: String(artist.prefix(1)).uppercased(),
+                                highlighted: false,
+                            ) {
+                                observable.selectCompilationArtist(artist)
+                            }
+                            .id(artist)
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                    .padding(.trailing, 18)
+                    .padding(.top, 8)
+                    .scrollTargetLayout()
+                }
+                // Bind the top-visible row id to @State so the position is
+                // restored when the list is reshown after a drill-down.
+                .scrollPosition(id: $compilationScrollID, anchor: .top)
+                .overlay(alignment: .trailing) {
+                    AlphabetIndexBar(
+                        letters: orderedSectionLetters(observable.compilationArtists),
+                        bottomInset: 96,
+                    ) { letter in
+                        if let target = observable.compilationArtists.first(
+                            where: { sectionLetter(for: $0) == letter },
+                        ) {
+                            withAnimation { compilationScrollID = target }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func compilationRow(
+        label: String,
+        avatar: String,
+        highlighted: Bool,
+        onTap: @escaping () -> Void,
+    ) -> some View {
+        HStack {
+            ZStack {
+                Circle()
+                    .fill(highlighted ? Color.accentColor : Color.bg3)
+                    .frame(width: 36, height: 36)
+
+                Text(avatar)
+                    .font(AppFont.ibmPlexMono(size: 14, weight: .medium))
+                    .foregroundColor(highlighted ? .bg0 : .accentColor)
+            }
+
+            Text(label)
+                .font(AppFont.inter(size: 16, weight: .medium))
+                .foregroundColor(highlighted ? .accentColor : .textPrimary)
+                .padding(.leading, 8)
+
+            Spacer()
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(Color.bg2)
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.line, lineWidth: 1),
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
     }
 
     // MARK: - Random Tab View

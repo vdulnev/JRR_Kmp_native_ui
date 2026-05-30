@@ -341,13 +341,86 @@ class LibraryRepository(
                     artistsSet.add(artist)
                 }
             }
-            return@withContext artistsSet.sortedWith(compareBy { it.lowercase() })
-                .also { log.d { "getArtists offline → ${it.size} from cache" } }
+            return@withContext compilationsFirst(
+                artistsSet.sortedWith(compareBy { it.lowercase() }),
+            ).also { log.d { "getArtists offline → ${it.size} from cache" } }
         }
         val mcwsQuery =
             "[Media Type]=Audio ~limit=-1,1,[Album Artist (auto)] ~sort=[Album Artist (auto)]"
-        mcwsClient.searchTracks(mcwsQuery).map { track -> track.albumArtist }
+        compilationsFirst(mcwsClient.searchTracks(mcwsQuery).map { track -> track.albumArtist })
     }
+
+    /**
+     * Move the compilations entry ([MULTIPLE_ARTISTS_SENTINEL]) to the front so
+     * compilations always appear first in the Artists list. Order of the rest is
+     * preserved.
+     */
+    private fun compilationsFirst(artists: List<String>): List<String> {
+        val (compilations, rest) =
+            artists.partition { it.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) }
+        return compilations + rest
+    }
+
+    /**
+     * Distinct track-level artists that appear inside compilation albums (albums
+     * whose `[Album Artist (auto)]` is [MULTIPLE_ARTISTS_SENTINEL]). Powers the
+     * "artists from compilations" list. Sorted case-insensitively.
+     */
+    suspend fun getCompilationArtists(): List<String> = withContext(Dispatchers.IO) {
+        val offline = isOfflineProvider.isOffline()
+        log.d { "getCompilationArtists() offline=$offline" }
+        if (offline) {
+            val db = database ?: return@withContext emptyList()
+            return@withContext db.downloadedTrackDao().getAllTracks()
+                .asSequence()
+                .filter { it.albumArtist.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) }
+                .map { it.artist.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+                .sortedWith(compareBy { it.lowercase() })
+                .toList()
+                .also { log.d { "getCompilationArtists offline → ${it.size}" } }
+        }
+        val mcwsQuery =
+            "[Album Artist (auto)]=[${esc(MULTIPLE_ARTISTS_SENTINEL)}] " +
+                "~limit=-1,1,[Artist] ~sort=[Artist]"
+        mcwsClient.searchTracks(mcwsQuery)
+            .map { it.artist.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .also { log.d { "getCompilationArtists → ${it.size}" } }
+    }
+
+    /**
+     * Compilation albums (`[Album Artist (auto)]` = [MULTIPLE_ARTISTS_SENTINEL])
+     * that contain at least one track by [artistName]. Grouped/sorted like
+     * [getAlbumsByArtist].
+     */
+    suspend fun getCompilationAlbumsByArtist(artistName: String): List<Album> =
+        withContext(Dispatchers.IO) {
+            val offline = isOfflineProvider.isOffline()
+            log.d { "getCompilationAlbumsByArtist($artistName) offline=$offline" }
+            if (offline) {
+                val db = database ?: return@withContext emptyList()
+                val matchingFolders = db.downloadedTrackDao().getAllTracks()
+                    .asSequence()
+                    .filter { it.albumArtist.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) }
+                    .filter { it.artist.equals(artistName, ignoreCase = true) }
+                    .map { Album(it.toTrack()) }
+                    .toList()
+                return@withContext groupAlbumsByGroupId(matchingFolders)
+                    .sortedBy { it.name.lowercase() }
+                    .also { log.d { "getCompilationAlbumsByArtist offline → ${it.size}" } }
+            }
+            val mcwsQuery =
+                "[Album Artist (auto)]=[${esc(MULTIPLE_ARTISTS_SENTINEL)}] " +
+                    "[Artist]=[${esc(artistName)}] " +
+                    "~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
+            val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
+            groupAlbumsByGroupId(raw)
+                .sortedBy { it.name.lowercase() }
+                .also { log.d { "getCompilationAlbumsByArtist → ${it.size}" } }
+        }
 
     suspend fun getAlbumsByArtist(artistName: String): List<Album> = withContext(Dispatchers.IO) {
         val offline = isOfflineProvider.isOffline()
