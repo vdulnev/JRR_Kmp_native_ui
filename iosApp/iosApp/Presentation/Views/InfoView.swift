@@ -117,7 +117,7 @@ struct InfoView: View {
     }
 }
 
-extension Track: Identifiable {
+extension Track: @retroactive Identifiable {
     public var id: String { fileKey }
 
     func toInfoFields() -> [(label: String, value: String)] {
@@ -151,7 +151,7 @@ extension Track: Identifiable {
     }
 }
 
-extension Album: Identifiable {
+extension Album: @retroactive Identifiable {
     public var id: String { name + folderPath }
 
     func toInfoFields() -> [(label: String, value: String)] {
