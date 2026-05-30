@@ -113,6 +113,13 @@ class AudioPlayerFacade(
     private val _activeZone = MutableStateFlow<Zone>(Zone.Offline)
     val activeZone: StateFlow<Zone> = _activeZone
 
+    // `_activeZone` starts at Offline as a placeholder. The first real [setZone]
+    // (the facade restoring the persisted zone in `init`) must NOT save the
+    // placeholder zone's queue — the engine is empty at that point, so it would
+    // persist an empty queue over the saved one and wipe it. Flips true after
+    // the first setZone.
+    private var hasSetInitialZone = false
+
     private val _playerStatus = MutableStateFlow<PlayerStatus?>(null)
     val playerStatus: StateFlow<PlayerStatus?> = _playerStatus
 
@@ -222,6 +229,19 @@ class AudioPlayerFacade(
         serverRepository?.setActiveServer(host, port, useSsl, sslPort, authToken)
         _connectionToken.value = authToken
 
+        // Establishing a real server connection (non-empty host) means we're no
+        // longer offline. If the active zone is Offline — e.g. the app started
+        // offline and the user just logged in from the Server screen — switch to
+        // the Local zone so the UI leaves offline mode (library/zones come
+        // online). A disconnect calls this with an empty host and sets Offline
+        // explicitly, so it must NOT trigger this. `setZone` already rebuilds the
+        // local queue with the now-known host, so we return early.
+        if (host.isNotEmpty() && _activeZone.value.isOffline) {
+            log.i { "server connection established while Offline → switching to Local zone" }
+            setZone(Zone.Local)
+            return
+        }
+
         // At startup the saved local queue is restored *before* auto-connect
         // resolves the active server, so any streaming items get built with an
         // empty host and fail with a connection error. Now that the server is
@@ -246,18 +266,30 @@ class AudioPlayerFacade(
 
     fun setZone(zone: Zone, skipLoadQueue: Boolean = false) {
         val oldZone = _activeZone.value
-        log.i { "setZone(${zone.id}, skipLoadQueue=$skipLoadQueue) from=${oldZone.id}" }
-        if (oldZone.isLocal || oldZone.isOffline || oldZone.isAndroidAuto) {
-            saveQueueState(oldZone.id)
-            if (!zone.isLocal && !zone.isOffline && !zone.isAndroidAuto) {
-                log.d { "stopping local engine before remote zone switch" }
-                localPlayerEngine.stop()
-            }
-        } else {
-            if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
-                log.d { "stopping remote zone ${oldZone.id} before local switch" }
-                coroutineScope.launch(ioDispatcher) {
-                    remoteHandler.stop(oldZone.id)
+        val isInitialZoneSet = !hasSetInitialZone
+        hasSetInitialZone = true
+        // Only tear down / persist the previous zone when we're genuinely
+        // switching AWAY from it: not on the initial restore (engine still
+        // empty — saving would wipe the persisted queue), and not when
+        // re-selecting the already-active zone.
+        val leavingZone = !isInitialZoneSet && oldZone.id != zone.id
+        log.i {
+            "setZone(${zone.id}, skipLoadQueue=$skipLoadQueue) from=${oldZone.id} " +
+                "initial=$isInitialZoneSet leaving=$leavingZone"
+        }
+        if (leavingZone) {
+            if (oldZone.isLocal || oldZone.isOffline || oldZone.isAndroidAuto) {
+                saveQueueState(oldZone.id)
+                if (!zone.isLocal && !zone.isOffline && !zone.isAndroidAuto) {
+                    log.d { "stopping local engine before remote zone switch" }
+                    localPlayerEngine.stop()
+                }
+            } else {
+                if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
+                    log.d { "stopping remote zone ${oldZone.id} before local switch" }
+                    coroutineScope.launch(ioDispatcher) {
+                        remoteHandler.stop(oldZone.id)
+                    }
                 }
             }
         }

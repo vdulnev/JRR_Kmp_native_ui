@@ -95,9 +95,12 @@ class RootComponentTest {
     }
 
     @Test
-    fun initialConfig_freshInstall_startsOnServer() {
+    fun initialConfig_freshInstall_startsOnPlayer() {
+        // Fresh install: no saved servers, no last zone — start on Player
+        // (offline) rather than the Server screen so the app is usable
+        // without a login.
         val cfg = RootComponent.initialConfig(FakeSettings())
-        assertEquals(RootConfig.Server, cfg)
+        assertEquals(RootConfig.Player, cfg)
     }
 
     // ---- tab switching ----
@@ -122,10 +125,12 @@ class RootComponentTest {
     }
 
     @Test
-    fun onDisconnect_navigatesToServer() {
+    fun onDisconnect_staysOnPlayer() {
+        // After disconnect the user stays on the Player/offline tab; they
+        // reach the Server screen explicitly via Settings → Connect.
         val root = root(initial = RootConfig.Player)
         root.onDisconnect()
-        assertEquals(RootConfig.Server, root.activeConfig)
+        assertEquals(RootConfig.Player, root.activeConfig)
     }
 
     // ---- Library sub-stack: open album, preserve across tab switch, pop-to-root ----

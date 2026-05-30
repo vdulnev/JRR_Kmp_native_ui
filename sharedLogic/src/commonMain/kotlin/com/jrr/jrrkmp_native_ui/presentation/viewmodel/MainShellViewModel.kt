@@ -57,13 +57,10 @@ class MainShellViewModel(
     init {
         val lastActiveZoneId = settings.getLastActiveZoneId()
         val hasSavedServers = settings.getHasSavedServers()
-        val initialTab = when {
-            lastActiveZoneId == Zone.Offline.id -> 2
-            hasSavedServers -> 2
-            else -> 1
-        }
-        log.d { "init initialTab=$initialTab lastZone=$lastActiveZoneId hasSavedServers=$hasSavedServers" }
-        _state.value = MainShellState(activeTab = initialTab)
+        // Always start on the Player/offline tab; the Server screen is only
+        // entered explicitly (Connect button in Settings) — never on cold start.
+        log.d { "init lastZone=$lastActiveZoneId hasSavedServers=$hasSavedServers" }
+        _state.value = MainShellState(activeTab = 2)
         state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
     }
 
@@ -77,8 +74,12 @@ class MainShellViewModel(
 
         val lastActiveZoneId = settings.getLastActiveZoneId()
         if (lastActiveZoneId == Zone.Offline.id) {
-            log.i { "auto-connect → Offline (last active zone)" }
-            facade.setZone(Zone.Offline)
+            // The facade already restored the Offline zone — and asynchronously
+            // reloaded its saved queue — during its own init, from the same
+            // persisted zone id. Calling setZone(Offline) again here would run
+            // saveQueueState() against the not-yet-populated engine and wipe the
+            // persisted queue. So just surface the tab; don't re-set the zone.
+            log.i { "auto-connect → Offline (last active zone, already restored)" }
             _state.update { it.copy(activeTab = 2) }
             return
         }
@@ -87,6 +88,7 @@ class MainShellViewModel(
             try {
                 val lastServer = serverRepository.getLastUsedServer()
                 if (lastServer != null) {
+
                     log.i { "auto-connect to ${lastServer.friendlyName ?: lastServer.host}:${lastServer.port} ssl=${lastServer.useSsl}" }
                     settings.setHasSavedServers(true)
                     _state.update {
@@ -139,9 +141,10 @@ class MainShellViewModel(
                         _state.update { it.copy(activeTab = 1) }
                     }
                 } else {
-                    log.d { "no saved server → show connect screen" }
+                    log.d { "no saved server → enter offline mode" }
                     settings.setHasSavedServers(false)
-                    _state.update { it.copy(activeTab = 1) }
+                    facade.setZone(Zone.Offline)
+                    _state.update { it.copy(activeTab = 2) }
                 }
             } catch (e: Exception) {
                 log.e(e) { "auto-connect failed" }
@@ -158,7 +161,8 @@ class MainShellViewModel(
         log.i { "cancelAutoConnect()" }
         autoConnectJob?.cancel()
         autoConnectJob = null
-        _state.update { it.copy(isAutoConnecting = false, activeTab = 1) }
+        facade.setZone(Zone.Offline)
+        _state.update { it.copy(isAutoConnecting = false, activeTab = 2) }
         showToast("Connection cancelled")
     }
 
@@ -181,6 +185,8 @@ class MainShellViewModel(
         log.i { "disconnect()" }
         facade.setServerConnection("", 0, false, 0, null)
         facade.setZone(Zone.Offline)
-        _state.update { it.copy(activeTab = 1) }
+        // Stay in the app on the Player/offline tab rather than returning to
+        // the Server screen — the user can reach the server screen via Settings.
+        _state.update { it.copy(activeTab = 2) }
     }
 }

@@ -69,6 +69,10 @@ class ZonesViewModel(
 
             ZonesViewState(
                 serverZones = if (isOfflineMode) emptyList() else serverZones,
+                // Local playback requires a server connection (the server
+                // streams to the local engine). When offline, only the
+                // Offline zone is accessible.
+                deviceZones = if (isOfflineMode) listOf(Zone.Offline) else listOf(Zone.Local, Zone.Offline),
                 activeZoneId = activeZone.id,
                 currentVolume = activeVolume,
                 isLoading = if (isOfflineMode) false else isLoading,

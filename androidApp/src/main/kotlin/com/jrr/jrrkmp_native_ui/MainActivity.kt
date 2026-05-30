@@ -340,8 +340,11 @@ fun MainShell(
                     viewModel = child.component.vm,
                     onBackClick = { root.selectTab(RootConfig.Player) },
                     onDisconnectClick = {
+                        // Disconnect (when online) or Connect (when offline):
+                        // tear down the server connection and go to the Server
+                        // screen so the user can pick a server or stay offline.
                         connectViewModel.disconnect()
-                        root.onDisconnect()
+                        root.selectTab(RootConfig.Server)
                     }
                 )
             }

@@ -143,3 +143,5 @@ is passed into `SettingsViewModel` from each platform's AppContainer
 - Conventional Commits: `feat|fix|chore|docs|refactor|test(<scope>): <description>`
 - Scopes: `feat(auth)`, `fix(home_screen)`, `refactor(api_client)`, etc.
 - No AI attribution trailers on commits.
+- **CRITICAL**: Never commit or push changes automatically. Always wait for a direct command/instruction from the user before committing or pushing code.
+

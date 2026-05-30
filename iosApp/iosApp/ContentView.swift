@@ -283,8 +283,11 @@ struct ContentView: View {
                                     }
                                 },
                                 onDisconnectClick: {
+                                    // Disconnect (when online) or Connect (when
+                                    // offline): tear down and go to the Server
+                                    // screen to pick a server or stay offline.
                                     mainShellObservable.disconnect()
-                                    container.root.onDisconnect()
+                                    container.root.selectTab(config: RootConfigServer.shared)
                                 },
                             )
                         } else {
