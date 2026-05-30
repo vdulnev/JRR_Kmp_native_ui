@@ -293,7 +293,24 @@ fun LibraryScreen(
             }
         }
     }
+
+    infoTrack?.let { track ->
+        InfoDialog(
+            title = track.name,
+            fields = track.toInfoFields(),
+            onDismiss = { infoTrack = null }
+        )
+    }
+
+    infoAlbum?.let { album ->
+        InfoDialog(
+            title = album.name,
+            fields = album.toInfoFields(),
+            onDismiss = { infoAlbum = null }
+        )
+    }
 }
+
 
 @Composable
 fun ArtistsTab(
