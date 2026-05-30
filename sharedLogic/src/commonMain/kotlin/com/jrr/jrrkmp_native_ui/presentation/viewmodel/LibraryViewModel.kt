@@ -50,6 +50,10 @@ data class LibraryViewState(
     // "All" entry; picking one loads [artistAlbums] of the matching compilations.
     val compilationMode: Boolean = false,
     val compilationArtists: List<String> = emptyList(),
+    // Quick type-to-filter applied to whichever Artists-tab list is showing
+    // (artists / compilation artists / albums). Reset whenever the displayed
+    // list changes.
+    val artistsFilter: String = "",
     val randomAlbums: List<Album> = emptyList(),
     val browseStack: List<BrowseNode> = listOf(BrowseNode("Library", "-1")),
     val browseChildren: List<BrowseItem> = emptyList(),
@@ -104,6 +108,7 @@ class LibraryViewModel(
                         artistAlbums = if (offlineFlipped) emptyList() else it.artistAlbums,
                         compilationMode = if (offlineFlipped) false else it.compilationMode,
                         compilationArtists = if (offlineFlipped) emptyList() else it.compilationArtists,
+                        artistsFilter = if (offlineFlipped) "" else it.artistsFilter,
                         searchQuery = if (offlineFlipped) "" else it.searchQuery,
                         searchResults = if (offlineFlipped) emptyList() else it.searchResults,
                     )
@@ -144,9 +149,15 @@ class LibraryViewModel(
                 artistAlbums = emptyList(),
                 compilationMode = false,
                 compilationArtists = emptyList(),
+                artistsFilter = "",
             )
         }
         loadTabContent()
+    }
+
+    /** Quick type-to-filter for the active Artists-tab list. */
+    fun setArtistsFilter(query: String) {
+        _state.update { it.copy(artistsFilter = query) }
     }
 
     /**
@@ -160,7 +171,7 @@ class LibraryViewModel(
             artistName == null -> artistsBack()
             artistName.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) -> openCompilations()
             else -> {
-                _state.update { it.copy(selectedArtist = artistName) }
+                _state.update { it.copy(selectedArtist = artistName, artistsFilter = "") }
                 loadArtistAlbums { libraryRepository.getAlbumsByArtist(artistName) }
             }
         }
@@ -174,6 +185,7 @@ class LibraryViewModel(
                 compilationMode = true,
                 selectedArtist = null,
                 artistAlbums = emptyList(),
+                artistsFilter = "",
                 isTabLoading = true,
             )
         }
@@ -201,7 +213,9 @@ class LibraryViewModel(
      */
     fun selectCompilationArtist(artistName: String?) {
         log.d { "selectCompilationArtist($artistName)" }
-        _state.update { it.copy(selectedArtist = artistName ?: MULTIPLE_ARTISTS_SENTINEL) }
+        _state.update {
+            it.copy(selectedArtist = artistName ?: MULTIPLE_ARTISTS_SENTINEL, artistsFilter = "")
+        }
         loadArtistAlbums {
             if (artistName == null) {
                 libraryRepository.getAlbumsByArtist(MULTIPLE_ARTISTS_SENTINEL)
@@ -216,11 +230,15 @@ class LibraryViewModel(
         _state.update {
             when {
                 it.compilationMode && it.selectedArtist != null ->
-                    it.copy(selectedArtist = null, artistAlbums = emptyList())
+                    it.copy(selectedArtist = null, artistAlbums = emptyList(), artistsFilter = "")
                 it.compilationMode ->
-                    it.copy(compilationMode = false, compilationArtists = emptyList())
+                    it.copy(
+                        compilationMode = false,
+                        compilationArtists = emptyList(),
+                        artistsFilter = "",
+                    )
                 else ->
-                    it.copy(selectedArtist = null, artistAlbums = emptyList())
+                    it.copy(selectedArtist = null, artistAlbums = emptyList(), artistsFilter = "")
             }
         }
     }

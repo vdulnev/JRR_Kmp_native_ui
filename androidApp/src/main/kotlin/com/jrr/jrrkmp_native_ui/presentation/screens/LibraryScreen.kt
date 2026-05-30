@@ -38,6 +38,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -214,6 +218,8 @@ fun LibraryScreen(
                         artistAlbums = state.artistAlbums,
                         compilationMode = state.compilationMode,
                         compilationArtists = state.compilationArtists,
+                        artistsFilter = state.artistsFilter,
+                        onFilterChange = { viewModel.setArtistsFilter(it) },
                         isLoadingArtists = state.isLoading || state.isTabLoading,
                         isLoadingAlbums = state.isLoading || state.isTabLoading,
                         artistsListState = artistsListState,
@@ -324,6 +330,8 @@ fun ArtistsTab(
     artistAlbums: List<Album>,
     compilationMode: Boolean,
     compilationArtists: List<String>,
+    artistsFilter: String,
+    onFilterChange: (String) -> Unit,
     isLoadingArtists: Boolean,
     isLoadingAlbums: Boolean,
     artistsListState: LazyListState,
@@ -354,14 +362,24 @@ fun ArtistsTab(
                 Text(selectedArtist, style = AppTypography.subScreenTitle)
             }
 
+            ListFilterField(
+                value = artistsFilter,
+                onValueChange = onFilterChange,
+                placeholder = "Filter albums"
+            )
+            val filteredAlbums = remember(artistAlbums, artistsFilter) {
+                if (artistsFilter.isBlank()) artistAlbums
+                else artistAlbums.filter { it.name.contains(artistsFilter, ignoreCase = true) }
+            }
+
             if (isLoadingAlbums) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = AppColors.accent)
                 }
             } else {
                 val albumsScope = rememberCoroutineScope()
-                val albumSections = remember(artistAlbums) {
-                    artistAlbums.map { sectionLetterFor(it.name) }
+                val albumSections = remember(filteredAlbums) {
+                    filteredAlbums.map { sectionLetterFor(it.name) }
                 }
                 val albumLetters = remember(albumSections) { albumSections.distinct() }
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -373,7 +391,7 @@ fun ArtistsTab(
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(artistAlbums) { album ->
+                        items(filteredAlbums) { album ->
                             AlbumRowItem(
                                 album = album,
                                 onPlay = { onPlayAlbum(album) },
@@ -413,14 +431,23 @@ fun ArtistsTab(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Compilations", style = AppTypography.subScreenTitle)
             }
+            ListFilterField(
+                value = artistsFilter,
+                onValueChange = onFilterChange,
+                placeholder = "Filter artists"
+            )
+            val filteredCompArtists = remember(compilationArtists, artistsFilter) {
+                if (artistsFilter.isBlank()) compilationArtists
+                else compilationArtists.filter { it.contains(artistsFilter, ignoreCase = true) }
+            }
             if (isLoadingArtists) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = AppColors.accent)
                 }
             } else {
                 val compScope = rememberCoroutineScope()
-                val compSections = remember(compilationArtists) {
-                    compilationArtists.map { sectionLetterFor(it) }
+                val compSections = remember(filteredCompArtists) {
+                    filteredCompArtists.map { sectionLetterFor(it) }
                 }
                 val compLetters = remember(compSections) { compSections.distinct() }
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -432,17 +459,21 @@ fun ArtistsTab(
                         ),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        item {
-                            CompilationArtistRow(
-                                label = "All",
-                                avatarText = "∗",
-                                highlighted = true,
-                                onClick = { onCompilationArtistClick(null) }
-                            )
+                        // Hide "All" while filtering — the user is hunting a
+                        // specific artist, not the everything bucket.
+                        if (artistsFilter.isBlank()) {
+                            item {
+                                CompilationArtistRow(
+                                    label = AnnotatedString("All"),
+                                    avatarText = "∗",
+                                    highlighted = true,
+                                    onClick = { onCompilationArtistClick(null) }
+                                )
+                            }
                         }
-                        items(compilationArtists) { artist ->
+                        items(filteredCompArtists) { artist ->
                             CompilationArtistRow(
-                                label = artist,
+                                label = highlightMatch(artist, artistsFilter),
                                 avatarText = artist.take(1).uppercase(),
                                 highlighted = false,
                                 onClick = { onCompilationArtistClick(artist) }
@@ -453,9 +484,10 @@ fun ArtistsTab(
                         letters = compLetters,
                         onLetterSelected = { letter ->
                             val idx = compSections.indexOf(letter)
-                            // +1 to skip the leading "All" row.
+                            // +1 to skip the "All" row (only present when unfiltered).
+                            val offset = if (artistsFilter.isBlank()) 1 else 0
                             if (idx >= 0) compScope.launch {
-                                compilationArtistsListState.scrollToItem(idx + 1)
+                                compilationArtistsListState.scrollToItem(idx + offset)
                             }
                         },
                     )
@@ -463,65 +495,123 @@ fun ArtistsTab(
             }
         }
     } else {
-        if (isLoadingArtists) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = AppColors.accent)
+        Column(modifier = Modifier.fillMaxSize()) {
+            ListFilterField(
+                value = artistsFilter,
+                onValueChange = onFilterChange,
+                placeholder = "Filter artists"
+            )
+            val filteredArtists = remember(artists, artistsFilter) {
+                if (artistsFilter.isBlank()) artists
+                else artists.filter { it.contains(artistsFilter, ignoreCase = true) }
             }
-        } else {
-            val scope = rememberCoroutineScope()
-            val sections = remember(artists) { artists.map { sectionLetterFor(it) } }
-            val letters = remember(sections) { sections.distinct() }
-            Box(modifier = Modifier.fillMaxSize()) {
-                LazyColumn(
-                    state = artistsListState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 16.dp, end = 28.dp, top = 16.dp, bottom = 16.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(artists) { artist ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(AppColors.bg2)
-                                .clickable { onArtistClick(artist) }
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
+            if (isLoadingArtists) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = AppColors.accent)
+                }
+            } else {
+                val scope = rememberCoroutineScope()
+                val sections = remember(filteredArtists) { filteredArtists.map { sectionLetterFor(it) } }
+                val letters = remember(sections) { sections.distinct() }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = artistsListState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 16.dp, end = 28.dp, top = 8.dp, bottom = 16.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredArtists) { artist ->
+                            Row(
                                 modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(AppColors.accentDim),
-                                contentAlignment = Alignment.Center
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(AppColors.bg2)
+                                    .clickable { onArtistClick(artist) }
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = artist.take(1).uppercase(),
-                                    style = AppTypography.chipMono.copy(color = AppColors.accent, fontSize = 14.sp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(AppColors.accentDim),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = artist.take(1).uppercase(),
+                                        style = AppTypography.chipMono.copy(color = AppColors.accent, fontSize = 14.sp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(highlightMatch(artist, artistsFilter), style = AppTypography.itemTitle)
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(artist, style = AppTypography.itemTitle)
                         }
                     }
+                    AlphabetIndexBar(
+                        letters = letters,
+                        onLetterSelected = { letter ->
+                            val idx = sections.indexOf(letter)
+                            if (idx >= 0) scope.launch { artistsListState.scrollToItem(idx) }
+                        },
+                    )
                 }
-                AlphabetIndexBar(
-                    letters = letters,
-                    onLetterSelected = { letter ->
-                        val idx = sections.indexOf(letter)
-                        if (idx >= 0) scope.launch { artistsListState.scrollToItem(idx) }
-                    },
-                )
             }
         }
     }
 }
 
+/** Slim type-to-filter row pinned above a list. */
+@Composable
+private fun ListFilterField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = { Text(placeholder, color = AppColors.text3) },
+        singleLine = true,
+        colors = outlinedTextFieldColors(),
+        leadingIcon = {
+            Icon(Icons.Default.Search, contentDescription = null, tint = AppColors.text3)
+        },
+        trailingIcon = {
+            if (value.isNotEmpty()) {
+                IconButton(onClick = { onValueChange("") }) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear filter", tint = AppColors.text3)
+                }
+            }
+        },
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    )
+}
+
+/**
+ * Renders [text] with the first case-insensitive occurrence of [query] bolded
+ * in the accent colour. No-op styling when [query] is blank or unmatched.
+ */
+private fun highlightMatch(text: String, query: String): AnnotatedString = buildAnnotatedString {
+    val idx = if (query.isBlank()) -1 else text.indexOf(query, ignoreCase = true)
+    if (idx < 0) {
+        append(text)
+    } else {
+        append(text.substring(0, idx))
+        withStyle(SpanStyle(color = AppColors.accent, fontWeight = FontWeight.Bold)) {
+            append(text.substring(idx, idx + query.length))
+        }
+        append(text.substring(idx + query.length))
+    }
+}
+
 @Composable
 private fun CompilationArtistRow(
-    label: String,
+    label: AnnotatedString,
     avatarText: String,
     highlighted: Boolean,
     onClick: () -> Unit
