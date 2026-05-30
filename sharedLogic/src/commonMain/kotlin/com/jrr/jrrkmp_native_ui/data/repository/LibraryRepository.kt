@@ -32,12 +32,14 @@ private val log = Logger.withTag("repo:Library")
 // matched as `[A-Za-z0-9А-Яа-я]+`.
 private const val DISC_WORDS = """(?:Disc|Disk|CD|Диск)"""
 
-// (Disc N) / (Disk N) / (CD N) / (Disc A) / (Disc One) when the bracket
-// content is JUST a disc marker. NOT anchored to end-of-string — strips
-// the marker even when followed by another parens block carrying release
-// info, e.g. `Garage Inc. (Disc 1) [SHM-CD, UICY-94670]`.
+// (Disc N) / (Disk N) / (CD N) / (CD-1) / (Disc A) / (Disc One) when the
+// bracket content is JUST a disc marker. NOT anchored to end-of-string —
+// strips the marker even when followed by another parens block carrying
+// release info, e.g. `Garage Inc. (Disc 1) [SHM-CD, UICY-94670]`. The
+// `[\s.\-]*` between the keyword and the index tolerates `CD-1` / `CD.1`
+// separators, not just `CD 1` / `CD1`.
 private val DISC_PAREN_ONLY = Regex(
-    """\s*[(\[]\s*$DISC_WORDS\s*[A-Za-zА-Яа-я0-9]+\s*[)\]]""",
+    """\s*[(\[]\s*$DISC_WORDS[\s.\-]*[A-Za-zА-Яа-я0-9]+\s*[)\]]""",
     RegexOption.IGNORE_CASE,
 )
 

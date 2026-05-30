@@ -32,6 +32,23 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun normalize_hyphenatedCdMarker_keepsCatalogParens() {
+        // `(CD-1)` is a disc marker (drop it); `(SRCS 7321~3)` is a catalog
+        // number and must be preserved as a distinguishing release token.
+        assertEquals(
+            "Pandora's Box (SRCS 7321~3)",
+            normalizeAlbumName("Pandora's Box (SRCS 7321~3) (CD-1)"),
+        )
+        assertEquals(
+            "Pandora's Box (SRCS 7321~3)",
+            normalizeAlbumName("Pandora's Box (SRCS 7321~3) (CD-3)"),
+        )
+        assertEquals("25", normalizeAlbumName("25 (CD-2)"))
+        assertEquals("25", normalizeAlbumName("25 (CD.2)"))
+        assertEquals("25", normalizeAlbumName("25 (Disc-2)"))
+    }
+
+    @Test
     fun normalize_embeddedInsideLargerParens() {
         assertEquals(
             "13 (Deluxe Edition, 3735427)",
