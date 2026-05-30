@@ -28,6 +28,15 @@ kotlin {
         iosTarget.binaries.framework {
             baseName = "SharedLogic"
             isStatic = true
+            // Surface Decompose/Essenty types (Value, ChildStack, Cancellation,
+            // LifecycleRegistry, DefaultComponentContext, …) by name in the
+            // generated Swift header so the iOS host can bridge the component
+            // tree. Each must be `api` in commonMain for export to resolve.
+            export(libs.decompose)
+            export(libs.essenty.lifecycle)
+            export(libs.essenty.state.keeper)
+            export(libs.essenty.back.handler)
+            export(libs.essenty.instance.keeper)
         }
     }
     
@@ -63,6 +72,13 @@ kotlin {
             // in commonMain so the deps should travel with them.
             api(libs.kermit)
             implementation(libs.atomicfu)
+            // `api` so app modules (and the iOS framework via SKIE) can name
+            // Value, ChildStack, ComponentContext without re-declaring the dep.
+            api(libs.decompose)
+            api(libs.essenty.lifecycle)
+            api(libs.essenty.state.keeper)
+            api(libs.essenty.back.handler)
+            api(libs.essenty.instance.keeper)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)

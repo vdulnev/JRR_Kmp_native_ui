@@ -7,32 +7,35 @@ class SwiftMainShellSettings: NSObject, MainShellSettings {
     func getLastActiveZoneId() -> String? {
         return UserDefaults.standard.string(forKey: "last_active_zone_id")
     }
-    
+
     func setLastActiveZoneId(zoneId: String?) {
         UserDefaults.standard.set(zoneId, forKey: "last_active_zone_id")
     }
-    
+
     func getHasSavedServers() -> Bool {
         return UserDefaults.standard.bool(forKey: "has_saved_servers")
     }
-    
+
     func setHasSavedServers(hasSaved: Bool) {
         UserDefaults.standard.set(hasSaved, forKey: "has_saved_servers")
     }
 }
 
+/// Connection-flow state holder. Navigation now lives in the Decompose
+/// `RootComponent`; this only mirrors the connect/toast fields the shell still
+/// owns. `activeTab` is kept purely as a *bridge signal*: when the connect flow
+/// flips it (auto-connect success → 2, failure/cancel/disconnect → 1) the host
+/// forwards that to `root.selectTab`. Manual tab taps go straight to `root`.
 @Observable
 @MainActor
 class MainShellObservable {
     let viewModel: MainShellViewModel
-    
+
     var activeTab: Int = 1
-    var selectedAlbum: Album? = nil
-    var showQueue: Bool = false
     var isAutoConnecting: Bool = false
     var autoConnectServerName: String = ""
     var toastMessage: String? = nil
-    
+
     @ObservationIgnored private var observeTask: Task<Void, Never>?
 
     init(viewModel: MainShellViewModel) {
@@ -53,203 +56,232 @@ class MainShellObservable {
         log.d("deinit")
         observeTask?.cancel()
     }
-    
+
     private func sync(state: MainShellState) {
         self.activeTab = Int(state.activeTab)
-        self.selectedAlbum = state.selectedAlbum
-        self.showQueue = state.showQueue
         self.isAutoConnecting = state.isAutoConnecting
         self.autoConnectServerName = state.autoConnectServerName
         self.toastMessage = state.toastMessage
     }
-    
+
     func performAutoConnect() {
         viewModel.performAutoConnect()
     }
-    
+
     func cancelAutoConnect() {
         viewModel.cancelAutoConnect()
     }
-    
-    func selectTab(_ tab: Int) {
-        viewModel.selectTab(tab: Int32(tab))
-    }
-    
-    func selectAlbum(_ album: Album?) {
-        viewModel.selectAlbum(album: album)
-    }
-    
-    func setShowQueue(_ show: Bool) {
-        viewModel.setShowQueue(show: show)
-    }
-    
+
     func clearToast() {
         viewModel.clearToast()
     }
-    
+
     func disconnect() {
         viewModel.disconnect()
+    }
+}
+
+// MARK: - Tab <-> RootConfig mapping
+//
+// The native TabView keeps its numeric `.tag`s (so UITabBarAppearance styling
+// is untouched); these helpers translate between those tags and the typed
+// `RootConfig` that `RootComponent` navigates with.
+
+private func tabTag(for config: RootConfig) -> Int {
+    switch onEnum(of: config) {
+    case .library: return 0
+    case .server: return 1
+    case .player: return 2
+    case .zones: return 3
+    case .settings: return 4
+    }
+}
+
+private func config(forTag tag: Int) -> RootConfig {
+    switch tag {
+    case 0: return RootConfigLibrary.shared
+    case 2: return RootConfigPlayer.shared
+    case 3: return RootConfigZones.shared
+    case 4: return RootConfigSettings.shared
+    default: return RootConfigServer.shared
     }
 }
 
 struct ContentView: View {
     @Environment(AppContainer.self) private var container
 
-    @State private var libraryViewModel: LibraryViewModel
     @State private var nowPlayingViewModel: NowPlayingViewModel
-    @State private var queueViewModel: QueueViewModel
-    @State private var zonesViewModel: ZonesViewModel
     @State private var nowPlayingObservable: NowPlayingObservable
-    @State private var settingsViewModel: SettingsViewModel
 
     @State private var mainShellViewModel: MainShellViewModel
     @State private var mainShellObservable: MainShellObservable
-    
+
+    @State private var rootObservable: RootStackObservable
+
     init(container: AppContainer) {
-        let libVM = LibraryViewModel(libraryRepository: container.libraryRepository, facade: container.facade)
+        // The mini-player overlay reads playback status from its own lightweight
+        // NowPlayingViewModel (facade-backed, read-only here). The Player tab's
+        // NowPlayingView gets its VM from the Decompose component instead.
         let npVM = NowPlayingViewModel(facade: container.facade, mcwsClient: container.mcwsClient)
-        let qVM = QueueViewModel(facade: container.facade, libraryRepository: container.libraryRepository, database: container.database)
-        let zVM = ZonesViewModel(facade: container.facade, libraryRepository: container.libraryRepository)
-        #if DEBUG
-        let isDebugBuild = true
-        #else
-        let isDebugBuild = false
-        #endif
-        let settingsVM = SettingsViewModel(
-            facade: container.facade,
-            database: container.database,
-            clearPhysicalDownloads: {
-                let fileManager = FileManager.default
-                let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                let downloadsDir = documentsURL.appendingPathComponent("downloads")
-                if fileManager.fileExists(atPath: downloadsDir.path) {
-                    do {
-                        let filePaths = try fileManager.contentsOfDirectory(atPath: downloadsDir.path)
-                        for filePath in filePaths {
-                            let fullPath = downloadsDir.appendingPathComponent(filePath).path
-                            try fileManager.removeItem(atPath: fullPath)
-                        }
-                    } catch {
-                        log.e("clearPhysicalDownloads failed: \(error)")
-                    }
-                }
-            },
-            isDebugBuild: isDebugBuild
-        )
-
-        self._libraryViewModel = State(initialValue: libVM)
         self._nowPlayingViewModel = State(initialValue: npVM)
-        self._queueViewModel = State(initialValue: qVM)
-        self._zonesViewModel = State(initialValue: zVM)
         self._nowPlayingObservable = State(initialValue: NowPlayingObservable(viewModel: npVM))
-        self._settingsViewModel = State(initialValue: settingsVM)
 
+        // MainShellViewModel still owns auto-connect + toast (connection
+        // business logic). Navigation comes from container.root.
         let settings = SwiftMainShellSettings()
         let shellVM = MainShellViewModel(facade: container.facade, serverRepository: container.serverRepository, settings: settings)
         self._mainShellViewModel = State(initialValue: shellVM)
         self._mainShellObservable = State(initialValue: MainShellObservable(viewModel: shellVM))
-        
+
+        self._rootObservable = State(initialValue: RootStackObservable(container.root))
+
         // Configure standard tab bar appearance with custom premium dark system theme
         let appearance = UITabBarAppearance()
         appearance.configureWithOpaqueBackground()
-        
+
         let barColor = UIColor(red: 22/255.0, green: 22/255.0, blue: 24/255.0, alpha: 1.0) // bg2: 0x161618
         let lineColor = UIColor.white.withAlphaComponent(0.06) // line
-        
+
         appearance.backgroundColor = barColor
         appearance.shadowColor = lineColor
-        
+
         let goldAccent = UIColor(red: 200/255.0, green: 146/255.0, blue: 42/255.0, alpha: 1.0) // accentColor: 0xC8922A
         let dimText = UIColor.white.withAlphaComponent(0.3)
-        
+
         appearance.stackedLayoutAppearance.normal.iconColor = dimText
         appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: dimText]
         appearance.stackedLayoutAppearance.selected.iconColor = goldAccent
         appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: goldAccent]
-        
+
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
     }
-    
+
+    // MARK: Active-tab helpers
+
+    private var activeTag: Int { tabTag(for: rootObservable.activeConfig) }
+    private var isServerActive: Bool { activeTag == 1 }
+    private var isPlayerActive: Bool { activeTag == 2 }
+
+    // MARK: Per-tab component lookup (stable instances from the live stack)
+
+    private func libraryComponent() -> LibraryComponent? {
+        for child in rootObservable.children {
+            if case .library(let c) = onEnum(of: child) { return c.component }
+        }
+        return nil
+    }
+
+    private func playerComponent() -> PlayerComponent? {
+        for child in rootObservable.children {
+            if case .player(let c) = onEnum(of: child) { return c.component }
+        }
+        return nil
+    }
+
+    private func zonesComponent() -> ZonesComponent? {
+        for child in rootObservable.children {
+            if case .zones(let c) = onEnum(of: child) { return c.component }
+        }
+        return nil
+    }
+
+    private func settingsComponent() -> SettingsComponent? {
+        for child in rootObservable.children {
+            if case .settings(let c) = onEnum(of: child) { return c.component }
+        }
+        return nil
+    }
+
     var body: some View {
         let isPlaying = nowPlayingObservable.isPlaying
         let duration = nowPlayingObservable.durationMs
         let position = nowPlayingObservable.positionMs
         let progress = duration > 0 ? Double(position) / Double(duration) : 0.0
-        
+
         ZStack {
             Color.bg1.ignoresSafeArea()
-            
-            if mainShellObservable.activeTab == 1 {
+
+            if isServerActive {
                 ServerManagerView(onConnectSuccess: {
                     withAnimation {
-                        mainShellObservable.selectTab(2) // Switch to Player
+                        container.root.onConnectSuccess()
                     }
                 })
             } else {
                 TabView(selection: Binding(
-                    get: { mainShellObservable.activeTab },
-                    // The "tap-active-Library-tab resets details" gesture is
-                    // implemented in MainShellViewModel.selectTab now — so
-                    // this binding just forwards. Both platforms share the
-                    // same source of truth.
+                    get: { activeTag },
                     set: { newValue in
-                        mainShellObservable.selectTab(newValue)
+                        withAnimation {
+                            container.root.selectTab(config: config(forTag: newValue))
+                        }
                     }
                 )) {
-                    // Tab 2: Player (Now Playing)
-                    PlayerTabContainerView(
-                        showQueue: Binding(
-                            get: { mainShellObservable.showQueue },
-                            set: { mainShellObservable.setShowQueue($0) }
-                        ),
-                        queueViewModel: queueViewModel,
-                        nowPlayingViewModel: nowPlayingViewModel
-                    )
+                    // Tab 2: Player (Now Playing → Queue)
+                    Group {
+                        if let player = playerComponent() {
+                            PlayerTabContainerView(component: player)
+                        } else {
+                            Color.bg1
+                        }
+                    }
                     .tabItem {
                         Label("Player", systemImage: "play.circle.fill")
                     }
                     .tag(2)
-                    
-                    // Tab 0: Library
-                    LibraryTabContainerView(
-                        selectedAlbum: Binding(
-                            get: { mainShellObservable.selectedAlbum },
-                            set: { mainShellObservable.selectAlbum($0) }
-                        ),
-                        libraryViewModel: libraryViewModel
-                    )
+
+                    // Tab 0: Library (List → Detail)
+                    Group {
+                        if let library = libraryComponent() {
+                            LibraryTabContainerView(component: library)
+                        } else {
+                            Color.bg1
+                        }
+                    }
                     .tabItem {
                         Label("Library", systemImage: "music.note.house.fill")
                     }
                     .tag(0)
-                    
+
                     // Tab 3: Zones
-                    ZonesView(
-                        viewModel: zonesViewModel,
-                        onBackClick: {
-                            withAnimation {
-                                mainShellObservable.selectTab(2)
-                            }
+                    Group {
+                        if let zones = zonesComponent() {
+                            ZonesView(
+                                viewModel: zones.vm,
+                                onBackClick: {
+                                    withAnimation {
+                                        container.root.selectTab(config: RootConfigPlayer.shared)
+                                    }
+                                }
+                            )
+                        } else {
+                            Color.bg1
                         }
-                    )
+                    }
                     .tabItem {
                         Label("Zones", systemImage: "speaker.wave.3.fill")
                     }
                     .tag(3)
-                    
+
                     // Tab 4: Settings
-                    SettingsView(
-                        viewModel: settingsViewModel,
-                        onBackClick: {
-                            withAnimation {
-                                mainShellObservable.selectTab(2)
-                            }
-                        },
-                        onDisconnectClick: {
-                            mainShellObservable.disconnect()
+                    Group {
+                        if let settings = settingsComponent() {
+                            SettingsView(
+                                viewModel: settings.vm,
+                                onBackClick: {
+                                    withAnimation {
+                                        container.root.selectTab(config: RootConfigPlayer.shared)
+                                    }
+                                },
+                                onDisconnectClick: {
+                                    mainShellObservable.disconnect()
+                                    container.root.onDisconnect()
+                                }
+                            )
+                        } else {
+                            Color.bg1
                         }
-                    )
+                    }
                     .tabItem {
                         Label("Settings", systemImage: "gearshape.fill")
                     }
@@ -257,12 +289,13 @@ struct ContentView: View {
                 }
                 .tint(.accentColor)
             }
-            
-            // Floating MiniPlayer overlay
-            if mainShellObservable.activeTab != 2 && mainShellObservable.activeTab != 1 && nowPlayingObservable.trackTitle != "Idle" {
+
+            // Floating MiniPlayer overlay — shown on every tab except Player and
+            // the full-screen Server screen, when a track is loaded.
+            if !isPlayerActive && !isServerActive && nowPlayingObservable.trackTitle != "Idle" {
                 VStack {
                     Spacer()
-                    
+
                     MiniPlayer(
                         title: nowPlayingObservable.trackTitle,
                         artist: nowPlayingObservable.artistName,
@@ -284,7 +317,7 @@ struct ContentView: View {
                         },
                         onBodyClick: {
                             withAnimation {
-                                mainShellObservable.selectTab(2) // Open Full Player
+                                container.root.selectTab(config: RootConfigPlayer.shared)
                             }
                         }
                     )
@@ -293,7 +326,7 @@ struct ContentView: View {
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            
+
             // Auto-connecting Overlay
             if mainShellObservable.isAutoConnecting {
                 ZStack {
@@ -303,22 +336,22 @@ struct ContentView: View {
                         // Scrim intercept: prevents tapping behind
                         .contentShape(Rectangle())
                         .onTapGesture {}
-                    
+
                     VStack(spacing: 24) {
                         Text("JRiver Remote".uppercased())
                             .font(AppFont.ibmPlexMono(size: 24, weight: .bold))
                             .tracking(2.5)
                             .foregroundColor(.accentColor)
-                        
+
                         Text("Connecting to \(mainShellObservable.autoConnectServerName)...")
                             .font(AppFont.inter(size: 14, weight: .regular))
                             .foregroundColor(.textSecondary)
-                        
+
                         ProgressView()
                             .tint(.accentColor)
                             .scaleEffect(1.5)
                             .padding(.vertical, 16)
-                        
+
                         Button(action: {
                             mainShellObservable.cancelAutoConnect()
                         }) {
@@ -339,7 +372,7 @@ struct ContentView: View {
                 }
                 .transition(.opacity)
             }
-            
+
             // Premium Toast Message
             if let message = mainShellObservable.toastMessage {
                 VStack {
@@ -356,7 +389,7 @@ struct ContentView: View {
                                 .stroke(Color.line2, lineWidth: 1)
                         )
                         .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
-                        .padding(.bottom, mainShellObservable.activeTab != 2 && nowPlayingObservable.trackTitle != "Idle" ? 140 : 80) // Position above tab bar/miniplayer
+                        .padding(.bottom, !isPlayerActive && nowPlayingObservable.trackTitle != "Idle" ? 140 : 80) // Position above tab bar/miniplayer
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 .ignoresSafeArea(.keyboard)
@@ -365,57 +398,120 @@ struct ContentView: View {
         .task {
             mainShellObservable.performAutoConnect()
         }
-    }
-}
-
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        let container = AppContainer()
-        ContentView(container: container)
-            .environment(container)
-    }
-}
-
-struct PlayerTabContainerView: View {
-    @Binding var showQueue: Bool
-    let queueViewModel: QueueViewModel
-    let nowPlayingViewModel: NowPlayingViewModel
-    
-    var body: some View {
-        if showQueue {
-            QueueView(viewModel: queueViewModel, onBackClick: { showQueue = false })
-        } else {
-            NowPlayingView(viewModel: nowPlayingViewModel, onQueueClick: { showQueue = true })
+        // Bridge connect-driven tab changes (auto-connect success → Player,
+        // failure/cancel/disconnect → Server) into the component tree. Manual
+        // tab taps don't touch mainShellObservable, so this only fires for
+        // connection events.
+        .onChange(of: mainShellObservable.activeTab) { _, newTab in
+            container.root.selectTab(config: config(forTag: newTab))
         }
     }
 }
 
-struct LibraryTabContainerView: View {
-    @Binding var selectedAlbum: Album?
-    let libraryViewModel: LibraryViewModel
+/// Player tab: NowPlaying → Queue, driven by [PlayerComponent.stack].
+struct PlayerTabContainerView: View {
+    let component: PlayerComponent
+    @State private var stack: PlayerStackObservable
+
+    init(component: PlayerComponent) {
+        self.component = component
+        self._stack = State(initialValue: PlayerStackObservable(component))
+    }
 
     var body: some View {
-        ZStack {
-            LibraryView(
-                viewModel: libraryViewModel,
-                onAlbumClick: { album in
-                    selectedAlbum = album
+        switch onEnum(of: stack.activeChild) {
+        case .nowPlaying(let child):
+            NowPlayingView(viewModel: child.vm, onQueueClick: { component.openQueue() })
+        case .queue(let child):
+            QueueView(viewModel: child.vm, onBackClick: { component.closeQueue() })
+        }
+    }
+}
+
+/// Library tab: List → Detail, driven by [LibraryComponent.stack].
+///
+/// Backed by a `NavigationStack` whose path mirrors the Decompose stack. The
+/// component stays the single source of truth — album taps call `openAlbum`,
+/// and both the custom back button and the native swipe-back gesture resolve to
+/// `component.back()`. SwiftUI keeps `LibraryView` alive underneath the pushed
+/// `AlbumDetailView`, so the list's scroll position and drill-down state are
+/// restored on pop automatically (no opacity / keep-mounted hack).
+struct LibraryTabContainerView: View {
+    let component: LibraryComponent
+    @State private var stack: LibraryStackObservable
+
+    init(component: LibraryComponent) {
+        self.component = component
+        self._stack = State(initialValue: LibraryStackObservable(component))
+    }
+
+    private var listVM: LibraryViewModel? {
+        for child in stack.children {
+            if case .list(let c) = onEnum(of: child) { return c.vm }
+        }
+        return nil
+    }
+
+    /// Detail entries above the list root, as a navigation path keyed by album
+    /// group id (Hashable, and stable across re-renders since the same album
+    /// keeps the same id).
+    private var detailPath: [String] {
+        stack.children.compactMap { child in
+            if case .detail(let c) = onEnum(of: child) { return c.album.albumGroupId }
+            return nil
+        }
+    }
+
+    private func detailChild(forGroupId groupId: String) -> LibraryComponentChildDetail? {
+        for child in stack.children {
+            if case .detail(let c) = onEnum(of: child), c.album.albumGroupId == groupId {
+                return c
+            }
+        }
+        return nil
+    }
+
+    var body: some View {
+        NavigationStack(path: Binding(
+            get: { detailPath },
+            set: { newPath in
+                // SwiftUI trims from the tail on swipe-back / system back.
+                // Forward the delta to Decompose (the source of truth).
+                let popCount = detailPath.count - newPath.count
+                if popCount > 0 {
+                    for _ in 0 ..< popCount { component.back() }
                 }
-            )
-            .opacity(selectedAlbum == nil ? 1 : 0)
-            .disabled(selectedAlbum != nil)
-            
-            if let album = selectedAlbum {
-                AlbumDetailView(
-                    album: album,
-                    onBackClick: { selectedAlbum = nil }
-                )
-                // SwiftUI keys the inner @State on view identity; this id makes the
-                // identity change when the user navigates to a different album, so
-                // the lazy-initialised AlbumDetailObservable is rebuilt for the new
-                // album rather than reusing the previous one.
-                .id("\(album.name)|\(album.albumArtist)|\(album.folderPath)")
-                .background(Color.bg1)
+            }
+        )) {
+            Group {
+                if let listVM {
+                    LibraryView(
+                        viewModel: listVM,
+                        onAlbumClick: { album in
+                            component.openAlbum(album: album)
+                        }
+                    )
+                } else {
+                    Color.bg1
+                }
+            }
+            // Hide the system bar (each screen draws its own header) while
+            // keeping the interactive pop gesture — NavigationStack preserves it
+            // under `.toolbar(.hidden,...)`, unlike `navigationBarHidden`.
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: String.self) { groupId in
+                Group {
+                    if let detail = detailChild(forGroupId: groupId) {
+                        AlbumDetailView(
+                            viewModel: detail.vm,
+                            onBackClick: { component.back() }
+                        )
+                        .background(Color.bg1)
+                    } else {
+                        Color.bg1
+                    }
+                }
+                .toolbar(.hidden, for: .navigationBar)
             }
         }
     }

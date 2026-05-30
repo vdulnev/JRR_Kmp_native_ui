@@ -20,6 +20,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodelCompose)
     implementation(libs.androidx.lifecycle.runtimeCompose)
 
+    // Decompose Compose integration (subscribeAsState / Children) — Android only.
+    implementation(libs.decompose.extensions.compose)
+
     // Compose
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)
