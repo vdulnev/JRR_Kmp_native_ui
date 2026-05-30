@@ -109,7 +109,7 @@ fun MainShell(
         NowPlayingViewModel(facade, mcwsClient)
     }
     val queueViewModel = remember {
-        QueueViewModel(facade, libraryRepository)
+        QueueViewModel(facade, libraryRepository, context.appContainer.database)
     }
     val zonesViewModel = remember {
         ZonesViewModel(facade, libraryRepository)

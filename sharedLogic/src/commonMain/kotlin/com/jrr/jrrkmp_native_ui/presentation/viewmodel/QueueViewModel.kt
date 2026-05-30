@@ -11,10 +11,13 @@ import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
+
 private val log = Logger.withTag("vm:Queue")
 
 private fun QueueViewState.summary(): String = buildString {
     append("tracks=${queueTracks.size}")
+    append(" downloaded=${downloadedTrackKeys.size}")
     append(" active=$activeIndex")
     append(" playing=$isPlaying")
     append(if (isLocal) " local" else " remote")
@@ -24,6 +27,7 @@ private fun QueueViewState.summary(): String = buildString {
 
 data class QueueViewState(
     val queueTracks: List<Track> = emptyList(),
+    val downloadedTrackKeys: Set<String> = emptySet(),
     val activeIndex: Int = -1,
     val isPlaying: Boolean = false,
     val isLoading: Boolean = false,
@@ -33,8 +37,14 @@ data class QueueViewState(
 
 class QueueViewModel(
     private val facade: AudioPlayerFacade,
-    private val libraryRepository: LibraryRepository
+    private val libraryRepository: LibraryRepository,
+    private val database: JrrDatabase?
 ) : ViewModel() {
+
+    constructor(
+        facade: AudioPlayerFacade,
+        libraryRepository: LibraryRepository
+    ) : this(facade, libraryRepository, null)
 
     private val _state = MutableStateFlow(QueueViewState())
     val state: StateFlow<QueueViewState> = _state.asStateFlow()
@@ -46,7 +56,7 @@ class QueueViewModel(
         log.d { "init" }
         state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
         // Observe local vs remote configuration and build states
-        combine(
+        val baseStateFlow = combine(
             facade.activeZone,
             facade.localQueue,
             facade.playerStatus,
@@ -65,6 +75,13 @@ class QueueViewModel(
                 isLoading = if (isLocal) false else isRemoteLoading,
                 isLocal = isLocal
             )
+        }
+
+        combine(
+            baseStateFlow,
+            database?.downloadedTrackDao()?.getAllTracksFlow() ?: flowOf(emptyList())
+        ) { state, downloadedTracks ->
+            state.copy(downloadedTrackKeys = downloadedTracks.map { it.fileKey }.toSet())
         }.onEach { newState ->
             _state.value = newState
         }.launchIn(viewModelScope)

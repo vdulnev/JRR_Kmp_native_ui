@@ -14,6 +14,7 @@ class QueueObservable {
     var isLoading: Bool = false
     var isLocal: Bool = true
     var transientError: String? = nil
+    var downloadedTrackKeys: Set<String> = []
 
     @ObservationIgnored private var observeTask: Task<Void, Never>?
 
@@ -43,6 +44,7 @@ class QueueObservable {
         self.isLoading = state.isLoading
         self.isLocal = state.isLocal
         self.transientError = state.transientError
+        self.downloadedTrackKeys = state.downloadedTrackKeys
     }
     
     func playByIndex(index: Int) {
@@ -166,6 +168,20 @@ struct QueueView: View {
                             }
                             
                             Spacer()
+                            
+                            let isDownloaded = observable.downloadedTrackKeys.contains(track.fileKey)
+                            
+                            if track.numberPlays > 0 {
+                                Image(systemName: "headphones")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.textTertiary)
+                            }
+                            
+                            if isDownloaded {
+                                Image(systemName: "square.and.arrow.down")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.accentColor)
+                            }
                             
                             let durationSec = track.durationMs / 1000
                             Text(String(format: "%d:%02d", durationSec / 60, durationSec % 60))

@@ -108,7 +108,7 @@ struct ContentView: View {
     init(container: AppContainer) {
         let libVM = LibraryViewModel(libraryRepository: container.libraryRepository, facade: container.facade)
         let npVM = NowPlayingViewModel(facade: container.facade, mcwsClient: container.mcwsClient)
-        let qVM = QueueViewModel(facade: container.facade, libraryRepository: container.libraryRepository)
+        let qVM = QueueViewModel(facade: container.facade, libraryRepository: container.libraryRepository, database: container.database)
         let zVM = ZonesViewModel(facade: container.facade, libraryRepository: container.libraryRepository)
         #if DEBUG
         let isDebugBuild = true

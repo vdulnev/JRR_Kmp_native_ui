@@ -15,6 +15,13 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.SwipeToDismissBoxDefaults
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +37,7 @@ import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.presentation.components.VuMeter
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.QueueViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QueueScreen(
     viewModel: QueueViewModel,
@@ -127,103 +135,140 @@ fun QueueScreen(
                     key = { index, track -> "${track.fileKey}_$index" }
                 ) { index, track ->
                     val isActive = index == activeIndex
+                    val currentTrackKey = track.fileKey
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isActive) AppColors.bg3 else AppColors.bg2)
-                            .border(
-                                width = 1.dp,
-                                color = if (isActive) AppColors.accent else AppColors.line,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .clickable {
-                                viewModel.playByIndex(index)
-                            }
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Track index / Active Indicator
-                        Box(
-                            modifier = Modifier.width(36.dp),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            if (isActive) {
-                                VuMeter(isPlaying = isPlaying)
+                    val dismissState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { dismissValue ->
+                            if (dismissValue == SwipeToDismissBoxValue.StartToEnd || dismissValue == SwipeToDismissBoxValue.EndToStart) {
+                                viewModel.removeQueueTrack(index)
+                                true
                             } else {
-                                Text(
-                                    text = String.format("%02d", index + 1),
-                                    style = AppTypography.monoLabel,
-                                    color = AppColors.text3
-                                )
+                                false
                             }
                         }
+                    )
 
-                        // Title and Artist
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(end = 8.dp)
-                        ) {
-                            Text(
-                                text = track.name,
-                                style = AppTypography.itemTitle,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = if (isActive) AppColors.accent else AppColors.text
-                            )
-                            Text(
-                                text = track.artist,
-                                style = AppTypography.itemSubtitle,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = AppColors.text2
-                            )
+                    LaunchedEffect(currentTrackKey) {
+                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+                            dismissState.reset()
                         }
+                    }
 
-                        // Reorder controls (Up / Down)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            IconButton(
-                                onClick = { viewModel.moveQueueTrack(index, index - 1) },
-                                enabled = index > 0,
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowUp,
-                                    contentDescription = "Move Up",
-                                    tint = if (index > 0) AppColors.text else AppColors.line
-                                )
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        backgroundContent = {
+                            val direction = dismissState.dismissDirection
+                            val alignment = when (direction) {
+                                SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                else -> Alignment.Center
                             }
-
-                            IconButton(
-                                onClick = { viewModel.moveQueueTrack(index, index + 1) },
-                                enabled = index < currentQueue.size - 1,
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowDown,
-                                    contentDescription = "Move Down",
-                                    tint = if (index < currentQueue.size - 1) AppColors.text else AppColors.line
-                                )
-                            }
-
-                            // Delete button
-                            IconButton(
-                                onClick = { viewModel.removeQueueTrack(index) },
-                                modifier = Modifier.size(28.dp)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(AppColors.error.copy(alpha = 0.8f))
+                                    .padding(horizontal = 20.dp),
+                                contentAlignment = alignment
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
-                                    contentDescription = "Remove from Queue",
-                                    tint = AppColors.error
+                                    contentDescription = "Delete",
+                                    tint = AppColors.bg0
+                                )
+                            }
+                        },
+                        content = {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isActive) AppColors.bg3 else AppColors.bg2)
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (isActive) AppColors.accent else AppColors.line,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable {
+                                        viewModel.playByIndex(index)
+                                    }
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Track index / Active Indicator
+                                Box(
+                                    modifier = Modifier.width(36.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (isActive) {
+                                        VuMeter(isPlaying = isPlaying)
+                                    } else {
+                                        Text(
+                                            text = String.format("%02d", index + 1),
+                                            style = AppTypography.monoLabel,
+                                            color = AppColors.text3
+                                        )
+                                    }
+                                }
+
+                                // Title and Artist
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
+                                ) {
+                                    Text(
+                                        text = track.name,
+                                        style = AppTypography.itemTitle,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = if (isActive) AppColors.accent else AppColors.text
+                                    )
+                                    Text(
+                                        text = track.artist,
+                                        style = AppTypography.itemSubtitle,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = AppColors.text2
+                                    )
+                                }
+
+                                val isDownloaded = state.downloadedTrackKeys.contains(track.fileKey)
+
+                                if (track.numberPlays > 0) {
+                                    Icon(
+                                        imageVector = Icons.Default.Headphones,
+                                        contentDescription = "${track.numberPlays} plays",
+                                        tint = AppColors.text3,
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .padding(horizontal = 2.dp)
+                                    )
+                                }
+
+                                if (isDownloaded) {
+                                    Icon(
+                                        imageVector = Icons.Default.Save,
+                                        contentDescription = "Downloaded",
+                                        tint = AppColors.accent,
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .padding(horizontal = 2.dp)
+                                    )
+                                }
+
+                                // Track duration
+                                val durationSec = track.durationMs / 1000
+                                val timeStr = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60)
+                                Text(
+                                    text = timeStr,
+                                    style = AppTypography.monoLabel,
+                                    color = AppColors.text3,
+                                    modifier = Modifier.padding(start = 8.dp)
                                 )
                             }
                         }
-                    }
+                    )
                 }
             }
         }
