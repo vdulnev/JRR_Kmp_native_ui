@@ -430,10 +430,12 @@ struct PlayerTabContainerView: View {
 
 /// Library tab: List → Detail, driven by [LibraryComponent.stack].
 ///
-/// `LibraryView` stays mounted under an overlaid `AlbumDetailView` (opacity
-/// crossfade) so returning from a detail doesn't rebuild the list or lose its
-/// scroll position — matching the pre-Decompose behaviour. The detail's
-/// per-album `AlbumDetailViewModel` comes from the component child.
+/// Backed by a `NavigationStack` whose path mirrors the Decompose stack. The
+/// component stays the single source of truth — album taps call `openAlbum`,
+/// and both the custom back button and the native swipe-back gesture resolve to
+/// `component.back()`. SwiftUI keeps `LibraryView` alive underneath the pushed
+/// `AlbumDetailView`, so the list's scroll position and drill-down state are
+/// restored on pop automatically (no opacity / keep-mounted hack).
 struct LibraryTabContainerView: View {
     let component: LibraryComponent
     @State private var stack: LibraryStackObservable
@@ -450,32 +452,66 @@ struct LibraryTabContainerView: View {
         return nil
     }
 
-    private var detailChild: LibraryComponentChildDetail? {
+    /// Detail entries above the list root, as a navigation path keyed by album
+    /// group id (Hashable, and stable across re-renders since the same album
+    /// keeps the same id).
+    private var detailPath: [String] {
+        stack.children.compactMap { child in
+            if case .detail(let c) = onEnum(of: child) { return c.album.albumGroupId }
+            return nil
+        }
+    }
+
+    private func detailChild(forGroupId groupId: String) -> LibraryComponentChildDetail? {
         for child in stack.children {
-            if case .detail(let c) = onEnum(of: child) { return c }
+            if case .detail(let c) = onEnum(of: child), c.album.albumGroupId == groupId {
+                return c
+            }
         }
         return nil
     }
 
     var body: some View {
-        ZStack {
-            if let listVM {
-                LibraryView(
-                    viewModel: listVM,
-                    onAlbumClick: { album in
-                        component.openAlbum(album: album)
-                    }
-                )
-                .opacity(detailChild == nil ? 1 : 0)
-                .disabled(detailChild != nil)
+        NavigationStack(path: Binding(
+            get: { detailPath },
+            set: { newPath in
+                // SwiftUI trims from the tail on swipe-back / system back.
+                // Forward the delta to Decompose (the source of truth).
+                let popCount = detailPath.count - newPath.count
+                if popCount > 0 {
+                    for _ in 0 ..< popCount { component.back() }
+                }
             }
-
-            if let detailChild {
-                AlbumDetailView(
-                    viewModel: detailChild.vm,
-                    onBackClick: { component.back() }
-                )
-                .background(Color.bg1)
+        )) {
+            Group {
+                if let listVM {
+                    LibraryView(
+                        viewModel: listVM,
+                        onAlbumClick: { album in
+                            component.openAlbum(album: album)
+                        }
+                    )
+                } else {
+                    Color.bg1
+                }
+            }
+            // Hide the system bar (each screen draws its own header) while
+            // keeping the interactive pop gesture — NavigationStack preserves it
+            // under `.toolbar(.hidden,...)`, unlike `navigationBarHidden`.
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: String.self) { groupId in
+                Group {
+                    if let detail = detailChild(forGroupId: groupId) {
+                        AlbumDetailView(
+                            viewModel: detail.vm,
+                            onBackClick: { component.back() }
+                        )
+                        .background(Color.bg1)
+                    } else {
+                        Color.bg1
+                    }
+                }
+                .toolbar(.hidden, for: .navigationBar)
             }
         }
     }
