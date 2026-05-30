@@ -164,8 +164,35 @@ class LibraryObservable {
     }
 }
 
+/// Collapses the chrome (header / filter / mini-player) when a list is scrolled
+/// down, restores it when scrolled up or back at the top.
+private struct HidesChromeOnScroll: ViewModifier {
+    @Environment(ChromeVisibility.self) private var chrome
+
+    func body(content: Content) -> some View {
+        content.onScrollGeometryChange(for: CGFloat.self) { geo in
+            geo.contentOffset.y
+        } action: { oldOffset, newOffset in
+            if newOffset < 8 {
+                chrome.setCollapsed(false) // at/near the top
+            } else if newOffset > oldOffset + 6 {
+                chrome.setCollapsed(true) // scrolling down
+            } else if newOffset < oldOffset - 6 {
+                chrome.setCollapsed(false) // scrolling up
+            }
+        }
+    }
+}
+
+extension View {
+    func hidesChromeOnScroll() -> some View {
+        modifier(HidesChromeOnScroll())
+    }
+}
+
 struct LibraryView: View {
     @Environment(AppContainer.self) private var container
+    @Environment(ChromeVisibility.self) private var chrome
     @EnvironmentObject private var stateObserver: PlaybackStateObserver
     @State private var observable: LibraryObservable
     let onAlbumClick: (Album) -> Void // AlbumName, ArtistName
@@ -191,21 +218,24 @@ struct LibraryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("LIBRARY")
-                        .styleSectionLabel()
+            // Header — collapses while scrolling to maximise the list area.
+            if !chrome.collapsed {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("LIBRARY")
+                            .styleSectionLabel()
 
-                    Text("Browse")
-                        .styleScreenTitle()
+                        Text("Browse")
+                            .styleScreenTitle()
+                    }
+
+                    Spacer()
                 }
-
-                Spacer()
+                .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                .padding(.vertical, 12)
+                .background(Color.bg1)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-            .padding(.vertical, 12)
-            .background(Color.bg1)
 
             // Tab strip
             HStack(spacing: 0) {
@@ -243,7 +273,7 @@ struct LibraryView: View {
         // Library tab whenever a track is loaded) so the last list row isn't
         // hidden behind it. Insets every descendant scroll view at once.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !(stateObserver.playerStatus?.trackName ?? "").isEmpty {
+            if !chrome.collapsed, !(stateObserver.playerStatus?.trackName ?? "").isEmpty {
                 Color.clear.frame(height: 76)
             }
         }
@@ -344,6 +374,7 @@ struct LibraryView: View {
                             .padding(.trailing, 18)
                             .padding(.top, 12)
                         }
+                        .hidesChromeOnScroll()
                         .overlay(alignment: .trailing) {
                             AlphabetIndexBar(
                                 letters: orderedSectionLetters(displayArtists),
@@ -411,6 +442,7 @@ struct LibraryView: View {
                                 .padding(.trailing, 18)
                                 .padding(.top, 8)
                             }
+                            .hidesChromeOnScroll()
                             .overlay(alignment: .trailing) {
                                 AlphabetIndexBar(
                                     letters: orderedSectionLetters(displayAlbums.map(\.name)),
@@ -497,6 +529,7 @@ struct LibraryView: View {
                 // Bind the top-visible row id to @State so the position is
                 // restored when the list is reshown after a drill-down.
                 .scrollPosition(id: $compilationScrollID, anchor: .top)
+                .hidesChromeOnScroll()
                 .overlay(alignment: .trailing) {
                     AlphabetIndexBar(
                         letters: orderedSectionLetters(displayCompArtists),
@@ -551,33 +584,38 @@ struct LibraryView: View {
 
     // MARK: - In-list quick filter
 
-    /// Slim type-to-filter row pinned above an Artists-tab list.
+    /// Slim type-to-filter row pinned above an Artists-tab list. Collapses with
+    /// the rest of the chrome while scrolling.
+    @ViewBuilder
     private func listFilterField(placeholder: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.textTertiary)
-            TextField(placeholder, text: $artistFilterText)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .foregroundColor(.textPrimary)
-                .font(AppFont.inter(size: 14, weight: .regular))
-            if !artistFilterText.isEmpty {
-                Button(action: { artistFilterText = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.textSecondary)
+        if !chrome.collapsed {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.textTertiary)
+                TextField(placeholder, text: $artistFilterText)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .foregroundColor(.textPrimary)
+                    .font(AppFont.inter(size: 14, weight: .regular))
+                if !artistFilterText.isEmpty {
+                    Button(action: { artistFilterText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.textSecondary)
+                    }
                 }
             }
+            .padding(.horizontal, 10)
+            .frame(height: 38)
+            .background(Color.bg2)
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.line, lineWidth: 1),
+            )
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+            .padding(.vertical, 6)
+            .transition(.move(edge: .top).combined(with: .opacity))
         }
-        .padding(.horizontal, 10)
-        .frame(height: 38)
-        .background(Color.bg2)
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.line, lineWidth: 1),
-        )
-        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-        .padding(.vertical, 6)
     }
 
     private func matchesFilter(_ text: String) -> Bool {

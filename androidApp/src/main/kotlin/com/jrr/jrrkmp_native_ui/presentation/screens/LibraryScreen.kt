@@ -38,6 +38,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -66,12 +71,28 @@ import kotlinx.coroutines.launch
 fun LibraryScreen(
     viewModel: LibraryViewModel,
     onAlbumClick: (Album) -> Unit, // Album Name, Artist Name
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    chromeCollapsed: Boolean = false,
+    onChromeCollapsedChange: (Boolean) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var infoTrack by remember { mutableStateOf<Track?>(null) }
     var infoAlbum by remember { mutableStateOf<Album?>(null) }
+
+    // Detect scroll direction from any descendant list to collapse/expand the
+    // chrome (header + filter here, mini-player in the host).
+    val onCollapseChange by rememberUpdatedState(onChromeCollapsedChange)
+    val scrollChromeConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val dy = available.y
+                if (dy < -4f) onCollapseChange(true) // dragging content up → scrolling down
+                else if (dy > 4f) onCollapseChange(false) // scrolling up
+                return Offset.Zero
+            }
+        }
+    }
 
     val artistsListState = rememberLazyListState()
     val artistAlbumsListState = rememberLazyListState()
@@ -96,19 +117,21 @@ fun LibraryScreen(
             .fillMaxSize()
             .background(AppColors.bg1)
     ) {
-        // Top Toolbar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Library".uppercase(),
-                style = AppTypography.screenTitle,
-                color = AppColors.text
-            )
+        // Top Toolbar — collapses while scrolling to maximise the list area.
+        AnimatedVisibility(visible = !chromeCollapsed) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Library".uppercase(),
+                    style = AppTypography.screenTitle,
+                    color = AppColors.text
+                )
+            }
         }
 
         val tabs = if (state.isOffline) {
@@ -154,6 +177,7 @@ fun LibraryScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .nestedScroll(scrollChromeConnection)
         ) {
             when (state.currentTab) {
                 "artists" -> ArtistsTab(
@@ -163,6 +187,7 @@ fun LibraryScreen(
                     compilationMode = state.compilationMode,
                     compilationArtists = state.compilationArtists,
                     artistsFilter = state.artistsFilter,
+                    chromeCollapsed = chromeCollapsed,
                     onFilterChange = { viewModel.setArtistsFilter(it) },
                     isLoadingArtists = state.isLoading || state.isTabLoading,
                     isLoadingAlbums = state.isLoading || state.isTabLoading,
@@ -274,6 +299,7 @@ fun ArtistsTab(
     compilationMode: Boolean,
     compilationArtists: List<String>,
     artistsFilter: String,
+    chromeCollapsed: Boolean,
     onFilterChange: (String) -> Unit,
     isLoadingArtists: Boolean,
     isLoadingAlbums: Boolean,
@@ -308,7 +334,8 @@ fun ArtistsTab(
             ListFilterField(
                 value = artistsFilter,
                 onValueChange = onFilterChange,
-                placeholder = "Filter albums"
+                placeholder = "Filter albums",
+                collapsed = chromeCollapsed
             )
             val filteredAlbums = remember(artistAlbums, artistsFilter) {
                 if (artistsFilter.isBlank()) artistAlbums
@@ -377,7 +404,8 @@ fun ArtistsTab(
             ListFilterField(
                 value = artistsFilter,
                 onValueChange = onFilterChange,
-                placeholder = "Filter artists"
+                placeholder = "Filter artists",
+                collapsed = chromeCollapsed
             )
             val filteredCompArtists = remember(compilationArtists, artistsFilter) {
                 if (artistsFilter.isBlank()) compilationArtists
@@ -442,7 +470,8 @@ fun ArtistsTab(
             ListFilterField(
                 value = artistsFilter,
                 onValueChange = onFilterChange,
-                placeholder = "Filter artists"
+                placeholder = "Filter artists",
+                collapsed = chromeCollapsed
             )
             val filteredArtists = remember(artists, artistsFilter) {
                 if (artistsFilter.isBlank()) artists
@@ -505,34 +534,37 @@ fun ArtistsTab(
     }
 }
 
-/** Slim type-to-filter row pinned above a list. */
+/** Slim type-to-filter row pinned above a list. Collapses with the chrome. */
 @Composable
 private fun ListFilterField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
+    collapsed: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        placeholder = { Text(placeholder, color = AppColors.text3) },
-        singleLine = true,
-        colors = outlinedTextFieldColors(),
-        leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = null, tint = AppColors.text3)
-        },
-        trailingIcon = {
-            if (value.isNotEmpty()) {
-                IconButton(onClick = { onValueChange("") }) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear filter", tint = AppColors.text3)
+    AnimatedVisibility(visible = !collapsed) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(placeholder, color = AppColors.text3) },
+            singleLine = true,
+            colors = outlinedTextFieldColors(),
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = null, tint = AppColors.text3)
+            },
+            trailingIcon = {
+                if (value.isNotEmpty()) {
+                    IconButton(onClick = { onValueChange("") }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear filter", tint = AppColors.text3)
+                    }
                 }
-            }
-        },
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-    )
+            },
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+        )
+    }
 }
 
 /**
