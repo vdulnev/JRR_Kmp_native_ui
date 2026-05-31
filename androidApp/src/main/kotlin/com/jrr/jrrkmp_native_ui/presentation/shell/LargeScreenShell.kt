@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,10 +28,19 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,9 +72,36 @@ fun LargeScreenShell(
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
     onPrevClick: () -> Unit,
+    onVolumeUp: () -> Unit,
+    onVolumeDown: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    Row(modifier = Modifier.fillMaxSize().background(AppColors.bg1)) {
+    // Hardware-keyboard shortcuts (iPad keyboard / Android keyboard / DeX).
+    // Attached at the shell root; a focused text field (e.g. the filter) keeps
+    // focus and consumes keys first, so typing is never intercepted.
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppColors.bg1)
+            .focusRequester(focusRequester)
+            .focusable()
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when (event.key) {
+                    Key.Spacebar -> { onPlayPauseClick(); true }
+                    Key.DirectionRight -> { onNextClick(); true }
+                    Key.DirectionLeft -> { onPrevClick(); true }
+                    Key.DirectionUp -> { onVolumeUp(); true }
+                    Key.DirectionDown -> { onVolumeDown(); true }
+                    Key.Q -> { onSelectTab(RootConfig.Player); true }
+                    Key.L -> { onSelectTab(RootConfig.Library); true }
+                    else -> false
+                }
+            },
+    ) {
         Sidebar(
             active = active,
             onSelectTab = onSelectTab,

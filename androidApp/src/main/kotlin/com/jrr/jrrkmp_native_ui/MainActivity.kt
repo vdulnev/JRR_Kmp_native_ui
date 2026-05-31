@@ -231,6 +231,8 @@ fun MainShell(
             onPlayPauseClick = { if (isPlaying) facade.pause() else facade.play() },
             onNextClick = { facade.next() },
             onPrevClick = { facade.previous() },
+            onVolumeUp = { facade.setVolume(((playerStatus?.volume ?: 0.5f) + 0.05f).coerceIn(0f, 1f)) },
+            onVolumeDown = { facade.setVolume(((playerStatus?.volume ?: 0.5f) - 0.05f).coerceIn(0f, 1f)) },
             content = content,
         )
     } else {
