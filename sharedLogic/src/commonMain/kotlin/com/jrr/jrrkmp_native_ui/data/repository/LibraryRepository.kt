@@ -163,6 +163,36 @@ internal fun discNumberFromFolder(folderPath: String): Int? =
 internal fun Track.withFolderDiscNumber(): Track =
     discNumberFromFolder(folderPath)?.let { copy(discNumber = it) } ?: this
 
+// The last run of digits in a string ("Golden_Vol_2" -> 2, "CD 10" -> 10),
+// or null when there is none.
+private val TRAILING_NUMBER = Regex("""(\d+)\D*$""")
+
+internal fun lastNumberIn(text: String): Int? =
+    TRAILING_NUMBER.find(text)?.groupValues?.get(1)?.toIntOrNull()
+
+/**
+ * Assign each track a disc number from the order of its containing subfolder.
+ *
+ * For a grouped multi-disc album whose discs live in sibling subfolders with
+ * arbitrary names (`CD 1`, `Disc-2`, `Golden_Vol_1`, …), per-track `Disc #`
+ * tags are often missing, so the discs would otherwise collapse into one and
+ * the tracks interleave. Ordering by the trailing number in each subfolder's
+ * leaf name (so `Vol 2` < `Vol 10`), falling back to a case-insensitive sort,
+ * recovers the split regardless of the naming scheme.
+ *
+ * No-op unless the tracks actually span more than one subfolder, so single
+ * folder / properly-tagged albums keep their existing disc numbers.
+ */
+internal fun assignDiscsBySubfolder(tracks: List<Track>): List<Track> {
+    val folders = tracks.map { it.folderPath }.distinct()
+    if (folders.size <= 1) return tracks
+    val ordered = folders.sortedWith(
+        compareBy({ lastNumberIn(leafFolderName(it)) ?: Int.MAX_VALUE }, { it.lowercase() }),
+    )
+    val discByFolder = ordered.withIndex().associate { (index, folder) -> folder to (index + 1) }
+    return tracks.map { track -> track.copy(discNumber = discByFolder.getValue(track.folderPath)) }
+}
+
 // Strip ANY parenthesised content (one level deep) — used only for computing
 // the group key, not for displayed names. Lets us fold discs of the same
 // multi-disc release that have per-disc catalog numbers (e.g. Toshiba's
@@ -512,6 +542,7 @@ class LibraryRepository(
                     sameAlbum && folderMatches
                 }
                 .map { it.toTrack().withFolderDiscNumber() }
+                .let { if (isGrouped) assignDiscsBySubfolder(it) else it }
                 .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
                 .also { log.d { "getAlbumTracks offline → ${it.size} from cache" } }
         }
@@ -534,6 +565,7 @@ class LibraryRepository(
         }
         mcwsClient.searchTracks(mcwsQuery)
             .map { it.withFolderDiscNumber() }
+            .let { if (isGrouped) assignDiscsBySubfolder(it) else it }
             .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
     }
 

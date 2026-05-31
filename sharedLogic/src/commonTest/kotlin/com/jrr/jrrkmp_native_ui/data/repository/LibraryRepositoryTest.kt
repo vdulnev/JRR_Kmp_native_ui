@@ -2,6 +2,7 @@ package com.jrr.jrrkmp_native_ui.data.repository
 
 import com.jrr.jrrkmp_native_ui.data.api.parseMcwsTracksJson
 import com.jrr.jrrkmp_native_ui.domain.model.Album
+import com.jrr.jrrkmp_native_ui.domain.model.Track
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -677,6 +678,52 @@ class LibraryRepositoryTest {
     @Test
     fun various_emptySet_isNotVarious() {
         assertFalse(isVariousArtistsSet(emptySet()))
+    }
+
+    // ---- assignDiscsBySubfolder --------------------------------------------
+
+    private fun trk(folderPath: String, trackNumber: Int): Track = Track(
+        fileKey = "", name = "", artist = "", album = "", albumArtist = "",
+        date = "", genre = "", durationMs = 0, trackNumber = trackNumber,
+        discNumber = 0, totalDiscs = 0, totalTracks = 0, bitrate = 0, bitDepth = 0,
+        sampleRate = 0, channels = 0, fileType = "", filePath = "", folderPath = folderPath,
+    )
+
+    @Test
+    fun lastNumberIn_extractsTrailingNumber() {
+        assertEquals(2, lastNumberIn("Golden_Vol_2"))
+        assertEquals(10, lastNumberIn("CD 10"))
+        assertEquals(1, lastNumberIn("Disc-1"))
+        assertEquals(null, lastNumberIn("Golden"))
+    }
+
+    @Test
+    fun assignDiscs_splitsAcrossArbitrarilyNamedSubfolders() {
+        // The Romantic Collection / Golden case: discs in Golden_Vol_1 /
+        // Golden_Vol_2 with no per-track Disc # tags.
+        val base = "/m/Romantic Collection/02. Golden"
+        val tracks = listOf(
+            trk("$base/Golden_Vol_1", 1),
+            trk("$base/Golden_Vol_1", 2),
+            trk("$base/Golden_Vol_2", 1),
+            trk("$base/Golden_Vol_2", 2),
+        )
+        assertEquals(listOf(1, 1, 2, 2), assignDiscsBySubfolder(tracks).map { it.discNumber })
+    }
+
+    @Test
+    fun assignDiscs_ordersByTrailingNumberNotLexicographically() {
+        val byFolder = assignDiscsBySubfolder(
+            listOf(trk("/m/box/CD 10", 1), trk("/m/box/CD 2", 1)),
+        ).associate { it.folderPath to it.discNumber }
+        assertEquals(1, byFolder["/m/box/CD 2"])
+        assertEquals(2, byFolder["/m/box/CD 10"])
+    }
+
+    @Test
+    fun assignDiscs_singleFolderIsNoop() {
+        val tracks = listOf(trk("/m/a", 1), trk("/m/a", 2))
+        assertEquals(tracks, assignDiscsBySubfolder(tracks))
     }
 }
 
