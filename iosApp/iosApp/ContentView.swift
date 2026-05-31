@@ -203,7 +203,7 @@ struct ContentView: View {
         switch activeTag {
         case 0:
             if let library = libraryComponent() {
-                LibraryTabContainerView(component: library)
+                LibraryTabContainerView(component: library, isLarge: true)
             } else {
                 Color.bg1
             }
@@ -537,10 +537,12 @@ struct PlayerTabContainerView: View {
 /// restored on pop automatically (no opacity / keep-mounted hack).
 struct LibraryTabContainerView: View {
     let component: LibraryComponent
+    var isLarge: Bool = false
     @State private var stack: LibraryStackObservable
 
-    init(component: LibraryComponent) {
+    init(component: LibraryComponent, isLarge: Bool = false) {
         self.component = component
+        self.isLarge = isLarge
         _stack = State(initialValue: LibraryStackObservable(component))
     }
 
@@ -591,6 +593,7 @@ struct LibraryTabContainerView: View {
                         onAlbumClick: { album in
                             component.openAlbum(album: album)
                         },
+                        isLarge: isLarge,
                     )
                 } else {
                     Color.bg1
