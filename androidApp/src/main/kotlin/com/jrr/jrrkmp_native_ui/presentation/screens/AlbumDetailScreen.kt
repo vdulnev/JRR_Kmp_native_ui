@@ -6,7 +6,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -47,7 +50,8 @@ private val DownloadIcon: ImageVector
 fun AlbumDetailScreen(
     viewModel: AlbumDetailViewModel,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isLarge: Boolean = false
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -171,225 +175,60 @@ fun AlbumDetailScreen(
                 val tracks = content.tracks
                 val downloadedTrackKeys = content.downloadedTrackKeys
                 val activeJobs = content.activeDownloadJobs
+                val artworkUrl = tracks.firstOrNull()?.let { LocalMcwsClient.current.buildImageUrl(it.fileKey) }
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Header (Artwork and Details)
-                    item {
+                if (isLarge) {
+                    // Two columns: art + actions (left), tracklist (right).
+                    Row(modifier = Modifier.fillMaxSize()) {
                         Column(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .width(360.dp)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 36.dp, vertical = 32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(200.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(AppColors.bg2)
-                                    .border(1.dp, AppColors.line2, RoundedCornerShape(8.dp))
-                            ) {
-                                val artworkUrl = tracks.firstOrNull()?.let { LocalMcwsClient.current.buildImageUrl(it.fileKey) }
-                                if (!artworkUrl.isNullOrEmpty()) {
-                                    AsyncImage(
-                                        model = artworkUrl,
-                                        contentDescription = viewModel.album.name,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Text(
-                                text = viewModel.album.name,
-                                style = AppTypography.screenTitle.copy(fontSize = 20.sp),
-                                maxLines = 2,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                            AlbumArtBlock(
+                                album = viewModel.album,
+                                tracks = tracks,
+                                artworkUrl = artworkUrl,
+                                isLarge = true,
+                                onPlay = { viewModel.playAlbum() },
+                                onShuffle = { viewModel.shuffleAlbum() }
                             )
-
-                            Text(
-                                text = viewModel.album.albumArtist,
-                                style = AppTypography.itemSubtitle.copy(color = AppColors.text2),
-                                maxLines = 1,
-                                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
-                            )
-
-                            // Play / Shuffle Row
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Button(
-                                    onClick = { viewModel.playAlbum() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.accent),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = AppColors.bg0)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("PLAY", style = AppTypography.chipMono, color = AppColors.bg0)
-                                }
-
-                                Button(
-                                    onClick = { viewModel.shuffleAlbum() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.bg2),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text("🔀", style = AppTypography.chipMono, color = AppColors.text)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("SHUFFLE", style = AppTypography.chipMono, color = AppColors.text)
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
+                        }
+                        Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(AppColors.line))
+                        LazyColumn(
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            albumTrackItems(tracks, downloadedTrackKeys, activeJobs, state.isOfflineMode, viewModel) { infoTrack = it }
                         }
                     }
-
-                    // Render tracklist with side/disc headers
-                    val discGroups = tracks.groupBy { it.discNumber }
-                    discGroups.forEach { (discNumber, discTracks) ->
-                        if (discGroups.size > 1) {
-                            item {
-                                Text(
-                                    text = "DISC $discNumber".uppercase(),
-                                    style = AppTypography.sectionLabel,
-                                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                                )
-                            }
-                        } else {
-                            item {
-                                Text(
-                                    text = "SIDE A".uppercase(),
-                                    style = AppTypography.sectionLabel,
-                                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                                )
-                            }
-                        }
-
-                        itemsIndexed(discTracks) { idx, track ->
-                            val isDownloaded = downloadedTrackKeys.contains(track.fileKey)
-                            val jobState = activeJobs[track.fileKey]
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.playTrack(track)
-                                    }
-                                    .padding(vertical = 12.dp, horizontal = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text(
-                                    text = String.format("%02d", if (track.trackNumber == 0) idx + 1 else track.trackNumber),
-                                    style = AppTypography.monoLabel.copy(color = AppColors.accent),
-                                    modifier = Modifier.width(36.dp)
+                                AlbumArtBlock(
+                                    album = viewModel.album,
+                                    tracks = tracks,
+                                    artworkUrl = artworkUrl,
+                                    isLarge = false,
+                                    onPlay = { viewModel.playAlbum() },
+                                    onShuffle = { viewModel.shuffleAlbum() }
                                 )
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(track.name, style = AppTypography.itemTitle, maxLines = 1)
-                                    val durationSec = track.durationMs / 1000
-                                    val timeStr = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60)
-                                    val subtitleText = if (track.artist != viewModel.album.albumArtist) {
-                                        "${track.artist} • $timeStr"
-                                    } else {
-                                        timeStr
-                                    }
-                                    Text(subtitleText, style = AppTypography.itemSubtitle, maxLines = 1)
-                                }
-
-                                if (track.numberPlays > 0) {
-                                    Icon(
-                                        imageVector = Icons.Default.Headphones,
-                                        contentDescription = "${track.numberPlays} plays",
-                                        tint = AppColors.text3,
-                                        modifier = Modifier.size(16.dp).padding(horizontal = 2.dp)
-                                    )
-                                }
-
-                                Box(
-                                    modifier = Modifier.padding(horizontal = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (isDownloaded) {
-                                        Icon(
-                                            imageVector = Icons.Default.Save,
-                                            contentDescription = "Downloaded",
-                                            tint = AppColors.accent,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    } else if (jobState != null) {
-                                        CircularProgressIndicator(
-                                            color = AppColors.accent,
-                                            modifier = Modifier.size(20.dp),
-                                            strokeWidth = 2.dp
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                var showMenu by remember { mutableStateOf(false) }
-                                Box {
-                                    IconButton(
-                                        onClick = { showMenu = true },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.MoreVert,
-                                            contentDescription = "More options",
-                                            tint = AppColors.text3,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                    DropdownMenu(
-                                        expanded = showMenu,
-                                        onDismissRequest = { showMenu = false },
-                                        modifier = Modifier.background(AppColors.bg2)
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Info", style = AppTypography.itemTitle) },
-                                            onClick = {
-                                                showMenu = false
-                                                infoTrack = track
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Play", style = AppTypography.itemTitle) },
-                                            onClick = {
-                                                showMenu = false
-                                                viewModel.playTrack(track)
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Play Next", style = AppTypography.itemTitle) },
-                                            onClick = {
-                                                showMenu = false
-                                                viewModel.playTrackNext(track)
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Add to Queue", style = AppTypography.itemTitle) },
-                                            onClick = {
-                                                showMenu = false
-                                                viewModel.addTrackToQueue(track)
-                                            }
-                                        )
-                                        if (!state.isOfflineMode) {
-                                            DropdownMenuItem(
-                                                text = { Text("Download", style = AppTypography.itemTitle) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    viewModel.startDownload(track)
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
+                                Spacer(modifier = Modifier.height(24.dp))
                             }
-                            HorizontalDivider(color = AppColors.line, thickness = 0.5.dp)
                         }
+                        albumTrackItems(tracks, downloadedTrackKeys, activeJobs, state.isOfflineMode, viewModel) { infoTrack = it }
                     }
                 }
             }
@@ -410,5 +249,242 @@ fun AlbumDetailScreen(
             fields = album.toInfoFields(),
             onDismiss = { infoAlbum = null }
         )
+    }
+}
+
+/**
+ * Album artwork + metadata + PLAY/SHUFFLE actions. Shared by the phone (as the
+ * tracklist header) and large-screen (as the left art column) layouts. The
+ * large variant fills its column width and adds the year · tracks · duration
+ * stat line.
+ */
+@Composable
+private fun AlbumArtBlock(
+    album: Album,
+    tracks: List<Track>,
+    artworkUrl: String?,
+    isLarge: Boolean,
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit
+) {
+    val artModifier = if (isLarge) {
+        Modifier.fillMaxWidth().aspectRatio(1f)
+    } else {
+        Modifier.size(200.dp)
+    }
+    Box(
+        modifier = artModifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(AppColors.bg2)
+            .border(1.dp, AppColors.line2, RoundedCornerShape(8.dp))
+    ) {
+        if (!artworkUrl.isNullOrEmpty()) {
+            AsyncImage(
+                model = artworkUrl,
+                contentDescription = album.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Text(
+        text = album.name,
+        style = AppTypography.screenTitle.copy(fontSize = 20.sp),
+        maxLines = 2,
+        modifier = Modifier.padding(horizontal = 8.dp)
+    )
+
+    Text(
+        text = album.albumArtist,
+        style = AppTypography.itemSubtitle.copy(color = AppColors.text2),
+        maxLines = 1,
+        modifier = Modifier.padding(top = 4.dp, bottom = if (isLarge) 12.dp else 16.dp)
+    )
+
+    if (isLarge) {
+        val totalMin = (tracks.sumOf { it.durationMs } / 60000).toInt()
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (album.date.isNotBlank()) {
+                Text(album.date, style = AppTypography.monoLabel.copy(color = AppColors.text3, fontSize = 10.sp))
+            }
+            Text("${tracks.size} TRACKS", style = AppTypography.monoLabel.copy(color = AppColors.text3, fontSize = 10.sp))
+            Text("$totalMin MIN", style = AppTypography.monoLabel.copy(color = AppColors.text3, fontSize = 10.sp))
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    // Play / Shuffle Row
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Button(
+            onClick = onPlay,
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.accent),
+            modifier = Modifier.weight(1f)
+        ) {
+            Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = AppColors.bg0)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("PLAY", style = AppTypography.chipMono, color = AppColors.bg0)
+        }
+
+        Button(
+            onClick = onShuffle,
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.bg2),
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("🔀", style = AppTypography.chipMono, color = AppColors.text)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("SHUFFLE", style = AppTypography.chipMono, color = AppColors.text)
+        }
+    }
+}
+
+/**
+ * Tracklist rows grouped by disc/side, with per-track download state and the
+ * overflow menu. Shared by both album-detail layouts as a [LazyListScope]
+ * extension so it slots into either LazyColumn unchanged.
+ */
+private fun LazyListScope.albumTrackItems(
+    tracks: List<Track>,
+    downloadedTrackKeys: Set<String>,
+    activeJobs: Map<String, String>,
+    isOfflineMode: Boolean,
+    viewModel: AlbumDetailViewModel,
+    onInfoTrack: (Track) -> Unit
+) {
+    val discGroups = tracks.groupBy { it.discNumber }
+    discGroups.forEach { (discNumber, discTracks) ->
+        item {
+            Text(
+                text = (if (discGroups.size > 1) "DISC $discNumber" else "SIDE A").uppercase(),
+                style = AppTypography.sectionLabel,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            )
+        }
+
+        itemsIndexed(discTracks) { idx, track ->
+            val isDownloaded = downloadedTrackKeys.contains(track.fileKey)
+            val jobState = activeJobs[track.fileKey]
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.playTrack(track) }
+                    .padding(vertical = 12.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = String.format("%02d", if (track.trackNumber == 0) idx + 1 else track.trackNumber),
+                    style = AppTypography.monoLabel.copy(color = AppColors.accent),
+                    modifier = Modifier.width(36.dp)
+                )
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(track.name, style = AppTypography.itemTitle, maxLines = 1)
+                    val durationSec = track.durationMs / 1000
+                    val timeStr = String.format(java.util.Locale.US, "%d:%02d", durationSec / 60, durationSec % 60)
+                    val subtitleText = if (track.artist != viewModel.album.albumArtist) {
+                        "${track.artist} • $timeStr"
+                    } else {
+                        timeStr
+                    }
+                    Text(subtitleText, style = AppTypography.itemSubtitle, maxLines = 1)
+                }
+
+                if (track.numberPlays > 0) {
+                    Icon(
+                        imageVector = Icons.Default.Headphones,
+                        contentDescription = "${track.numberPlays} plays",
+                        tint = AppColors.text3,
+                        modifier = Modifier.size(16.dp).padding(horizontal = 2.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isDownloaded) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = "Downloaded",
+                            tint = AppColors.accent,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else if (jobState != null) {
+                        CircularProgressIndicator(
+                            color = AppColors.accent,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                var showMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            tint = AppColors.text3,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier.background(AppColors.bg2)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Info", style = AppTypography.itemTitle) },
+                            onClick = {
+                                showMenu = false
+                                onInfoTrack(track)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Play", style = AppTypography.itemTitle) },
+                            onClick = {
+                                showMenu = false
+                                viewModel.playTrack(track)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Play Next", style = AppTypography.itemTitle) },
+                            onClick = {
+                                showMenu = false
+                                viewModel.playTrackNext(track)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Add to Queue", style = AppTypography.itemTitle) },
+                            onClick = {
+                                showMenu = false
+                                viewModel.addTrackToQueue(track)
+                            }
+                        )
+                        if (!isOfflineMode) {
+                            DropdownMenuItem(
+                                text = { Text("Download", style = AppTypography.itemTitle) },
+                                onClick = {
+                                    showMenu = false
+                                    viewModel.startDownload(track)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            HorizontalDivider(color = AppColors.line, thickness = 0.5.dp)
+        }
     }
 }

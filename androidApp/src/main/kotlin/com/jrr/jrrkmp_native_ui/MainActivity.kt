@@ -542,7 +542,8 @@ private fun LibraryChildren(
             }
             is LibraryComponent.Child.Detail -> AlbumDetailScreen(
                 viewModel = active.vm,
-                onBackClick = { component.back() }
+                onBackClick = { component.back() },
+                isLarge = isLargeScreen
             )
         }
     }

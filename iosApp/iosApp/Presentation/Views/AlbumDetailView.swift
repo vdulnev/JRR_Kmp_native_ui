@@ -135,6 +135,7 @@ class AlbumDetailObservable {
 struct AlbumDetailView: View {
     let viewModel: AlbumDetailViewModel
     let onBackClick: () -> Void
+    var isLarge: Bool = false
 
     /// Optional + `.task` is the iOS 17+ pattern for lazy `@State` init when
     /// the wrapped type isn't an `ObservableObject` (so `@StateObject` doesn't
@@ -147,6 +148,7 @@ struct AlbumDetailView: View {
                 AlbumDetailContentView(
                     observable: observable,
                     onBackClick: onBackClick,
+                    isLarge: isLarge,
                 )
             } else {
                 Color.bg1.ignoresSafeArea()
@@ -166,6 +168,7 @@ private struct AlbumDetailContentView: View {
     @Environment(AppContainer.self) private var container
     let observable: AlbumDetailObservable
     let onBackClick: () -> Void
+    var isLarge: Bool = false
 
     @State private var infoTrack: Track? = nil
     @State private var infoAlbum: Album? = nil
@@ -245,114 +248,32 @@ private struct AlbumDetailContentView: View {
                     }
                 }
                 Spacer()
+            } else if isLarge {
+                // Two columns: art + actions (left), tracklist (right).
+                HStack(spacing: 0) {
+                    ScrollView {
+                        artworkHeader(isLarge: true)
+                            .padding(.horizontal, 36)
+                            .padding(.vertical, 32)
+                    }
+                    .frame(width: 360)
+
+                    Rectangle().fill(Color.line).frame(width: 1)
+
+                    ScrollView {
+                        tracksList()
+                            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                            .padding(.vertical, 24)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
             } else {
                 ScrollView {
                     VStack(spacing: 20) {
-                        // Artwork and details header
-                        VStack(alignment: .center, spacing: 16) {
-                            ZStack {
-                                let artworkUrl = observable.tracks.first.map { container.mcwsClient.buildImageUrl(fileKey: $0.fileKey) } ?? ""
-                                if !artworkUrl.isEmpty,
-                                   let url = URL(string: artworkUrl)
-                                {
-                                    JrrAsyncImage(url: url) { image in
-                                        image
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                    } placeholder: {
-                                        Color.bg2
-                                    }
-                                } else {
-                                    Canvas { context, size in
-                                        context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: 0x1E293B)))
-                                        var path = Path()
-                                        path.move(to: .zero)
-                                        path.addLine(to: CGPoint(x: size.width, y: size.height))
-                                        context.stroke(
-                                            path,
-                                            with: .color(Color.accentColor.opacity(0.5)),
-                                            style: StrokeStyle(lineWidth: 4),
-                                        )
-                                    }
-                                }
-                            }
-                            .frame(width: 200, height: 200)
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.line2, lineWidth: 1),
-                            )
-
-                            VStack(spacing: 4) {
-                                Text(observable.albumName)
-                                    .font(AppFont.inter(size: 20, weight: .bold))
-                                    .foregroundColor(.textPrimary)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.center)
-
-                                Text(observable.artistName)
-                                    .font(AppFont.inter(size: 13, weight: .regular))
-                                    .foregroundColor(.textSecondary)
-                                    .lineLimit(1)
-                                    .multilineTextAlignment(.center)
-                            }
-                            .padding(.horizontal, 8)
-
-                            // Play / Shuffle Buttons
-                            HStack(spacing: 12) {
-                                Button(action: {
-                                    observable.playAlbum()
-                                }) {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "play.fill")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.bg0)
-                                        Text("PLAY")
-                                            .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
-                                            .foregroundColor(.bg0)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 38)
-                                    .background(Color.accentColor)
-                                    .cornerRadius(6)
-                                }
-
-                                Button(action: {
-                                    observable.shuffleAlbum()
-                                }) {
-                                    HStack(spacing: 8) {
-                                        Text("🔀")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.textPrimary)
-                                        Text("SHUFFLE")
-                                            .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
-                                            .foregroundColor(.textPrimary)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 38)
-                                    .background(Color.bg2)
-                                    .cornerRadius(6)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(Color.line2, lineWidth: 1),
-                                    )
-                                }
-                            }
-                        }
-                        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-
-                        // Tracks listing
-                        VStack(alignment: .leading, spacing: 0) {
-                            ForEach(sortedDiscKeys, id: \.self) { discNum in
-                                discSection(
-                                    discNum: discNum,
-                                    discTracks: discGroups[discNum] ?? [],
-                                    sortedTracks: sortedTracks,
-                                    sortedDiscKeys: sortedDiscKeys,
-                                )
-                            }
-                        }
-                        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                        artworkHeader(isLarge: false)
+                            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                        tracksList()
+                            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                     }
                     .padding(.bottom, 30)
                 }
@@ -364,6 +285,101 @@ private struct AlbumDetailContentView: View {
         }
         .sheet(item: $infoAlbum) { album in
             InfoView(title: album.name, fields: album.toInfoFields())
+        }
+    }
+
+    /// Artwork + album meta + PLAY/SHUFFLE. Shared by the phone (header) and
+    /// large (left column) layouts; the large variant fills its column width
+    /// and adds the date · tracks · duration stat line.
+    private func artworkHeader(isLarge: Bool) -> some View {
+        VStack(alignment: .center, spacing: 16) {
+            ZStack {
+                let artworkUrl = observable.tracks.first.map { container.mcwsClient.buildImageUrl(fileKey: $0.fileKey) } ?? ""
+                if !artworkUrl.isEmpty, let url = URL(string: artworkUrl) {
+                    JrrAsyncImage(url: url) { image in
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Color.bg2
+                    }
+                } else {
+                    Canvas { context, size in
+                        context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: 0x1E293B)))
+                        var path = Path()
+                        path.move(to: .zero)
+                        path.addLine(to: CGPoint(x: size.width, y: size.height))
+                        context.stroke(
+                            path,
+                            with: .color(Color.accentColor.opacity(0.5)),
+                            style: StrokeStyle(lineWidth: 4),
+                        )
+                    }
+                }
+            }
+            .frame(maxWidth: isLarge ? .infinity : 200)
+            .aspectRatio(1, contentMode: .fit)
+            .frame(maxWidth: isLarge ? .infinity : 200, maxHeight: isLarge ? .infinity : 200)
+            .cornerRadius(8)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.line2, lineWidth: 1))
+
+            VStack(spacing: 4) {
+                Text(observable.albumName)
+                    .font(AppFont.inter(size: 20, weight: .bold))
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                Text(observable.artistName)
+                    .font(AppFont.inter(size: 13, weight: .regular))
+                    .foregroundColor(.textSecondary)
+                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 8)
+
+            if isLarge {
+                let totalMin = Int(observable.tracks.reduce(0) { $0 + $1.durationMs } / 60000)
+                HStack(spacing: 16) {
+                    let date = observable.viewModel.album.date
+                    if !date.isEmpty {
+                        Text(date).font(AppFont.ibmPlexMono(size: 10, weight: .regular)).tracking(1.2).foregroundColor(.textTertiary)
+                    }
+                    Text("\(observable.tracks.count) TRACKS").font(AppFont.ibmPlexMono(size: 10, weight: .regular)).tracking(1.2).foregroundColor(.textTertiary)
+                    Text("\(totalMin) MIN").font(AppFont.ibmPlexMono(size: 10, weight: .regular)).tracking(1.2).foregroundColor(.textTertiary)
+                }
+            }
+
+            HStack(spacing: 12) {
+                Button(action: { observable.playAlbum() }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.fill").font(.system(size: 12)).foregroundColor(.bg0)
+                        Text("PLAY").font(AppFont.ibmPlexMono(size: 11, weight: .bold)).foregroundColor(.bg0)
+                    }
+                    .frame(maxWidth: .infinity).frame(height: 38)
+                    .background(Color.accentColor).cornerRadius(6)
+                }
+                Button(action: { observable.shuffleAlbum() }) {
+                    HStack(spacing: 8) {
+                        Text("🔀").font(.system(size: 12)).foregroundColor(.textPrimary)
+                        Text("SHUFFLE").font(AppFont.ibmPlexMono(size: 11, weight: .bold)).foregroundColor(.textPrimary)
+                    }
+                    .frame(maxWidth: .infinity).frame(height: 38)
+                    .background(Color.bg2).cornerRadius(6)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.line2, lineWidth: 1))
+                }
+            }
+        }
+    }
+
+    /// Disc-grouped tracklist, shared by both layouts.
+    private func tracksList() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(sortedDiscKeys, id: \.self) { discNum in
+                discSection(
+                    discNum: discNum,
+                    discTracks: discGroups[discNum] ?? [],
+                    sortedTracks: sortedTracks,
+                    sortedDiscKeys: sortedDiscKeys,
+                )
+            }
         }
     }
 

@@ -632,6 +632,7 @@ struct LibraryTabContainerView: View {
                         AlbumDetailView(
                             viewModel: detail.vm,
                             onBackClick: { component.back() },
+                            isLarge: isLarge,
                         )
                         .background(Color.bg1)
                     } else {
