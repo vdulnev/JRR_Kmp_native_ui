@@ -167,35 +167,75 @@ class LibraryObservable {
 /// Collapses the chrome (header / filter / mini-player) when a list is scrolled
 /// down, restores it when scrolled up or back at the top.
 ///
-/// Uses a trailing-anchor hysteresis: the state only flips after the offset has
-/// moved `threshold` points in one direction since the last change. Reacting to
-/// raw frame-to-frame deltas instead made scrolling jerky (especially on iPad /
-/// trackpad), because tiny jitter re-triggered the collapse animation and
-/// relayout every frame.
+/// Driven by the per-sample scroll *delta* — the same model as the Android
+/// `NestedScrollConnection` (`onPreScroll` dy). This is deliberately not based
+/// on the absolute offset: collapsing the chrome changes the mini-player inset
+/// and container/content size, which moves `contentOffset` on its own. Treating
+/// that self-induced shift as a scroll is what made the mini-player pop in and
+/// out — worst with a non-empty filter, where the shorter list amplifies the
+/// layout jump. So any sample where `maxOffset` changed (a relayout, not a
+/// gesture) or where we're in rubber-band overscroll is ignored. With no
+/// absolute zones it behaves identically for any list length.
 private struct HidesChromeOnScroll: ViewModifier {
-    @Environment(ChromeVisibility.self) private var chrome
-    @State private var anchor: CGFloat = 0
+    private struct Metrics: Equatable {
+        let offset: CGFloat
+        let maxOffset: CGFloat
+    }
 
-    private let threshold: CGFloat = 28
-    private let topReveal: CGFloat = 60
+    @Environment(ChromeVisibility.self) private var chrome
+    @State private var lastOffset: CGFloat = 0
+    /// Signed sum of recent movement since the last toggle. Lets a *slow* drag
+    /// (tiny per-frame deltas) accumulate up to the threshold, while jitter
+    /// (alternating signs) cancels out near zero.
+    @State private var accum: CGFloat = 0
+
+    /// Total accumulated movement in one direction that flips the chrome.
+    private let threshold: CGFloat = 20
 
     func body(content: Content) -> some View {
-        content.onScrollGeometryChange(for: CGFloat.self) { geo in
-            geo.contentOffset.y
-        } action: { _, newOffset in
-            // Ignore rubber-band overscroll past the top.
-            if newOffset <= topReveal {
-                chrome.setCollapsed(false)
-                anchor = max(newOffset, 0)
+        content.onScrollGeometryChange(for: Metrics.self) { geo in
+            Metrics(
+                offset: geo.contentOffset.y,
+                maxOffset: max(0, geo.contentSize.height - geo.containerSize.height),
+            )
+        } action: { old, new in
+            let offset = new.offset
+            // A relayout (chrome toggled → inset / container size changed) moves
+            // the offset without any gesture. Resync and ignore.
+            if new.maxOffset != old.maxOffset {
+                lastOffset = offset
                 return
             }
-            let delta = newOffset - anchor
-            if delta > threshold {
+            // Pull-down past the top is a deliberate "give me the chrome back"
+            // gesture — and the only escape hatch on a list that fits once
+            // collapsed. (Purely gesture-driven otherwise, like Android: no
+            // absolute top-reveal, so a short list that fits after collapsing
+            // just stays collapsed instead of popping the chrome back.)
+            if offset < 0 {
+                chrome.setCollapsed(false)
+                lastOffset = offset
+                accum = 0
+                return
+            }
+            // Rubber-band overscroll past the bottom is not a real position;
+            // don't let the bounce read as a direction change.
+            if offset > new.maxOffset {
+                lastOffset = offset
+                return
+            }
+            let dy = offset - lastOffset
+            lastOffset = offset
+            // Reset the accumulator when direction reverses so a flick the other
+            // way responds immediately instead of unwinding a stale sum.
+            if dy > 0, accum < 0 { accum = 0 }
+            if dy < 0, accum > 0 { accum = 0 }
+            accum += dy
+            if accum > threshold {
                 chrome.setCollapsed(true) // scrolled down enough
-                anchor = newOffset
-            } else if delta < -threshold {
+                accum = 0
+            } else if accum < -threshold {
                 chrome.setCollapsed(false) // scrolled up enough
-                anchor = newOffset
+                accum = 0
             }
         }
     }
