@@ -439,11 +439,13 @@ private fun MainContent(
         is RootComponent.RootChild.Player -> PlayerChildren(child.component, isLargeScreen = isLargeScreen)
         is RootComponent.RootChild.Zones -> ZonesScreen(
             viewModel = child.component.vm,
-            onBackClick = { root.selectTab(RootConfig.Player) }
+            onBackClick = { root.selectTab(RootConfig.Player) },
+            isLarge = isLargeScreen
         )
         is RootComponent.RootChild.Settings -> SettingsScreen(
             viewModel = child.component.vm,
             onBackClick = { root.selectTab(RootConfig.Player) },
+            isLarge = isLargeScreen,
             onDisconnectClick = {
                 // Disconnect (when online) or Connect (when offline): tear down
                 // the server connection and go to the Server screen so the user

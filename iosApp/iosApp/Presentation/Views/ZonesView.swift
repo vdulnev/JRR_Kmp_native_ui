@@ -68,10 +68,43 @@ struct ZonesView: View {
     @State private var observable: ZonesObservable
 
     let onBackClick: () -> Void
+    var isLarge: Bool = false
 
-    init(viewModel: ZonesViewModel, onBackClick: @escaping () -> Void) {
+    init(viewModel: ZonesViewModel, onBackClick: @escaping () -> Void, isLarge: Bool = false) {
         _observable = State(initialValue: ZonesObservable(viewModel: viewModel))
         self.onBackClick = onBackClick
+        self.isLarge = isLarge
+    }
+
+    private let gridColumns = [GridItem(.adaptive(minimum: 300), spacing: 16)]
+
+    @ViewBuilder
+    private func zoneCell(_ zone: Zone) -> some View {
+        let isActive = zone.id == observable.activeZoneId
+        ZoneRow(
+            zone: zone,
+            isActive: isActive,
+            volume: isActive ? observable.currentVolume : 0.5,
+            onZoneClick: { observable.selectZone(zone) },
+            onVolumeChange: { observable.setVolume($0) },
+        )
+    }
+
+    /// A group of zone cards: adaptive grid on large screens, stacked column on
+    /// phones.
+    @ViewBuilder
+    private func zonesGroup(_ zones: [Zone]) -> some View {
+        if isLarge {
+            LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 16) {
+                ForEach(zones) { zoneCell($0) }
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+        } else {
+            VStack(spacing: 12) {
+                ForEach(zones) { zoneCell($0) }
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+        }
     }
 
     var body: some View {
@@ -126,23 +159,7 @@ struct ZonesView: View {
                                 .foregroundColor(.textTertiary)
                                 .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                         } else {
-                            VStack(spacing: 12) {
-                                ForEach(observable.serverZones) { zone in
-                                    let isActive = zone.id == observable.activeZoneId
-                                    ZoneRow(
-                                        zone: zone,
-                                        isActive: isActive,
-                                        volume: isActive ? observable.currentVolume : 0.5,
-                                        onZoneClick: {
-                                            observable.selectZone(zone)
-                                        },
-                                        onVolumeChange: { newVolume in
-                                            observable.setVolume(newVolume)
-                                        },
-                                    )
-                                }
-                            }
-                            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                            zonesGroup(observable.serverZones)
                         }
                     }
 
@@ -152,23 +169,7 @@ struct ZonesView: View {
                         .padding(.horizontal, AppSpacing.screenHorizontalMargin)
                         .padding(.top, 10)
 
-                    VStack(spacing: 12) {
-                        ForEach(observable.deviceZones) { zone in
-                            let isActive = zone.id == observable.activeZoneId
-                            ZoneRow(
-                                zone: zone,
-                                isActive: isActive,
-                                volume: isActive ? observable.currentVolume : 0.5,
-                                onZoneClick: {
-                                    observable.selectZone(zone)
-                                },
-                                onVolumeChange: { newVolume in
-                                    observable.setVolume(newVolume)
-                                },
-                            )
-                        }
-                    }
-                    .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                    zonesGroup(observable.deviceZones)
                 }
                 .padding(.bottom, 30)
             }

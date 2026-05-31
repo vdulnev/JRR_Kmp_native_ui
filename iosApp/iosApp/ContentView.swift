@@ -212,6 +212,7 @@ struct ContentView: View {
                 ZonesView(
                     viewModel: zones.vm,
                     onBackClick: { container.root.selectTab(config: RootConfigPlayer.shared) },
+                    isLarge: true,
                 )
             } else {
                 Color.bg1
@@ -225,6 +226,7 @@ struct ContentView: View {
                         mainShellObservable.disconnect()
                         container.root.selectTab(config: RootConfigServer.shared)
                     },
+                    isLarge: true,
                 )
             } else {
                 Color.bg1

@@ -28,7 +28,8 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBackClick: () -> Unit,
     onDisconnectClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isLarge: Boolean = false
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -43,7 +44,8 @@ fun SettingsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AppColors.bg1)
+            .background(AppColors.bg1),
+        horizontalAlignment = if (isLarge) Alignment.CenterHorizontally else Alignment.Start
     ) {
         // Header
         Row(
@@ -71,9 +73,15 @@ fun SettingsScreen(
         }
 
         LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
+            // Large screens: cap the card column to a comfortable reading width
+            // (centered by the parent's CenterHorizontally) instead of
+            // stretching edge to edge.
+            modifier = if (isLarge) {
+                Modifier.weight(1f).widthIn(max = 760.dp)
+            } else {
+                Modifier.weight(1f).fillMaxWidth()
+            },
+            contentPadding = if (isLarge) PaddingValues(horizontal = 32.dp, vertical = 8.dp) else PaddingValues(0.dp)
         ) {
             // Active Server Info Card
             item {

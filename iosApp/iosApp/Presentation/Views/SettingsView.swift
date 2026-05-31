@@ -79,13 +79,15 @@ class SettingsObservable {
 struct SettingsView: View {
     let onBackClick: () -> Void
     let onDisconnectClick: () -> Void
+    var isLarge: Bool = false
 
     @State private var observable: SettingsObservable
 
-    init(viewModel: SettingsViewModel, onBackClick: @escaping () -> Void, onDisconnectClick: @escaping () -> Void) {
+    init(viewModel: SettingsViewModel, onBackClick: @escaping () -> Void, onDisconnectClick: @escaping () -> Void, isLarge: Bool = false) {
         _observable = State(initialValue: SettingsObservable(viewModel: viewModel))
         self.onBackClick = onBackClick
         self.onDisconnectClick = onDisconnectClick
+        self.isLarge = isLarge
     }
 
     var body: some View {
@@ -373,7 +375,11 @@ struct SettingsView: View {
             .listStyle(InsetGroupedListStyle())
             .scrollContentBackground(.hidden)
             .background(Color.bg1)
+            // Large screens: cap the card column to a comfortable reading width
+            // (centered by the enclosing VStack) instead of full-bleed.
+            .frame(maxWidth: isLarge ? 760 : .infinity)
         }
+        .frame(maxWidth: .infinity)
         .background(Color.bg1.ignoresSafeArea())
     }
 }

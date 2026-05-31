@@ -7,6 +7,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -28,7 +32,8 @@ import com.jrr.jrrkmp_native_ui.presentation.viewmodel.ZonesViewModel
 fun ZonesScreen(
     viewModel: ZonesViewModel,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isLarge: Boolean = false
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -80,6 +85,59 @@ fun ZonesScreen(
 
             // Placeholder to align title
             Spacer(modifier = Modifier.width(48.dp))
+        }
+
+        val gutter = if (isLarge) 32.dp else 16.dp
+        if (isLarge) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 300.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(gutter),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (!isOfflineMode) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text("Server Outputs".uppercase(), style = AppTypography.sectionHeading)
+                    }
+                    if (isLoading) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = AppColors.accent)
+                            }
+                        }
+                    } else if (serverZones.isEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Text("No server zones found.", style = AppTypography.itemSubtitle, color = AppColors.text3)
+                        }
+                    } else {
+                        gridItems(serverZones) { zone ->
+                            val isActive = zone.id == activeZoneId
+                            ZoneRow(
+                                zone = zone,
+                                isActive = isActive,
+                                volume = if (isActive) currentVolume else 0.5f,
+                                onZoneClick = { viewModel.selectZone(zone) },
+                                onVolumeChange = { viewModel.setVolume(it) }
+                            )
+                        }
+                    }
+                }
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text("On Device".uppercase(), style = AppTypography.sectionHeading, modifier = Modifier.padding(top = 12.dp))
+                }
+                gridItems(deviceZones) { zone ->
+                    val isActive = zone.id == activeZoneId
+                    ZoneRow(
+                        zone = zone,
+                        isActive = isActive,
+                        volume = if (isActive) currentVolume else 0.5f,
+                        onZoneClick = { viewModel.selectZone(zone) },
+                        onVolumeChange = { viewModel.setVolume(it) }
+                    )
+                }
+            }
+            return@Column
         }
 
         LazyColumn(
