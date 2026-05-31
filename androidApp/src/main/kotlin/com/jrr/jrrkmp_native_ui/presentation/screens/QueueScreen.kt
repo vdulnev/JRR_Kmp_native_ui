@@ -42,7 +42,8 @@ import com.jrr.jrrkmp_native_ui.presentation.viewmodel.QueueViewModel
 fun QueueScreen(
     viewModel: QueueViewModel,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isRail: Boolean = false
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -72,19 +73,35 @@ fun QueueScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = "Back",
-                    tint = AppColors.text
+            if (isRail) {
+                // Queue rail (large screen): no back button — the queue is
+                // always visible beside Now Playing. Show count instead.
+                Column {
+                    Text(
+                        text = "Play Queue".uppercase(),
+                        style = AppTypography.sectionLabel,
+                    )
+                    Text(
+                        text = "${currentQueue.size} ${if (currentQueue.size == 1) "TRACK" else "TRACKS"}",
+                        style = AppTypography.monoLabel.copy(color = AppColors.text3, fontSize = 10.sp),
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            } else {
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = AppColors.text
+                    )
+                }
+
+                Text(
+                    text = "Play Queue".uppercase(),
+                    style = AppTypography.monoLabel,
+                    color = AppColors.accent
                 )
             }
-
-            Text(
-                text = "Play Queue".uppercase(),
-                style = AppTypography.monoLabel,
-                color = AppColors.accent
-            )
 
             Button(
                 onClick = { viewModel.clearQueue() },

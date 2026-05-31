@@ -436,7 +436,7 @@ private fun MainContent(
             serverRepository = serverRepository,
             onConnectSuccess = { root.onConnectSuccess() }
         )
-        is RootComponent.RootChild.Player -> PlayerChildren(child.component)
+        is RootComponent.RootChild.Player -> PlayerChildren(child.component, isLargeScreen = isLargeScreen)
         is RootComponent.RootChild.Zones -> ZonesScreen(
             viewModel = child.component.vm,
             onBackClick = { root.selectTab(RootConfig.Player) }
@@ -548,10 +548,40 @@ private fun LibraryChildren(
     }
 }
 
-/** Player tab: NowPlaying → Queue, driven by [PlayerComponent.stack]. */
+/**
+ * Player tab. On phone: NowPlaying → Queue, driven by [PlayerComponent.stack].
+ * On large screens: a split with the Now Playing hero beside a persistent queue
+ * rail (no queue navigation), fed by the component-level [PlayerComponent.queueViewModel].
+ */
 @Composable
-private fun PlayerChildren(component: PlayerComponent) {
+private fun PlayerChildren(component: PlayerComponent, isLargeScreen: Boolean) {
     val stack by component.stack.subscribeAsState()
+
+    if (isLargeScreen) {
+        val active = stack.active.instance
+        val npVm = (active as? PlayerComponent.Child.NowPlaying)?.vm
+            ?: (active as? PlayerComponent.Child.Queue)?.let {
+                // In large mode the queue is never pushed; if it somehow is,
+                // pop back so Now Playing is the active child.
+                component.closeQueue(); null
+            }
+        Row(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                if (npVm != null) {
+                    NowPlayingScreen(viewModel = npVm, onQueueClick = {})
+                }
+            }
+            Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(AppColors.line))
+            QueueScreen(
+                viewModel = component.queueViewModel,
+                onBackClick = {},
+                modifier = Modifier.width(380.dp),
+                isRail = true,
+            )
+        }
+        return
+    }
+
     when (val child = stack.active.instance) {
         is PlayerComponent.Child.NowPlaying -> NowPlayingScreen(
             viewModel = child.vm,

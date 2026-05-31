@@ -70,6 +70,16 @@ class PlayerComponent(
         }
     }
 
+    /**
+     * Component-level Queue VM for the large-screen (tablet) layout, where the
+     * queue rail is shown *beside* Now Playing rather than as a pushed screen.
+     * Retained for the Player tab's lifetime, independent of the [Config.Queue]
+     * stack entry (which large layouts never push).
+     */
+    val queueViewModel: QueueViewModel by lazy {
+        retainedViewModel("queueRail") { deps.queueViewModel() }
+    }
+
     /** Show the queue. Ports `setShowQueue(true)`. */
     @OptIn(com.arkivanov.decompose.DelicateDecomposeApi::class)
     fun openQueue() {

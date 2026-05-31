@@ -71,35 +71,51 @@ class QueueObservable {
 struct QueueView: View {
     @State private var observable: QueueObservable
     let onBackClick: () -> Void
+    /// Large-screen queue rail: no back button (the queue is always visible
+    /// beside Now Playing); shows the track count instead.
+    var isRail: Bool = false
 
     @State private var editMode: EditMode = .inactive
 
-    init(viewModel: QueueViewModel, onBackClick: @escaping () -> Void) {
+    init(viewModel: QueueViewModel, onBackClick: @escaping () -> Void, isRail: Bool = false) {
         _observable = State(initialValue: QueueObservable(viewModel: viewModel))
         self.onBackClick = onBackClick
+        self.isRail = isRail
     }
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Button(action: onBackClick) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .bold))
-                        Text("BACK")
-                            .font(AppFont.ibmPlexMono(size: 11, weight: .medium))
+                if isRail {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("PLAY QUEUE")
+                            .styleSectionLabel()
+                        Text("\(observable.queueTracks.count) \(observable.queueTracks.count == 1 ? "TRACK" : "TRACKS")")
+                            .font(AppFont.ibmPlexMono(size: 10, weight: .regular))
+                            .tracking(1.2)
+                            .foregroundColor(.textTertiary)
                     }
-                    .foregroundColor(.textPrimary)
-                    .frame(height: 44)
+                    Spacer()
+                } else {
+                    Button(action: onBackClick) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 16, weight: .bold))
+                            Text("BACK")
+                                .font(AppFont.ibmPlexMono(size: 11, weight: .medium))
+                        }
+                        .foregroundColor(.textPrimary)
+                        .frame(height: 44)
+                    }
+
+                    Spacer()
+
+                    Text("PLAY QUEUE")
+                        .styleSectionLabel()
+
+                    Spacer()
                 }
-
-                Spacer()
-
-                Text("PLAY QUEUE")
-                    .styleSectionLabel()
-
-                Spacer()
 
                 HStack(spacing: 12) {
                     Button(action: {

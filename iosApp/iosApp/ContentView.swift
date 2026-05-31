@@ -231,7 +231,7 @@ struct ContentView: View {
             }
         default:
             if let player = playerComponent() {
-                PlayerTabContainerView(component: player)
+                PlayerTabContainerView(component: player, isLarge: true)
             } else {
                 Color.bg1
             }
@@ -510,19 +510,42 @@ struct ContentView: View {
 /// Player tab: NowPlaying → Queue, driven by [PlayerComponent.stack].
 struct PlayerTabContainerView: View {
     let component: PlayerComponent
+    var isLarge: Bool = false
     @State private var stack: PlayerStackObservable
 
-    init(component: PlayerComponent) {
+    init(component: PlayerComponent, isLarge: Bool = false) {
         self.component = component
+        self.isLarge = isLarge
         _stack = State(initialValue: PlayerStackObservable(component))
     }
 
     var body: some View {
-        switch onEnum(of: stack.activeChild) {
-        case let .nowPlaying(child):
-            NowPlayingView(viewModel: child.vm, onQueueClick: { component.openQueue() })
-        case let .queue(child):
-            QueueView(viewModel: child.vm, onBackClick: { component.closeQueue() })
+        if isLarge {
+            // Large screen: Now Playing hero + persistent queue rail side by
+            // side. The queue is never pushed (hero's queue button is inert),
+            // so the rail reads the component-level queue VM.
+            HStack(spacing: 0) {
+                Group {
+                    if case let .nowPlaying(child) = onEnum(of: stack.activeChild) {
+                        NowPlayingView(viewModel: child.vm, onQueueClick: {})
+                    } else {
+                        Color.bg1
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                Rectangle().fill(Color.line).frame(width: 1)
+
+                QueueView(viewModel: component.queueViewModel, onBackClick: {}, isRail: true)
+                    .frame(width: 380)
+            }
+        } else {
+            switch onEnum(of: stack.activeChild) {
+            case let .nowPlaying(child):
+                NowPlayingView(viewModel: child.vm, onQueueClick: { component.openQueue() })
+            case let .queue(child):
+                QueueView(viewModel: child.vm, onBackClick: { component.closeQueue() })
+            }
         }
     }
 }
