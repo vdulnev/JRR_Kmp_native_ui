@@ -166,19 +166,36 @@ class LibraryObservable {
 
 /// Collapses the chrome (header / filter / mini-player) when a list is scrolled
 /// down, restores it when scrolled up or back at the top.
+///
+/// Uses a trailing-anchor hysteresis: the state only flips after the offset has
+/// moved `threshold` points in one direction since the last change. Reacting to
+/// raw frame-to-frame deltas instead made scrolling jerky (especially on iPad /
+/// trackpad), because tiny jitter re-triggered the collapse animation and
+/// relayout every frame.
 private struct HidesChromeOnScroll: ViewModifier {
     @Environment(ChromeVisibility.self) private var chrome
+    @State private var anchor: CGFloat = 0
+
+    private let threshold: CGFloat = 28
+    private let topReveal: CGFloat = 60
 
     func body(content: Content) -> some View {
         content.onScrollGeometryChange(for: CGFloat.self) { geo in
             geo.contentOffset.y
-        } action: { oldOffset, newOffset in
-            if newOffset < 8 {
-                chrome.setCollapsed(false) // at/near the top
-            } else if newOffset > oldOffset + 6 {
-                chrome.setCollapsed(true) // scrolling down
-            } else if newOffset < oldOffset - 6 {
-                chrome.setCollapsed(false) // scrolling up
+        } action: { _, newOffset in
+            // Ignore rubber-band overscroll past the top.
+            if newOffset <= topReveal {
+                chrome.setCollapsed(false)
+                anchor = max(newOffset, 0)
+                return
+            }
+            let delta = newOffset - anchor
+            if delta > threshold {
+                chrome.setCollapsed(true) // scrolled down enough
+                anchor = newOffset
+            } else if delta < -threshold {
+                chrome.setCollapsed(false) // scrolled up enough
+                anchor = newOffset
             }
         }
     }
