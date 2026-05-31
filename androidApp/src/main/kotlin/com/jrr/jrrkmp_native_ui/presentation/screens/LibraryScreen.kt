@@ -536,7 +536,7 @@ fun ArtistsTab(
 
 /** Slim type-to-filter row pinned above a list. Collapses with the chrome. */
 @Composable
-private fun ListFilterField(
+internal fun ListFilterField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
@@ -571,7 +571,7 @@ private fun ListFilterField(
  * Renders [text] with the first case-insensitive occurrence of [query] bolded
  * in the accent colour. No-op styling when [query] is blank or unmatched.
  */
-private fun highlightMatch(text: String, query: String): AnnotatedString = buildAnnotatedString {
+internal fun highlightMatch(text: String, query: String): AnnotatedString = buildAnnotatedString {
     val idx = if (query.isBlank()) -1 else text.indexOf(query, ignoreCase = true)
     if (idx < 0) {
         append(text)
@@ -585,7 +585,7 @@ private fun highlightMatch(text: String, query: String): AnnotatedString = build
 }
 
 @Composable
-private fun CompilationArtistRow(
+internal fun CompilationArtistRow(
     label: AnnotatedString,
     avatarText: String,
     highlighted: Boolean,

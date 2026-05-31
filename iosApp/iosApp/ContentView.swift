@@ -124,6 +124,7 @@ final class ChromeVisibility {
 
 struct ContentView: View {
     @Environment(AppContainer.self) private var container
+    @Environment(\.horizontalSizeClass) private var hSizeClass
 
     @State private var nowPlayingViewModel: NowPlayingViewModel
     @State private var nowPlayingObservable: NowPlayingObservable
@@ -187,6 +188,56 @@ struct ContentView: View {
         activeTag == 2
     }
 
+    /// Large-screen (iPad regular width) layout: persistent sidebar instead of
+    /// the bottom tab bar. Compact widths (iPhone, narrow iPad multitasking)
+    /// keep the existing TabView.
+    private var isLarge: Bool {
+        hSizeClass == .regular
+    }
+
+    /// The active destination's content, sans tab-bar chrome — used by the
+    /// large-screen sidebar shell (the TabView builds these inline with
+    /// `.tabItem`).
+    @ViewBuilder
+    private func routedContent() -> some View {
+        switch activeTag {
+        case 0:
+            if let library = libraryComponent() {
+                LibraryTabContainerView(component: library)
+            } else {
+                Color.bg1
+            }
+        case 3:
+            if let zones = zonesComponent() {
+                ZonesView(
+                    viewModel: zones.vm,
+                    onBackClick: { container.root.selectTab(config: RootConfigPlayer.shared) },
+                )
+            } else {
+                Color.bg1
+            }
+        case 4:
+            if let settings = settingsComponent() {
+                SettingsView(
+                    viewModel: settings.vm,
+                    onBackClick: { container.root.selectTab(config: RootConfigPlayer.shared) },
+                    onDisconnectClick: {
+                        mainShellObservable.disconnect()
+                        container.root.selectTab(config: RootConfigServer.shared)
+                    },
+                )
+            } else {
+                Color.bg1
+            }
+        default:
+            if let player = playerComponent() {
+                PlayerTabContainerView(component: player)
+            } else {
+                Color.bg1
+            }
+        }
+    }
+
     // MARK: Per-tab component lookup (stable instances from the live stack)
 
     private func libraryComponent() -> LibraryComponent? {
@@ -232,6 +283,18 @@ struct ContentView: View {
                         container.root.onConnectSuccess()
                     }
                 })
+            } else if isLarge {
+                LargeScreenShell(
+                    activeTag: activeTag,
+                    onSelect: { tag in
+                        withAnimation {
+                            container.root.selectTab(config: config(forTag: tag))
+                        }
+                    },
+                    nowPlaying: nowPlayingObservable,
+                ) {
+                    routedContent()
+                }
             } else {
                 TabView(selection: Binding(
                     get: { activeTag },
@@ -320,7 +383,7 @@ struct ContentView: View {
             // Floating MiniPlayer overlay — shown on every tab except Player and
             // the full-screen Server screen, when a track is loaded. Hidden
             // while a list is scrolled to maximise the scroll area.
-            if !isPlayerActive, !isServerActive, !chrome.collapsed,
+            if !isPlayerActive, !isServerActive, !isLarge, !chrome.collapsed,
                nowPlayingObservable.trackTitle != "Idle"
             {
                 VStack {
