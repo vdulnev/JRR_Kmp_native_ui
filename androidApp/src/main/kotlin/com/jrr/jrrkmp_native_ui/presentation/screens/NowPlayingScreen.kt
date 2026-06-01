@@ -48,7 +48,8 @@ import java.util.Locale
 fun NowPlayingScreen(
     viewModel: NowPlayingViewModel,
     onQueueClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showQueueButton: Boolean = true
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -102,12 +103,14 @@ fun NowPlayingScreen(
                 )
             }
 
-            IconButton(onClick = onQueueClick) {
-                Icon(
-                    imageVector = Icons.Default.List,
-                    contentDescription = "Queue",
-                    tint = AppColors.text
-                )
+            if (showQueueButton) {
+                IconButton(onClick = onQueueClick) {
+                    Icon(
+                        imageVector = Icons.Default.List,
+                        contentDescription = "Queue",
+                        tint = AppColors.text
+                    )
+                }
             }
         }
 

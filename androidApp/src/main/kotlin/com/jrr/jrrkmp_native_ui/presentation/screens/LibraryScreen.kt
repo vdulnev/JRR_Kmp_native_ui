@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -544,26 +546,44 @@ internal fun ListFilterField(
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(visible = !collapsed) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            placeholder = { Text(placeholder, color = AppColors.text3) },
-            singleLine = true,
-            colors = outlinedTextFieldColors(),
-            leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = null, tint = AppColors.text3)
-            },
-            trailingIcon = {
-                if (value.isNotEmpty()) {
-                    IconButton(onClick = { onValueChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear filter", tint = AppColors.text3)
-                    }
-                }
-            },
+        // Slim single-line filter field (≈40dp tall) instead of the chunky
+        // OutlinedTextField, matching the design's compact filter row.
+        Row(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
-        )
+                .widthIn(max = 380.dp)
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .height(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(AppColors.bg2)
+                .border(1.dp, AppColors.line, RoundedCornerShape(8.dp))
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Search, contentDescription = null, tint = AppColors.text3, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Box(modifier = Modifier.weight(1f)) {
+                if (value.isEmpty()) {
+                    Text(placeholder, style = AppTypography.itemTitle.copy(fontSize = 14.sp), color = AppColors.text3)
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    textStyle = AppTypography.itemTitle.copy(fontSize = 14.sp, color = AppColors.text),
+                    cursorBrush = SolidColor(AppColors.accent),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            if (value.isNotEmpty()) {
+                Box(
+                    modifier = Modifier.size(24.dp).clip(CircleShape).clickable { onValueChange("") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear filter", tint = AppColors.text3, modifier = Modifier.size(16.dp))
+                }
+            }
+        }
     }
 }
 
@@ -665,13 +685,16 @@ fun RandomTab(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = AppColors.accent)
             }
-        } else {
+        } else BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val pad = if (isLarge) 32.dp else 16.dp
+            // One column per ~220dp of usable width: 2 on phones, 3 on a
+            // foldable's inner display, more on wide tablets.
+            val cols = ((maxWidth.value - pad.value * 2) / 220f).toInt().coerceAtLeast(2)
             LazyVerticalGrid(
                 state = gridState,
-                // Large screens fit more, smaller covers (≈half the phone size).
-                columns = if (isLarge) GridCells.Adaptive(minSize = 180.dp) else GridCells.Fixed(2),
+                columns = GridCells.Fixed(cols),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(if (isLarge) 32.dp else 16.dp),
+                contentPadding = PaddingValues(pad),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
