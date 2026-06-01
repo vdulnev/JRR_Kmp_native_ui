@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -43,24 +44,35 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
+import com.jrr.jrrkmp_native_ui.presentation.components.MiniPlayer
 import com.jrr.jrrkmp_native_ui.presentation.components.VuMeter
 import com.jrr.jrrkmp_native_ui.presentation.navigation.RootConfig
 import coil.compose.AsyncImage
 
 private val SIDEBAR_WIDTH = 256.dp
+private val RAIL_WIDTH = 88.dp
 
 /**
- * Large-screen (tablet) chrome: a persistent left sidebar (brand, nav, docked
- * now-playing cell, active-zone chip) beside the routed [content]. Mirrors the
- * `Tablet & Desktop` design handoff. Navigation stays driven by [RootConfig] via
- * [onSelectTab]; this composable is presentation only.
+ * Large-screen (tablet) chrome: a persistent left sidebar beside the routed
+ * [content]. Two flavours:
+ *
+ *  - **expanded** (wide displays): full 256dp sidebar with labels, a docked
+ *    now-playing cell and the active-zone chip; the content draws its own
+ *    split panes (master/detail, queue rail, two-column album).
+ *  - **medium** (narrower large widths, e.g. a foldable's inner display): a
+ *    narrow icon rail with tiny labels; the content is a single column (phone
+ *    layouts) and the mini-player sits in a bottom bar across the content.
+ *
+ * Navigation stays driven by [RootConfig] via [onSelectTab]; presentation only.
  */
 @Composable
 fun LargeScreenShell(
+    expanded: Boolean,
     active: RootConfig,
     onSelectTab: (RootConfig) -> Unit,
     trackName: String?,
@@ -74,6 +86,7 @@ fun LargeScreenShell(
     onPrevClick: () -> Unit,
     onVolumeUp: () -> Unit,
     onVolumeDown: () -> Unit,
+    chromeCollapsed: Boolean,
     content: @Composable () -> Unit,
 ) {
     // Hardware-keyboard shortcuts (iPad keyboard / Android keyboard / DeX).
@@ -102,27 +115,127 @@ fun LargeScreenShell(
                 }
             },
     ) {
-        Sidebar(
-            active = active,
-            onSelectTab = onSelectTab,
-            trackName = trackName,
-            trackArtist = trackArtist,
-            trackImageUrl = trackImageUrl,
-            isPlaying = isPlaying,
-            progress = progress,
-            activeZoneName = activeZoneName,
-            onPlayPauseClick = onPlayPauseClick,
-            onNextClick = onNextClick,
-            onPrevClick = onPrevClick,
+        if (expanded) {
+            ExpandedSidebar(
+                active = active,
+                onSelectTab = onSelectTab,
+                trackName = trackName,
+                trackArtist = trackArtist,
+                trackImageUrl = trackImageUrl,
+                isPlaying = isPlaying,
+                progress = progress,
+                activeZoneName = activeZoneName,
+                onPlayPauseClick = onPlayPauseClick,
+                onNextClick = onNextClick,
+                onPrevClick = onPrevClick,
+            )
+            Box(modifier = Modifier.weight(1f).fillMaxHeight().background(AppColors.bg1)) {
+                content()
+            }
+        } else {
+            RailSidebar(active = active, onSelectTab = onSelectTab)
+            // Content + bottom mini-player bar (the rail is too narrow to dock
+            // the now-playing cell).
+            Column(modifier = Modifier.weight(1f).fillMaxHeight().background(AppColors.bg1)) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    content()
+                }
+                if (active != RootConfig.Player && !trackName.isNullOrEmpty() && !chromeCollapsed) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 4.dp)) {
+                        MiniPlayer(
+                            title = trackName,
+                            artist = trackArtist ?: "",
+                            imageUrl = trackImageUrl,
+                            isPlaying = isPlaying,
+                            progress = progress,
+                            onPlayPauseClick = onPlayPauseClick,
+                            onNextClick = onNextClick,
+                            onPrevClick = onPrevClick,
+                            onBodyClick = { onSelectTab(RootConfig.Player) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============================ Rail (medium) ============================
+
+@Composable
+private fun RailSidebar(active: RootConfig, onSelectTab: (RootConfig) -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(RAIL_WIDTH)
+            .fillMaxHeight()
+            .background(AppColors.bg2),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // Brand mark
+        Box(
+            modifier = Modifier
+                .padding(top = 20.dp, bottom = 14.dp)
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(AppColors.accent),
         )
-        Box(modifier = Modifier.weight(1f).fillMaxHeight().background(AppColors.bg1)) {
-            content()
+
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            RailItem("Playing", Icons.Default.PlayArrow, active == RootConfig.Player) { onSelectTab(RootConfig.Player) }
+            RailItem("Library", Icons.Default.Home, active == RootConfig.Library) { onSelectTab(RootConfig.Library) }
+            RailItem("Zones", Icons.Default.List, active == RootConfig.Zones) { onSelectTab(RootConfig.Zones) }
+            RailItem("Settings", Icons.Default.Settings, active == RootConfig.Settings) { onSelectTab(RootConfig.Settings) }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        // Active-zone dot (tap → Zones)
+        Box(
+            modifier = Modifier
+                .padding(bottom = 16.dp)
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable { onSelectTab(RootConfig.Zones) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(AppColors.success))
         }
     }
 }
 
 @Composable
-private fun Sidebar(
+private fun RailItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+    val color = if (selected) AppColors.accent else AppColors.text3
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) AppColors.accentDim else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+    ) {
+        androidx.compose.material3.Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = label,
+            style = AppTypography.monoLabel.copy(color = color, fontSize = 8.5.sp, letterSpacing = 0.5.sp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+// ============================ Expanded sidebar ============================
+
+@Composable
+private fun ExpandedSidebar(
     active: RootConfig,
     onSelectTab: (RootConfig) -> Unit,
     trackName: String?,
@@ -246,7 +359,7 @@ private fun NavItem(
             .fillMaxWidth()
             .height(46.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) AppColors.accentDim else androidx.compose.ui.graphics.Color.Transparent)
+            .background(if (selected) AppColors.accentDim else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp),
     ) {
@@ -344,7 +457,7 @@ private fun DockedNowPlaying(
 }
 
 @Composable
-private fun CtlButton(icon: ImageVector, tint: androidx.compose.ui.graphics.Color, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+private fun CtlButton(icon: ImageVector, tint: Color, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(32.dp)

@@ -201,9 +201,13 @@ fun MainShell(
     val activeZone by facade.activeZone.collectAsState()
 
     // Large-screen (tablet / desktop) layout swaps the bottom tab bar for a
-    // persistent left sidebar + wider content panes. Phones (incl. landscape)
-    // and narrow multi-window stay <840dp and keep the bottom-tab Scaffold.
-    val isLargeScreen = LocalConfiguration.current.screenWidthDp >= 840
+    // persistent left sidebar. Phones (incl. landscape) and narrow multi-window
+    // stay <840dp and keep the bottom-tab Scaffold. Two large flavours:
+    //  - medium (840..1200dp): narrow icon rail + single-column content.
+    //  - expanded (>=1200dp): full sidebar + split-pane content.
+    val widthDp = LocalConfiguration.current.screenWidthDp
+    val isLargeScreen = widthDp >= 840
+    val isExpanded = widthDp >= 1200
 
     val content: @Composable () -> Unit = {
         MainContent(
@@ -212,7 +216,10 @@ fun MainShell(
             facade = facade,
             serverRepository = serverRepository,
             connectViewModel = connectViewModel,
-            isLargeScreen = isLargeScreen,
+            // Split-pane content (master/detail, queue rail, two-column album,
+            // two-column login) is only used on the expanded tier; medium uses
+            // the phone single-column layouts inside the rail shell.
+            isLargeScreen = isExpanded,
             chromeCollapsed = chromeCollapsed,
             onChromeCollapsedChange = { chromeCollapsed = it },
         )
@@ -220,6 +227,7 @@ fun MainShell(
 
     if (isLargeScreen && active != RootConfig.Server) {
         LargeScreenShell(
+            expanded = isExpanded,
             active = active,
             onSelectTab = { root.selectTab(it) },
             trackName = trackName,
@@ -233,6 +241,7 @@ fun MainShell(
             onPrevClick = { facade.previous() },
             onVolumeUp = { facade.setVolume(((playerStatus?.volume ?: 0.5f) + 0.05f).coerceIn(0f, 1f)) },
             onVolumeDown = { facade.setVolume(((playerStatus?.volume ?: 0.5f) - 0.05f).coerceIn(0f, 1f)) },
+            chromeCollapsed = chromeCollapsed,
             content = content,
         )
     } else {
