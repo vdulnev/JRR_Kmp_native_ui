@@ -43,6 +43,12 @@ class PlaybackService : MediaLibraryService() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val currentSearchResults = ConcurrentHashMap<String, List<MediaItem>>()
 
+    // Snapshot of the current "Random Albums" set. Paginated onGetChildren calls
+    // read this so all pages of one render stay consistent, while each refresh
+    // (startup, reconnect, "Refresh Library" action) rolls a new random set.
+    @Volatile
+    private var randomAlbumsSnapshot: List<MediaItem> = emptyList()
+
     override fun onCreate() {
         super.onCreate()
         val facade = this.appContainer.facade
@@ -156,6 +162,101 @@ class PlaybackService : MediaLibraryService() {
     private fun currentQuality(): LocalAudioQuality =
         this@PlaybackService.appContainer.localPlayerHandler.currentAudioQuality()
 
+    /**
+     * Roll a fresh random-albums set and broadcast a children-changed signal to
+     * every connected controller so Android Auto re-queries the node. Uses the
+     * broadcast overload (not a captured ControllerInfo, which goes stale across
+     * AA's controller/service churn).
+     */
+    private fun refreshRandomAlbums(reason: String) {
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val repository = this@PlaybackService.appContainer.libraryRepository
+                val albums = repository.getRandomAlbums(limit = 50)
+                randomAlbumsSnapshot = mapAlbumsToBrowsableItems(albums)
+                log.d { "random refreshed ($reason): ${albums.take(3).map { it.name }}" }
+                withContext(Dispatchers.Main) {
+                    mediaLibrarySession?.notifyChildrenChanged(
+                        "random_albums", randomAlbumsSnapshot.size, null
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.w(e) { "random refresh failed ($reason)" }
+            }
+        }
+    }
+
+    /**
+     * Artwork URI for a file key: prefer the downloaded copy (instant, offline),
+     * otherwise fall back to the MCWS thumbnail endpoint so remote albums/tracks
+     * still show art in Android Auto. Media3's default BitmapLoader fetches the
+     * http(s) URI for us.
+     */
+    private fun artworkUriFor(fileKey: String, serverUrl: String, token: String): Uri {
+        val localArt = File(filesDir, "downloads/art_$fileKey.jpg")
+        if (localArt.exists()) {
+            return Uri.parse(
+                "content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_$fileKey.jpg"
+            )
+        }
+        if (serverUrl.isNotEmpty() && token.isNotEmpty() && fileKey.isNotEmpty()) {
+            return Uri.parse(
+                "$serverUrl/File/GetImage?File=$fileKey&Type=Thumbnail" +
+                    "&Width=300&Height=300&Square=1&Token=$token"
+            )
+        }
+        return Uri.parse(
+            "content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_$fileKey.jpg"
+        )
+    }
+
+    /**
+     * Artwork URI for a Browse-tree node (album/category folder). JRiver renders
+     * the representative cover for a browse node via `Browse/Image?ID=<nodeId>`,
+     * which is different from a file's `File/GetImage`. Returns null when we have
+     * no server context.
+     */
+    private fun browseNodeArtUri(nodeId: String, serverUrl: String, token: String): Uri? {
+        if (serverUrl.isEmpty() || token.isEmpty() || nodeId.isEmpty()) return null
+        return Uri.parse(
+            "$serverUrl/Browse/Image?ID=$nodeId&Format=jpg&Width=300&Height=300&Token=$token"
+        )
+    }
+
+    /** JRiver "Album Artist (auto)": album artist, falling back to track artist. */
+    private fun autoAlbumArtist(track: Track): String =
+        track.albumArtist.ifBlank { track.artist }.ifBlank { "Unknown Artist" }
+
+    private fun albumOf(track: Track): String = track.album.ifBlank { "Unknown Album" }
+
+    /** Downloaded tracks for one (album-artist, album) group, in disc/track order. */
+    private suspend fun downloadedAlbumTracks(artist: String, album: String): List<Track> =
+        this@PlaybackService.appContainer.libraryRepository.getDownloadedTracks()
+            .filter { autoAlbumArtist(it) == artist && albumOf(it) == album }
+            .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
+
+    /** Browsable album rows keyed `album|<artist>|<name>` (matches the Albums node). */
+    private fun mapAlbumsToBrowsableItems(albums: List<Album>): List<MediaItem> {
+        val (serverUrl, token) = resolveServerUrlAndToken()
+        return albums.map { album ->
+            MediaItem.Builder()
+                .setMediaId("album|${album.albumArtist}|${album.name}")
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(album.name)
+                        .setSubtitle(album.albumArtist)
+                        .setArtworkUri(artworkUriFor(album.artworkFileKey, serverUrl, token))
+                        .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
+                        .setIsPlayable(true)
+                        .setIsBrowsable(true)
+                        .build()
+                )
+                .build()
+        }
+    }
+
     private fun mapDomainTrackToMediaItem(
         track: Track,
         serverUrl: String,
@@ -169,7 +270,7 @@ class PlaybackService : MediaLibraryService() {
         } else {
             Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&FileType=Key&Playback=1&${quality.mcwsParams}&Token=${token}")
         }
-        val artUri = Uri.parse("content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_${track.fileKey}.jpg")
+        val artUri = artworkUriFor(track.fileKey, serverUrl, token)
         val extras = android.os.Bundle().apply {
             putString("track_json", json.encodeToString(track))
         }
@@ -212,6 +313,25 @@ class PlaybackService : MediaLibraryService() {
             return Futures.immediateFuture(LibraryResult.ofItem(rootItem, params))
         }
 
+        override fun onSubscribe(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            parentId: String,
+            params: LibraryParams?
+        ): ListenableFuture<LibraryResult<Void>> {
+            log.v { "onSubscribe(parentId=$parentId)" }
+            // Only the random-albums node needs a forced refresh on (re)open.
+            // Generate a fresh snapshot ONCE here, then notify so the browser
+            // re-pages over that stable snapshot — otherwise each page request
+            // would re-roll a different random set and the list would be
+            // incoherent. The notify must run after this callback returns and
+            // the subscription is registered, so post it.
+            if (parentId == "random_albums") {
+                refreshRandomAlbums("onSubscribe")
+            }
+            return Futures.immediateFuture(LibraryResult.ofVoid())
+        }
+
         override fun onGetChildren(
             session: MediaLibrarySession,
             browser: MediaSession.ControllerInfo,
@@ -242,11 +362,11 @@ class PlaybackService : MediaLibraryService() {
                         )
                         resultList.add(
                             MediaItem.Builder()
-                                .setMediaId("recently_played")
+                                .setMediaId("random_albums")
                                 .setMediaMetadata(
                                     MediaMetadata.Builder()
-                                        .setTitle("Recently Played")
-                                        .setFolderType(MediaMetadata.FOLDER_TYPE_TITLES)
+                                        .setTitle("Random Albums")
+                                        .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
                                         .setIsPlayable(false)
                                         .setIsBrowsable(true)
                                         .build()
@@ -268,22 +388,123 @@ class PlaybackService : MediaLibraryService() {
                         )
                         resultList.add(
                             MediaItem.Builder()
-                                .setMediaId("albums")
+                                .setMediaId("browse|-1")
                                 .setMediaMetadata(
                                     MediaMetadata.Builder()
-                                        .setTitle("Albums")
-                                        .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
+                                        .setTitle("Browse")
+                                        .setFolderType(MediaMetadata.FOLDER_TYPE_MIXED)
                                         .setIsPlayable(false)
                                         .setIsBrowsable(true)
                                         .build()
                                 )
                                 .build()
                         )
+                        resultList.add(
+                            MediaItem.Builder()
+                                .setMediaId("refresh_library")
+                                .setMediaMetadata(
+                                    MediaMetadata.Builder()
+                                        .setTitle("Refresh Library")
+                                        .setSubtitle("Update Random Albums")
+                                        .setFolderType(MediaMetadata.FOLDER_TYPE_TITLES)
+                                        .setIsPlayable(false)
+                                        .setIsBrowsable(true)
+                                        .build()
+                                )
+                                .build()
+                        )
+                    } else if (parentId == "refresh_library") {
+                        // User tapped "Refresh Library": re-roll the dynamic
+                        // categories and tell AA to re-query them, then show a
+                        // confirmation node (matches the Flutter app's flow).
+                        refreshRandomAlbums("manual refresh")
+                        resultList.add(
+                            MediaItem.Builder()
+                                .setMediaId("refresh_done")
+                                .setMediaMetadata(
+                                    MediaMetadata.Builder()
+                                        .setTitle("Refresh complete")
+                                        .setSubtitle("Go back to see updated Random Albums")
+                                        .setIsPlayable(false)
+                                        .setIsBrowsable(false)
+                                        .build()
+                                )
+                                .build()
+                        )
                     } else if (parentId == "downloads") {
-                        val tracks = repository.getDownloadedTracks()
-                        resultList.addAll(mapTracksToMediaItems(tracks))
-                    } else if (parentId == "recently_played") {
-                        // Empty for now
+                        // Group downloaded tracks by Album Artist (auto).
+                        val artists = repository.getDownloadedTracks()
+                            .map { autoAlbumArtist(it) }
+                            .distinct()
+                            .sortedBy { it.lowercase() }
+                        resultList.addAll(artists.map { artist ->
+                            MediaItem.Builder()
+                                .setMediaId("dl_artist|$artist")
+                                .setMediaMetadata(
+                                    MediaMetadata.Builder()
+                                        .setTitle(artist)
+                                        .setFolderType(MediaMetadata.FOLDER_TYPE_ARTISTS)
+                                        .setIsPlayable(false)
+                                        .setIsBrowsable(true)
+                                        .build()
+                                )
+                                .build()
+                        })
+                    } else if (parentId.startsWith("dl_artist|")) {
+                        // Albums for one album-artist, drawn from downloads.
+                        val artist = parentId.substringAfter("dl_artist|")
+                        val (artSrv, artTok) = resolveServerUrlAndToken()
+                        val albums = repository.getDownloadedTracks()
+                            .filter { autoAlbumArtist(it) == artist }
+                            .groupBy { albumOf(it) }
+                            .entries
+                            .sortedBy { it.key.lowercase() }
+                        resultList.addAll(albums.map { (album, albumTracks) ->
+                            val artKey = albumTracks.firstOrNull()?.fileKey ?: ""
+                            MediaItem.Builder()
+                                .setMediaId("dl_album|$artist|$album")
+                                .setMediaMetadata(
+                                    MediaMetadata.Builder()
+                                        .setTitle(album)
+                                        .setSubtitle(artist)
+                                        .setArtworkUri(artworkUriFor(artKey, artSrv, artTok))
+                                        .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
+                                        .setIsPlayable(true)
+                                        .setIsBrowsable(true)
+                                        .build()
+                                )
+                                .build()
+                        })
+                    } else if (parentId.startsWith("dl_album|")) {
+                        val parts = parentId.split("|")
+                        val artist = parts.getOrNull(1) ?: ""
+                        val album = parts.getOrNull(2) ?: ""
+                        val tracks = downloadedAlbumTracks(artist, album)
+                        if (tracks.isNotEmpty()) {
+                            resultList.add(
+                                MediaItem.Builder()
+                                    .setMediaId("dl_play|$artist|$album")
+                                    .setMediaMetadata(
+                                        MediaMetadata.Builder()
+                                            .setTitle("Play All")
+                                            .setIsPlayable(true)
+                                            .setIsBrowsable(false)
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                            resultList.addAll(mapTracksToMediaItems(tracks))
+                        }
+                    } else if (parentId == "random_albums") {
+                        // Page over the snapshot generated in onSubscribe so all
+                        // pages of one open are consistent. Fall back to a fresh
+                        // fetch if the snapshot isn't ready yet (first paint).
+                        val snapshot = randomAlbumsSnapshot.ifEmpty {
+                            mapAlbumsToBrowsableItems(repository.getRandomAlbums(limit = 50))
+                                .also { randomAlbumsSnapshot = it }
+                        }
+                        log.v { "random_albums page=$page size=${snapshot.size}" }
+                        resultList.addAll(snapshot)
                     } else if (parentId == "artists") {
                         val artists = repository.getArtists()
                         resultList.addAll(artists.map { artist ->
@@ -302,12 +523,14 @@ class PlaybackService : MediaLibraryService() {
                     } else if (parentId.startsWith("artist|")) {
                         val artistName = parentId.substring("artist|".length)
                         val albums = repository.getAlbumsByArtist(artistName)
+                        val (artSrv, artTok) = resolveServerUrlAndToken()
                         resultList.addAll(albums.map { album ->
                             MediaItem.Builder()
                                 .setMediaId("artist_album|$artistName|${album.name}")
                                 .setMediaMetadata(
                                     MediaMetadata.Builder()
                                         .setTitle(album.name)
+                                        .setArtworkUri(artworkUriFor(album.artworkFileKey, artSrv, artTok))
                                         .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
                                         .setIsPlayable(true)
                                         .setIsBrowsable(true)
@@ -337,22 +560,48 @@ class PlaybackService : MediaLibraryService() {
                             val tracks = repository.getAlbumTracks(album)
                             resultList.addAll(mapTracksToMediaItems(tracks))
                         }
-                    } else if (parentId == "albums") {
-                        val albums = repository.getAllAlbums()
-                        resultList.addAll(albums.map { album ->
-                            MediaItem.Builder()
-                                .setMediaId("album|${album.albumArtist}|${album.name}")
-                                .setMediaMetadata(
-                                    MediaMetadata.Builder()
-                                        .setTitle(album.name)
-                                        .setSubtitle(album.albumArtist)
-                                        .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
-                                        .setIsPlayable(true)
-                                        .setIsBrowsable(true)
-                                        .build()
-                                )
-                                .build()
-                        })
+                    } else if (parentId.startsWith("browse|")) {
+                        // Mirror the library's MCWS Browse hierarchy. A node with
+                        // child categories is a folder; one with only files is a
+                        // leaf — opening a leaf starts playback of its tracks.
+                        val nodeId = parentId.substringAfter("browse|")
+                        val children = repository.getBrowseChildren(nodeId)
+                        if (children.isNotEmpty()) {
+                            val (brSrv, brTok) = resolveServerUrlAndToken()
+                            resultList.addAll(children.map { item ->
+                                MediaItem.Builder()
+                                    .setMediaId("browse|${item.key}")
+                                    .setMediaMetadata(
+                                        MediaMetadata.Builder()
+                                            .setTitle(item.name)
+                                            .setArtworkUri(browseNodeArtUri(item.key, brSrv, brTok))
+                                            .setFolderType(MediaMetadata.FOLDER_TYPE_MIXED)
+                                            .setIsPlayable(false)
+                                            .setIsBrowsable(true)
+                                            .build()
+                                    )
+                                    .build()
+                            })
+                        } else {
+                            val tracks = repository.getBrowseFiles(nodeId)
+                            if (tracks.isNotEmpty()) {
+                                // Only fire playback on the first page request,
+                                // not on each pagination call for the same leaf.
+                                if (page == 0) {
+                                    log.d { "browse leaf opened (node=$nodeId): playing ${tracks.size} tracks" }
+                                    val facade = this@PlaybackService.appContainer.facade
+                                    withContext(Dispatchers.Main) {
+                                        val hasConnection = !facade.currentServerHost.isNullOrEmpty()
+                                        val targetZone = if (hasConnection) Zone.Local else Zone.Offline
+                                        if (facade.activeZone.value.id != targetZone.id) {
+                                            facade.setZone(targetZone, skipLoadQueue = true)
+                                        }
+                                        facade.setQueue(tracks, 0)
+                                    }
+                                }
+                                resultList.addAll(mapTracksToMediaItems(tracks))
+                            }
+                        }
                     } else if (parentId.startsWith("album|")) {
                         val parts = parentId.split("|")
                         val artistName = parts.getOrNull(1) ?: ""
@@ -527,7 +776,12 @@ class PlaybackService : MediaLibraryService() {
                     val queueTracks = mutableListOf<Track>()
                     var resolvedStartIndex = 0
 
-                    if (mediaId.startsWith("album|") || mediaId.startsWith("artist_album|") || mediaId.startsWith("play_album|")) {
+                    if (mediaId.startsWith("dl_album|") || mediaId.startsWith("dl_play|")) {
+                        val parts = mediaId.split("|")
+                        val artist = parts.getOrNull(1) ?: ""
+                        val album = parts.getOrNull(2) ?: ""
+                        queueTracks.addAll(downloadedAlbumTracks(artist, album))
+                    } else if (mediaId.startsWith("album|") || mediaId.startsWith("artist_album|") || mediaId.startsWith("play_album|")) {
                         val parts = mediaId.split("|")
                         val artistName = parts.getOrNull(1) ?: ""
                         val albumName = parts.getOrNull(2) ?: ""

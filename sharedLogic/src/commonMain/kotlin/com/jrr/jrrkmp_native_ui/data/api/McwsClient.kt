@@ -215,18 +215,16 @@ class McwsClient(
             mapOf("ID" to parentId, "Version" to "1", "ErrorOnMissing" to "0")
         ) ?: return emptyList()
         return try {
-            val parsed = parseMcwsResponse(xml)
-            if (parsed.status == "OK") {
-                parsed.items
-            } else {
-                log.w { "getBrowseChildren: MCWS responded status=${parsed.status}" }
-                emptyMap()
-            }
+            // Browse/Children is an ordered sequence — preserve the server's
+            // view-scheme order (no alphabetical re-sort) and keep duplicate
+            // display names distinct.
+            parseMcwsBrowseChildren(xml)
+                .map { (name, id) -> BrowseItem(key = id, name = name) }
+                .also { log.d { "getBrowseChildren → ${it.size} items" } }
         } catch (e: Exception) {
             log.e(e) { "getBrowseChildren: failed to parse response parentId=$parentId" }
-            emptyMap()
-        }.toList().map { BrowseItem(key = it.second, name = it.first) }.sortedBy { it.name.lowercase() }
-            .also { log.d { "getBrowseChildren → ${it.size} items" } }
+            emptyList()
+        }
     }
 
     suspend fun getPlaybackInfo(zoneId: String): PlayerStatus? {
