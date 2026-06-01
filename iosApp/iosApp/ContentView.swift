@@ -529,20 +529,31 @@ struct PlayerTabContainerView: View {
             // most ~36% of the width (capped at 380pt) so the hero isn't
             // squeezed on narrower large widths (e.g. iPad portrait).
             GeometryReader { geo in
-                HStack(spacing: 0) {
-                    Group {
-                        if case let .nowPlaying(child) = onEnum(of: stack.activeChild) {
-                            NowPlayingView(viewModel: child.vm, onQueueClick: {})
-                        } else {
-                            Color.bg1
+                if geo.size.width >= 720 {
+                    HStack(spacing: 0) {
+                        Group {
+                            if case let .nowPlaying(child) = onEnum(of: stack.activeChild) {
+                                NowPlayingView(viewModel: child.vm, onQueueClick: {})
+                            } else {
+                                Color.bg1
+                            }
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        Rectangle().fill(Color.line).frame(width: 1)
+
+                        QueueView(viewModel: component.queueViewModel, onBackClick: {}, isRail: true)
+                            .frame(width: min(380, geo.size.width * 0.36))
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                    Rectangle().fill(Color.line).frame(width: 1)
-
-                    QueueView(viewModel: component.queueViewModel, onBackClick: {}, isRail: true)
-                        .frame(width: min(380, geo.size.width * 0.36))
+                } else {
+                    // Narrower large width: two columns (sidebar + hero). The
+                    // queue opens as its own screen via the header button.
+                    switch onEnum(of: stack.activeChild) {
+                    case let .nowPlaying(child):
+                        NowPlayingView(viewModel: child.vm, onQueueClick: { component.openQueue() })
+                    case let .queue(child):
+                        QueueView(viewModel: child.vm, onBackClick: { component.closeQueue() })
+                    }
                 }
             }
         } else {

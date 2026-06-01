@@ -564,32 +564,47 @@ private fun PlayerChildren(component: PlayerComponent, isLargeScreen: Boolean) {
     val stack by component.stack.subscribeAsState()
 
     if (isLargeScreen) {
-        val active = stack.active.instance
-        val npVm = (active as? PlayerComponent.Child.NowPlaying)?.vm
-            ?: (active as? PlayerComponent.Child.Queue)?.let {
-                // In large mode the queue is never pushed; if it somehow is,
-                // pop back so Now Playing is the active child.
-                component.closeQueue(); null
-            }
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            // Keep the Now Playing hero from being squeezed on narrower large
-            // screens (e.g. a Pixel Fold's inner display): the queue rail takes
-            // at most ~36% of the width, capped at 380dp, and the hero (weight)
-            // gets the rest — guaranteeing room for the ~260dp vinyl.
-            val queueWidth = minOf(380.dp, maxWidth * 0.36f)
-            Row(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    if (npVm != null) {
-                        NowPlayingScreen(viewModel = npVm, onQueueClick = {})
+            // Only show the persistent queue rail (3-column layout) when the
+            // content area is wide enough for both the hero and a usable rail.
+            // On narrower large widths (e.g. a Pixel Fold's inner display) drop
+            // to two columns — the hero fills the content and the queue opens as
+            // its own screen via the header's queue button.
+            val showQueueRail = maxWidth >= 720.dp
+            if (showQueueRail) {
+                val active = stack.active.instance
+                val npVm = (active as? PlayerComponent.Child.NowPlaying)?.vm
+                    ?: (active as? PlayerComponent.Child.Queue)?.let {
+                        component.closeQueue(); null
                     }
+                // The queue rail takes at most ~36% of the width, capped at
+                // 380dp; the hero (weight) gets the rest.
+                val queueWidth = minOf(380.dp, maxWidth * 0.36f)
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        if (npVm != null) {
+                            NowPlayingScreen(viewModel = npVm, onQueueClick = {})
+                        }
+                    }
+                    Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(AppColors.line))
+                    QueueScreen(
+                        viewModel = component.queueViewModel,
+                        onBackClick = {},
+                        modifier = Modifier.width(queueWidth),
+                        isRail = true,
+                    )
                 }
-                Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(AppColors.line))
-                QueueScreen(
-                    viewModel = component.queueViewModel,
-                    onBackClick = {},
-                    modifier = Modifier.width(queueWidth),
-                    isRail = true,
-                )
+            } else {
+                when (val child = stack.active.instance) {
+                    is PlayerComponent.Child.NowPlaying -> NowPlayingScreen(
+                        viewModel = child.vm,
+                        onQueueClick = { component.openQueue() }
+                    )
+                    is PlayerComponent.Child.Queue -> QueueScreen(
+                        viewModel = child.vm,
+                        onBackClick = { component.closeQueue() }
+                    )
+                }
             }
         }
         return
