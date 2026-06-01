@@ -101,6 +101,16 @@ class McwsClient(
         return "$base/File/GetImage?File=$fileKey&Type=Thumbnail&Width=300&Height=300&Square=1&Token=$token"
     }
 
+    /** Cover for a Browse-tree node (album/category folder). Unlike
+     *  [buildImageUrl], this targets `Browse/Image` keyed by the browse node id. */
+    fun buildBrowseImageUrl(nodeId: String): String {
+        if (nodeId.isEmpty()) return ""
+        val base = getBaseUrl() ?: return ""
+        val server = getActiveServer() ?: return ""
+        val token = server.token ?: return ""
+        return "$base/Browse/Image?ID=$nodeId&Format=jpg&Width=300&Height=300&Token=$token"
+    }
+
     suspend fun getRaw(url: String): String? {
         return try {
             val response: HttpResponse = httpClient.get(url)

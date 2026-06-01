@@ -94,6 +94,7 @@ final class AppContainer {
             facade: facade,
             database: database,
             nowPlayingCoordinator: nowPlayingCoordinator,
+            mcwsClient: mcwsCore.mcwsClient,
         )
 
         downloadManager = DownloadManager(
