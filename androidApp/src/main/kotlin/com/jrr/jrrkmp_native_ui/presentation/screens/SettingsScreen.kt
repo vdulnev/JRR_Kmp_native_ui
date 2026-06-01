@@ -142,7 +142,7 @@ fun SettingsScreen(
                                     onClick = onDisconnectClick,
                                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.bg0),
                                     border = BoxBorder(AppColors.error),
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = if (isLarge) Modifier else Modifier.fillMaxWidth()
                                 ) {
                                     Text("DISCONNECT / CHANGE SERVER", style = AppTypography.chipMono, color = AppColors.error)
                                 }
@@ -197,7 +197,7 @@ fun SettingsScreen(
                                     disabledContainerColor = AppColors.bg3
                                 ),
                                 border = if (state.downloadedTracksCount > 0) BoxBorder(AppColors.error) else BoxBorder(AppColors.line),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = if (isLarge) Modifier else Modifier.fillMaxWidth()
                             ) {
                                 Text(
                                     text = "CLEAR DOWNLOADS",
@@ -308,7 +308,7 @@ fun SettingsScreen(
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.bg0),
                                 border = BoxBorder(AppColors.accent),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = if (isLarge) Modifier else Modifier.fillMaxWidth()
                             ) {
                                 Text(
                                     text = "SHARE LOG",
