@@ -562,6 +562,7 @@ internal fun ListFilterField(
             },
             modifier = modifier
                 .fillMaxWidth()
+                .widthIn(max = 380.dp)
                 .padding(horizontal = 16.dp, vertical = 4.dp)
         )
     }
@@ -665,13 +666,16 @@ fun RandomTab(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = AppColors.accent)
             }
-        } else {
+        } else BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val pad = if (isLarge) 32.dp else 16.dp
+            // One column per ~220dp of usable width: 2 on phones, 3 on a
+            // foldable's inner display, more on wide tablets.
+            val cols = ((maxWidth.value - pad.value * 2) / 220f).toInt().coerceAtLeast(2)
             LazyVerticalGrid(
                 state = gridState,
-                // Large screens fit more, smaller covers (≈half the phone size).
-                columns = if (isLarge) GridCells.Adaptive(minSize = 180.dp) else GridCells.Fixed(2),
+                columns = GridCells.Fixed(cols),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(if (isLarge) 32.dp else 16.dp),
+                contentPadding = PaddingValues(pad),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {

@@ -592,7 +592,8 @@ private fun PlayerChildren(component: PlayerComponent, isLargeScreen: Boolean) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                         if (npVm != null) {
-                            NowPlayingScreen(viewModel = npVm, onQueueClick = {})
+                            // Queue is shown in the rail beside it, so no button.
+                            NowPlayingScreen(viewModel = npVm, onQueueClick = {}, showQueueButton = false)
                         }
                     }
                     Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(AppColors.line))
