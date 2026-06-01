@@ -436,7 +436,8 @@ private fun MainContent(
         is RootComponent.RootChild.Server -> ServerManagerScreen(
             facade = facade,
             serverRepository = serverRepository,
-            onConnectSuccess = { root.onConnectSuccess() }
+            onConnectSuccess = { root.onConnectSuccess() },
+            isLarge = isLargeScreen
         )
         is RootComponent.RootChild.Player -> PlayerChildren(child.component, isLargeScreen = isLargeScreen)
         is RootComponent.RootChild.Zones -> ZonesScreen(
