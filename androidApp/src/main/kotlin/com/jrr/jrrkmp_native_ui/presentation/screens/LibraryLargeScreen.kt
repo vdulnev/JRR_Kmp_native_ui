@@ -165,6 +165,7 @@ fun LibraryLargeScreen(
                     isOffline = state.isOffline,
                     onTrackInfoClick = {},
                     onBackClick = { viewModel.popBrowseNode() },
+                    isLarge = true,
                 )
                 "downloads" -> DownloadsTab(
                     tracks = state.downloadedTracks,

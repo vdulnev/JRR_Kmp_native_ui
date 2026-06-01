@@ -1060,14 +1060,25 @@ struct LibraryView: View {
         }
     }
 
+    @ViewBuilder
     private func browseChildrenList() -> some View {
-        LazyVStack(spacing: 8) {
-            ForEach(observable.browseChildren, id: \.key) { browseItem in
-                browseChildRow(browseItem: browseItem)
+        if isLarge {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                ForEach(observable.browseChildren, id: \.key) { browseItem in
+                    browseChildRow(browseItem: browseItem)
+                }
             }
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+            .padding(.top, 12)
+        } else {
+            LazyVStack(spacing: 8) {
+                ForEach(observable.browseChildren, id: \.key) { browseItem in
+                    browseChildRow(browseItem: browseItem)
+                }
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+            .padding(.top, 12)
         }
-        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-        .padding(.top, 12)
     }
 
     private func browseChildRow(browseItem: BrowseItem) -> some View {
@@ -1117,8 +1128,12 @@ struct LibraryView: View {
         }
     }
 
+    @ViewBuilder
     private func browseTracksList() -> some View {
-        LazyVStack(spacing: 8) {
+        let cols = isLarge
+            ? [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+            : [GridItem(.flexible())]
+        LazyVGrid(columns: cols, spacing: 8) {
             ForEach(observable.browseTracks, id: \.fileKey) { track in
                 trackRowItem(track: track) {
                     observable.playTracks(observable.browseTracks, startIndex: observable.browseTracks.firstIndex(of: track) ?? 0)

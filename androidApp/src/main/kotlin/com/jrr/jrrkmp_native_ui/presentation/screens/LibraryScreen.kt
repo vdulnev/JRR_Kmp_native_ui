@@ -790,7 +790,8 @@ fun BrowseTab(
     onDownloadBrowseItem: (BrowseItem) -> Unit,
     isOffline: Boolean,
     onTrackInfoClick: (Track) -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    isLarge: Boolean = false
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         // Breadcrumbs / Back button
@@ -818,85 +819,36 @@ fun BrowseTab(
                 CircularProgressIndicator(color = AppColors.accent)
             }
         } else {
+            // Large screens lay the folder/track lists out in two columns to use
+            // the wider area; phones keep the single column.
+            val cells = if (isLarge) GridCells.Fixed(2) else GridCells.Fixed(1)
+            val pad = if (isLarge) 32.dp else 16.dp
             if (children.isNotEmpty()) {
-                LazyColumn(
+                LazyVerticalGrid(
+                    columns = cells,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(horizontal = pad, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    children.forEach { (nodeId, nodeLabel) ->
-                        item {
-                            val browseItem = BrowseItem(nodeId, nodeLabel)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(AppColors.bg2)
-                                    .clickable { onNodeClick(nodeLabel, nodeId) }
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(nodeLabel, style = AppTypography.itemTitle, modifier = Modifier.weight(1f))
-
-                                var showMenu by remember { mutableStateOf(false) }
-                                Box {
-                                    IconButton(
-                                        onClick = { showMenu = true },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.MoreVert,
-                                            contentDescription = "More options",
-                                            tint = AppColors.text3,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                    DropdownMenu(
-                                        expanded = showMenu,
-                                        onDismissRequest = { showMenu = false },
-                                        modifier = Modifier.background(AppColors.bg2)
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Play", style = AppTypography.itemTitle) },
-                                            onClick = {
-                                                showMenu = false
-                                                onPlayBrowseItem(browseItem)
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Play Next", style = AppTypography.itemTitle) },
-                                            onClick = {
-                                                showMenu = false
-                                                onPlayBrowseItemNext(browseItem)
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Add to Queue", style = AppTypography.itemTitle) },
-                                            onClick = {
-                                                showMenu = false
-                                                onAddBrowseItemToQueue(browseItem)
-                                            }
-                                        )
-                                        if (!isOffline) {
-                                            DropdownMenuItem(
-                                                text = { Text("Download", style = AppTypography.itemTitle) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onDownloadBrowseItem(browseItem)
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    items(children) { item ->
+                        BrowseChildRow(
+                            browseItem = BrowseItem(item.key, item.name),
+                            isOffline = isOffline,
+                            onNodeClick = { onNodeClick(item.name, item.key) },
+                            onPlay = onPlayBrowseItem,
+                            onPlayNext = onPlayBrowseItemNext,
+                            onAddToQueue = onAddBrowseItemToQueue,
+                            onDownload = onDownloadBrowseItem
+                        )
                     }
                 }
             } else {
-                // Render leaf node tracks
-                LazyColumn(
+                LazyVerticalGrid(
+                    columns = cells,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(horizontal = pad, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(tracks) { track ->
@@ -911,6 +863,53 @@ fun BrowseTab(
                             onClick = { onTrackClick(track, tracks) }
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BrowseChildRow(
+    browseItem: BrowseItem,
+    isOffline: Boolean,
+    onNodeClick: () -> Unit,
+    onPlay: (BrowseItem) -> Unit,
+    onPlayNext: (BrowseItem) -> Unit,
+    onAddToQueue: (BrowseItem) -> Unit,
+    onDownload: (BrowseItem) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(AppColors.bg2)
+            .clickable { onNodeClick() }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(browseItem.name, style = AppTypography.itemTitle, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+
+        var showMenu by remember { mutableStateOf(false) }
+        Box {
+            IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "More options",
+                    tint = AppColors.text3,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+                modifier = Modifier.background(AppColors.bg2)
+            ) {
+                DropdownMenuItem(text = { Text("Play", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onPlay(browseItem) })
+                DropdownMenuItem(text = { Text("Play Next", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onPlayNext(browseItem) })
+                DropdownMenuItem(text = { Text("Add to Queue", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onAddToQueue(browseItem) })
+                if (!isOffline) {
+                    DropdownMenuItem(text = { Text("Download", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onDownload(browseItem) })
                 }
             }
         }
