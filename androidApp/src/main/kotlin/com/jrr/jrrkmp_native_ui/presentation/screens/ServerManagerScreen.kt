@@ -111,15 +111,15 @@ fun ServerManagerScreen(
         Text(
             text = "JRiver Remote".uppercase(),
             style = AppTypography.screenTitle.copy(color = AppColors.accent, fontSize = 24.sp),
-            modifier = Modifier.padding(vertical = 16.dp)
+            modifier = Modifier.padding(top = if (isLarge) 0.dp else 16.dp, bottom = 16.dp)
         )
 
-        // Connection forms card
+        // Connection forms card — kept a comfortable width on large screens so
+        // the Connect / Offline buttons aren't stretched across half the display.
         Card(
             colors = CardDefaults.cardColors(containerColor = AppColors.bg2),
             border = BoxBorder(AppColors.line),
-            modifier = Modifier
-                .fillMaxWidth()
+            modifier = (if (isLarge) Modifier.widthIn(max = 420.dp) else Modifier.fillMaxWidth())
                 .padding(bottom = 16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {

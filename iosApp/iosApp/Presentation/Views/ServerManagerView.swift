@@ -66,7 +66,7 @@ struct ServerManagerView: View {
                     .font(AppFont.inter(size: 24, weight: .bold))
                     .foregroundColor(.textPrimary)
             }
-            .padding(.top, 20)
+            .padding(.top, isLarge ? 0 : 20)
 
             // Connection Status Card if connected
             if let status = stateObserver.playerStatus, !stateObserver.activeZone.isOffline {
@@ -169,6 +169,9 @@ struct ServerManagerView: View {
                     .stroke(Color.line2, lineWidth: 1),
             )
         }
+        // Keep the login form a comfortable width on large screens (so the
+        // Connect / Offline buttons aren't stretched across half the display).
+        .frame(maxWidth: isLarge ? 420 : .infinity, alignment: .leading)
     }
 
     private func savedColumn(showWhenEmpty: Bool) -> some View {
@@ -179,7 +182,7 @@ struct ServerManagerView: View {
                         .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
                         .tracking(1.6)
                         .foregroundColor(.textTertiary)
-                        .padding(.top, 10)
+                        .padding(.top, isLarge ? 0 : 10)
                     Text("No saved connections yet.")
                         .font(AppFont.inter(size: 13, weight: .regular))
                         .foregroundColor(.textTertiary)
@@ -189,7 +192,7 @@ struct ServerManagerView: View {
                     .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
                     .tracking(1.6)
                     .foregroundColor(.textTertiary)
-                    .padding(.top, 10)
+                    .padding(.top, isLarge ? 0 : 10)
 
                 VStack(spacing: 8) {
                     ForEach(savedServers, id: \.id) { server in
