@@ -253,6 +253,9 @@ struct LibraryView: View {
     @EnvironmentObject private var stateObserver: PlaybackStateObserver
     @State private var observable: LibraryObservable
     let onAlbumClick: (Album) -> Void // AlbumName, ArtistName
+    /// Large-screen (tablet) layout: Artists tab renders as a master/detail
+    /// split instead of the phone's one-pane-at-a-time drill-down.
+    var isLarge: Bool = false
     @State private var selectedArtist: String? = nil
     @State private var selectedAlbumGroupId: String? = nil
     @State private var infoTrack: Track? = nil
@@ -267,10 +270,15 @@ struct LibraryView: View {
     /// Local mirror of the shared artists filter, so the text field stays
     /// responsive without round-tripping every keystroke through the flow.
     @State private var artistFilterText = ""
+    /// Split-pane (tablet) only: a separate client-side filter for the selected
+    /// artist's albums in the detail pane, independent of the master artist
+    /// filter (both panes are visible at once).
+    @State private var albumFilterText = ""
 
-    init(viewModel: LibraryViewModel, onAlbumClick: @escaping (Album) -> Void) {
+    init(viewModel: LibraryViewModel, onAlbumClick: @escaping (Album) -> Void, isLarge: Bool = false) {
         _observable = State(initialValue: LibraryObservable(viewModel: viewModel))
         self.onAlbumClick = onAlbumClick
+        self.isLarge = isLarge
     }
 
     var body: some View {
@@ -310,7 +318,11 @@ struct LibraryView: View {
             Group {
                 switch observable.currentTab {
                 case "artists":
-                    artistsTab()
+                    if isLarge {
+                        artistsTabLarge()
+                    } else {
+                        artistsTab()
+                    }
                 case "random":
                     randomTab()
                 case "browse":
@@ -330,7 +342,9 @@ struct LibraryView: View {
         // Library tab whenever a track is loaded) so the last list row isn't
         // hidden behind it. Insets every descendant scroll view at once.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !chrome.collapsed, !(stateObserver.playerStatus?.trackName ?? "").isEmpty {
+            // No floating mini-player on large screens (it's docked in the
+            // sidebar), so don't reserve space for it there.
+            if !isLarge, !chrome.collapsed, !(stateObserver.playerStatus?.trackName ?? "").isEmpty {
                 Color.clear.frame(height: 76)
             }
         }
@@ -525,6 +539,197 @@ struct LibraryView: View {
             // The shared VM clears the filter on navigation; mirror that locally.
             if value.isEmpty, !artistFilterText.isEmpty {
                 artistFilterText = ""
+            }
+        }
+    }
+
+    // MARK: - Artists Tab (large / split-pane)
+
+    /// Tablet layout: artist master list (left) + selected artist's albums
+    /// (right), both visible at once. Reuses the same observable + row builders
+    /// as the phone path; selecting an artist only updates VM state, so opening
+    /// an album still pushes the detail route (sidebar persists outside).
+    private func artistsTabLarge() -> some View {
+        HStack(spacing: 0) {
+            // Master pane
+            Group {
+                if observable.compilationMode {
+                    compilationArtistsList()
+                } else {
+                    masterArtistList()
+                }
+            }
+            .frame(width: 340)
+            .background(Color.bg1)
+
+            Rectangle().fill(Color.line).frame(width: 1)
+
+            // Detail pane
+            Group {
+                if let artist = observable.selectedArtist {
+                    artistAlbumsDetailLarge(artist: artist)
+                } else {
+                    VStack(spacing: 8) {
+                        Text("Select an artist")
+                            .styleSubScreenTitle()
+                        Text("Pick a name on the left to browse their albums.")
+                            .font(AppFont.inter(size: 13, weight: .regular))
+                            .foregroundColor(.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .background(Color.bg1)
+        }
+        .onChange(of: artistFilterText) { _, value in
+            observable.setArtistsFilter(value)
+        }
+        .onChange(of: observable.artistsFilter) { _, value in
+            if value.isEmpty, !artistFilterText.isEmpty {
+                artistFilterText = ""
+            }
+        }
+        .onChange(of: observable.selectedArtist) { _, _ in
+            albumFilterText = ""
+        }
+    }
+
+    /// Master artist list for the split-pane (no drill-down; taps just select).
+    private func masterArtistList() -> some View {
+        VStack(spacing: 0) {
+            listFilterField(placeholder: "Filter artists")
+            if observable.isLoading {
+                Spacer()
+                ProgressView().tint(.accentColor)
+                Spacer()
+            } else {
+                let displayArtists = observable.artists.filter { matchesFilter($0) }
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 6) {
+                            ForEach(displayArtists, id: \.self) { artist in
+                                let selected = observable.selectedArtist == artist
+                                HStack {
+                                    ZStack {
+                                        Circle()
+                                            .fill(selected ? Color.accentColor : Color.bg3)
+                                            .frame(width: 36, height: 36)
+                                        Text(artist.replacingOccurrences(of: "The ", with: "").prefix(1).uppercased())
+                                            .font(AppFont.ibmPlexMono(size: 14, weight: .medium))
+                                            .foregroundColor(selected ? .bg0 : .accentColor)
+                                    }
+                                    highlighted(artist)
+                                        .font(AppFont.inter(size: 16, weight: .medium))
+                                        .foregroundColor(selected ? .accentColor : .textPrimary)
+                                        .padding(.leading, 8)
+                                    Spacer()
+                                }
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(selected ? Color.accentColor.opacity(0.13) : Color.clear)
+                                .cornerRadius(10)
+                                .contentShape(Rectangle())
+                                .onTapGesture { observable.selectArtist(artist) }
+                                .id(artist)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.trailing, 18)
+                        .padding(.top, 12)
+                    }
+                    .overlay(alignment: .trailing) {
+                        AlphabetIndexBar(
+                            letters: orderedSectionLetters(displayArtists),
+                            bottomInset: 24,
+                        ) { letter in
+                            if let target = displayArtists.first(where: { sectionLetter(for: $0) == letter }) {
+                                withAnimation { proxy.scrollTo(target, anchor: .top) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Detail pane: a selected artist's albums + PLAY ALL.
+    private func artistAlbumsDetailLarge(artist: String) -> some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(observable.artistAlbums.count) \(observable.artistAlbums.count == 1 ? "ALBUM" : "ALBUMS")")
+                        .styleSectionLabel()
+                    Text(artist)
+                        .styleSubScreenTitle()
+                }
+                Spacer()
+                if !observable.artistAlbums.isEmpty {
+                    Button(action: {
+                        let albums = observable.artistAlbums
+                        observable.playAlbum(albums[0])
+                        for album in albums.dropFirst() {
+                            observable.addAlbumToQueue(album)
+                        }
+                    }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "play.fill").font(.system(size: 12))
+                            Text("PLAY ALL").font(AppFont.ibmPlexMono(size: 11, weight: .bold)).tracking(1.4)
+                        }
+                        .foregroundColor(.bg0)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .background(Color.accentColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+            .padding(.top, 22)
+            .padding(.bottom, 8)
+
+            // Filter for this artist's albums (independent of the master list).
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.textTertiary)
+                TextField("Filter albums", text: $albumFilterText)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .foregroundColor(.textPrimary)
+                    .font(AppFont.inter(size: 14, weight: .regular))
+                if !albumFilterText.isEmpty {
+                    Button(action: { albumFilterText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.textSecondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 38)
+            .background(Color.bg2)
+            .cornerRadius(8)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.line, lineWidth: 1))
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+            .padding(.bottom, 6)
+
+            if observable.isTabLoading {
+                Spacer()
+                ProgressView().tint(.accentColor)
+                Spacer()
+            } else {
+                let displayAlbums = observable.artistAlbums.filter {
+                    albumFilterText.isEmpty || $0.name.range(of: albumFilterText, options: .caseInsensitive) != nil
+                }
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(displayAlbums, id: \.albumGroupId) { album in
+                            albumRowItem(album: album) { onAlbumClick(album) }
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                    .padding(.top, 8)
+                    .padding(.bottom, 32)
+                }
             }
         }
     }
@@ -726,10 +931,9 @@ struct LibraryView: View {
                 Spacer()
             } else {
                 ScrollView {
-                    let columns = [
-                        GridItem(.flexible(), spacing: 14),
-                        GridItem(.flexible(), spacing: 14),
-                    ]
+                    let columns = isLarge
+                        ? [GridItem(.adaptive(minimum: 168), spacing: 14)]
+                        : [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(observable.randomAlbums, id: \.name) { album in
@@ -760,7 +964,9 @@ struct LibraryView: View {
                                             }
                                         }
                                     }
-                                    .frame(height: 165)
+                                    .frame(maxWidth: .infinity)
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .clipped()
                                     .cornerRadius(AppSpacing.radiusArt)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: AppSpacing.radiusArt)
@@ -854,14 +1060,25 @@ struct LibraryView: View {
         }
     }
 
+    @ViewBuilder
     private func browseChildrenList() -> some View {
-        LazyVStack(spacing: 8) {
-            ForEach(observable.browseChildren, id: \.key) { browseItem in
-                browseChildRow(browseItem: browseItem)
+        if isLarge {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                ForEach(observable.browseChildren, id: \.key) { browseItem in
+                    browseChildRow(browseItem: browseItem)
+                }
             }
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+            .padding(.top, 12)
+        } else {
+            LazyVStack(spacing: 8) {
+                ForEach(observable.browseChildren, id: \.key) { browseItem in
+                    browseChildRow(browseItem: browseItem)
+                }
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+            .padding(.top, 12)
         }
-        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-        .padding(.top, 12)
     }
 
     private func browseChildRow(browseItem: BrowseItem) -> some View {
@@ -911,8 +1128,12 @@ struct LibraryView: View {
         }
     }
 
+    @ViewBuilder
     private func browseTracksList() -> some View {
-        LazyVStack(spacing: 8) {
+        let cols = isLarge
+            ? [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+            : [GridItem(.flexible())]
+        LazyVGrid(columns: cols, spacing: 8) {
             ForEach(observable.browseTracks, id: \.fileKey) { track in
                 trackRowItem(track: track) {
                     observable.playTracks(observable.browseTracks, startIndex: observable.browseTracks.firstIndex(of: track) ?? 0)

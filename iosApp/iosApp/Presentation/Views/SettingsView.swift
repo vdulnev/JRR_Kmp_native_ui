@@ -79,13 +79,15 @@ class SettingsObservable {
 struct SettingsView: View {
     let onBackClick: () -> Void
     let onDisconnectClick: () -> Void
+    var isLarge: Bool = false
 
     @State private var observable: SettingsObservable
 
-    init(viewModel: SettingsViewModel, onBackClick: @escaping () -> Void, onDisconnectClick: @escaping () -> Void) {
+    init(viewModel: SettingsViewModel, onBackClick: @escaping () -> Void, onDisconnectClick: @escaping () -> Void, isLarge: Bool = false) {
         _observable = State(initialValue: SettingsObservable(viewModel: viewModel))
         self.onBackClick = onBackClick
         self.onDisconnectClick = onDisconnectClick
+        self.isLarge = isLarge
     }
 
     var body: some View {
@@ -134,7 +136,8 @@ struct SettingsView: View {
                                 Text("CONNECT TO SERVER")
                                     .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                                     .foregroundColor(.bg0)
-                                    .frame(maxWidth: .infinity)
+                                    .frame(maxWidth: isLarge ? nil : .infinity)
+                                    .padding(.horizontal, isLarge ? 20 : 0)
                                     .frame(height: 38)
                                     .background(Color.accentColor)
                                     .cornerRadius(6)
@@ -158,7 +161,8 @@ struct SettingsView: View {
                                 Text("DISCONNECT / CHANGE SERVER")
                                     .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                                     .foregroundColor(.errorColor)
-                                    .frame(maxWidth: .infinity)
+                                    .frame(maxWidth: isLarge ? nil : .infinity)
+                                    .padding(.horizontal, isLarge ? 20 : 0)
                                     .frame(height: 38)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6)
@@ -197,7 +201,8 @@ struct SettingsView: View {
                             Text("CLEAR DOWNLOADS")
                                 .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                                 .foregroundColor(observable.downloadedTracksCount == 0 ? .textTertiary : .errorColor)
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: isLarge ? nil : .infinity)
+                                .padding(.horizontal, isLarge ? 20 : 0)
                                 .frame(height: 38)
                                 .background(observable.downloadedTracksCount == 0 ? Color.bg3 : Color.clear)
                                 .overlay(
@@ -230,17 +235,20 @@ struct SettingsView: View {
                         ForEach(LocalAudioQuality.allCases, id: \.self) { quality in
                             let selected = observable.localAudioQuality == quality
                             Button(action: { observable.setLocalAudioQuality(quality) }) {
-                                Text(quality.label)
-                                    .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
-                                    .foregroundColor(selected ? .bg0 : .textPrimary)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 38)
-                                    .background(selected ? Color.accentColor : Color.clear)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(selected ? Color.accentColor : Color.line2, lineWidth: 1),
-                                    )
+                                HStack(spacing: 10) {
+                                    Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(selected ? .accentColor : .textTertiary)
+                                    Text(quality.label)
+                                        .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                                        .foregroundColor(selected ? .accentColor : .textPrimary)
+                                    Spacer()
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 38)
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.vertical, 8)
@@ -269,7 +277,8 @@ struct SettingsView: View {
                             Text("SHARE LOG")
                                 .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                                 .foregroundColor(.accentColor)
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: isLarge ? nil : .infinity)
+                                .padding(.horizontal, isLarge ? 20 : 0)
                                 .frame(height: 38)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6)
@@ -373,7 +382,11 @@ struct SettingsView: View {
             .listStyle(InsetGroupedListStyle())
             .scrollContentBackground(.hidden)
             .background(Color.bg1)
+            // Large screens: cap the card column to a comfortable reading width
+            // (centered by the enclosing VStack) instead of full-bleed.
+            .frame(maxWidth: isLarge ? 760 : .infinity)
         }
+        .frame(maxWidth: .infinity)
         .background(Color.bg1.ignoresSafeArea())
     }
 }

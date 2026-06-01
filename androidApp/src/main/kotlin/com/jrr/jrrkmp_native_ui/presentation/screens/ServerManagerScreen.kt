@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,7 +42,8 @@ fun ServerManagerScreen(
     facade: AudioPlayerFacade,
     serverRepository: ServerRepository,
     onConnectSuccess: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isLarge: Boolean = false
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -103,25 +106,20 @@ fun ServerManagerScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(AppColors.bg1)
-            .padding(16.dp)
-    ) {
+    val formPane: @Composable ColumnScope.() -> Unit = {
         // App title
         Text(
             text = "JRiver Remote".uppercase(),
             style = AppTypography.screenTitle.copy(color = AppColors.accent, fontSize = 24.sp),
-            modifier = Modifier.padding(vertical = 16.dp)
+            modifier = Modifier.padding(top = if (isLarge) 0.dp else 16.dp, bottom = 16.dp)
         )
 
-        // Connection forms card
+        // Connection forms card — kept a comfortable width on large screens so
+        // the Connect / Offline buttons aren't stretched across half the display.
         Card(
             colors = CardDefaults.cardColors(containerColor = AppColors.bg2),
             border = BoxBorder(AppColors.line),
-            modifier = Modifier
-                .fillMaxWidth()
+            modifier = (if (isLarge) Modifier.widthIn(max = 420.dp) else Modifier.fillMaxWidth())
                 .padding(bottom = 16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -284,7 +282,9 @@ fun ServerManagerScreen(
                 }
             }
         }
+    }
 
+    val savedPane: @Composable ColumnScope.() -> Unit = {
         // Saved Servers section
         Text(
             text = "Saved Connections".uppercase(),
@@ -293,7 +293,7 @@ fun ServerManagerScreen(
         )
 
         LazyColumn(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(savedServers) { server ->
@@ -343,6 +343,39 @@ fun ServerManagerScreen(
                     }
                 }
             }
+        }
+    }
+
+    if (isLarge) {
+        // Two columns: login form (left), saved connections (right).
+        Row(
+            modifier = modifier
+                .fillMaxSize()
+                .background(AppColors.bg1)
+                .padding(32.dp),
+            horizontalArrangement = Arrangement.spacedBy(32.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState()),
+                content = formPane
+            )
+            Column(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                content = savedPane
+            )
+        }
+    } else {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(AppColors.bg1)
+                .padding(16.dp)
+        ) {
+            formPane()
+            savedPane()
         }
     }
 }

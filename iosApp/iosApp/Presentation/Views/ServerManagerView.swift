@@ -5,9 +5,14 @@ private let log = SwiftLog("ui:iOS:ServerManager")
 
 struct ServerManagerView: View {
     @Environment(AppContainer.self) private var container
+    @Environment(\.horizontalSizeClass) private var hSizeClass
     @EnvironmentObject private var stateObserver: PlaybackStateObserver
 
     let onConnectSuccess: () -> Void
+
+    private var isLarge: Bool {
+        hSizeClass == .regular
+    }
 
     @State private var savedServers: [SavedServerEntity] = []
 
@@ -23,173 +28,208 @@ struct ServerManagerView: View {
     @State private var errorMessage: String? = nil
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Section Title Overline
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("JRiver Remote".uppercased())
-                        .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
-                        .tracking(2.5)
-                        .foregroundColor(.accentColor)
-
-                    Text("Server Manager")
-                        .font(AppFont.inter(size: 24, weight: .bold))
-                        .foregroundColor(.textPrimary)
+        Group {
+            if isLarge {
+                // Two columns: login form (left), saved connections (right).
+                HStack(alignment: .top, spacing: 32) {
+                    ScrollView { formColumn() }
+                        .frame(maxWidth: .infinity)
+                    ScrollView { savedColumn(showWhenEmpty: true) }
+                        .frame(maxWidth: .infinity)
                 }
-                .padding(.top, 20)
-
-                // Connection Status Card if connected
-                if let status = stateObserver.playerStatus, !stateObserver.activeZone.isOffline {
-                    activeServerCard(friendlyName: status.zoneName)
-                } else if !stateObserver.activeZone.isOffline, container.facade.currentServerHost != nil {
-                    activeServerCard(friendlyName: "JRiver Server")
-                }
-
-                // Form Card
-                VStack(spacing: 0) {
-                    // Segmented Control
-                    HStack(spacing: 0) {
-                        tabButton(title: "Access Key", index: 0)
-                        tabButton(title: "Manual IP", index: 1)
+                .padding(32)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        formColumn()
+                        savedColumn(showWhenEmpty: false)
                     }
-                    .background(Color.bg0)
-                    .cornerRadius(8)
-                    .padding(16)
+                    .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                    .padding(.bottom, 30)
+                }
+            }
+        }
+        .background(Color.bg1.ignoresSafeArea())
+        .onAppear { loadServers() }
+    }
 
-                    VStack(spacing: 12) {
-                        if activeTab == 0 {
-                            customTextField(title: "6-Digit Access Key", text: $accessKey, placeholder: "e.g. A1B2C3")
-                                .onChange(of: accessKey) { _, newVal in
-                                    if newVal.count > 6 {
-                                        accessKey = String(newVal.prefix(6))
-                                    }
-                                    accessKey = accessKey.uppercased()
+    private func formColumn() -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Section Title Overline
+            VStack(alignment: .leading, spacing: 4) {
+                Text("JRiver Remote".uppercased())
+                    .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
+                    .tracking(2.5)
+                    .foregroundColor(.accentColor)
+
+                Text("Server Manager")
+                    .font(AppFont.inter(size: 24, weight: .bold))
+                    .foregroundColor(.textPrimary)
+            }
+            .padding(.top, isLarge ? 0 : 20)
+
+            // Connection Status Card if connected
+            if let status = stateObserver.playerStatus, !stateObserver.activeZone.isOffline {
+                activeServerCard(friendlyName: status.zoneName)
+            } else if !stateObserver.activeZone.isOffline, container.facade.currentServerHost != nil {
+                activeServerCard(friendlyName: "JRiver Server")
+            }
+
+            // Form Card
+            VStack(spacing: 0) {
+                // Segmented Control
+                HStack(spacing: 0) {
+                    tabButton(title: "Access Key", index: 0)
+                    tabButton(title: "Manual IP", index: 1)
+                }
+                .background(Color.bg0)
+                .cornerRadius(8)
+                .padding(16)
+
+                VStack(spacing: 12) {
+                    if activeTab == 0 {
+                        customTextField(title: "6-Digit Access Key", text: $accessKey, placeholder: "e.g. A1B2C3")
+                            .onChange(of: accessKey) { _, newVal in
+                                if newVal.count > 6 {
+                                    accessKey = String(newVal.prefix(6))
                                 }
-                        } else {
-                            customTextField(title: "Host Address / IP", text: $host, placeholder: "e.g. 192.168.1.100")
-
-                            HStack(spacing: 12) {
-                                customTextField(title: "Port", text: useSsl ? $sslPort : $port, placeholder: useSsl ? "52200" : "52199")
-                                    .keyboardType(.numberPad)
-
-                                Toggle(isOn: $useSsl) {
-                                    Text("Use SSL")
-                                        .font(AppFont.inter(size: 13, weight: .regular))
-                                        .foregroundColor(.textPrimary)
-                                }
-                                .toggleStyle(SwitchToggleStyle(tint: .accentColor))
-                                .frame(maxWidth: 130)
-                                .padding(.top, 24)
+                                accessKey = accessKey.uppercased()
                             }
-                        }
+                    } else {
+                        customTextField(title: "Host Address / IP", text: $host, placeholder: "e.g. 192.168.1.100")
 
-                        customTextField(title: "Username (Optional)", text: $username, placeholder: "username")
+                        HStack(spacing: 12) {
+                            customTextField(title: "Port", text: useSsl ? $sslPort : $port, placeholder: useSsl ? "52200" : "52199")
+                                .keyboardType(.numberPad)
 
-                        customSecureField(title: "Password (Optional)", text: $password, placeholder: "password")
-
-                        if let error = errorMessage {
-                            Text(error)
-                                .font(AppFont.inter(size: 13, weight: .medium))
-                                .foregroundColor(.errorColor)
-                                .padding(.top, 4)
-                        }
-
-                        // Connect Button
-                        Button(action: triggerConnect) {
-                            HStack {
-                                Spacer()
-                                if isConnecting {
-                                    ProgressView()
-                                        .tint(.bg0)
-                                } else {
-                                    Text("CONNECT")
-                                        .font(AppFont.ibmPlexMono(size: 12, weight: .medium))
-                                        .tracking(1.6)
-                                        .foregroundColor(.bg0)
-                                }
-                                Spacer()
+                            Toggle(isOn: $useSsl) {
+                                Text("Use SSL")
+                                    .font(AppFont.inter(size: 13, weight: .regular))
+                                    .foregroundColor(.textPrimary)
                             }
+                            .toggleStyle(SwitchToggleStyle(tint: .accentColor))
+                            .frame(maxWidth: 130)
+                            .padding(.top, 24)
+                        }
+                    }
+
+                    customTextField(title: "Username (Optional)", text: $username, placeholder: "username")
+
+                    customSecureField(title: "Password (Optional)", text: $password, placeholder: "password")
+
+                    if let error = errorMessage {
+                        Text(error)
+                            .font(AppFont.inter(size: 13, weight: .medium))
+                            .foregroundColor(.errorColor)
+                            .padding(.top, 4)
+                    }
+
+                    // Connect Button
+                    Button(action: triggerConnect) {
+                        HStack {
+                            Spacer()
+                            if isConnecting {
+                                ProgressView()
+                                    .tint(.bg0)
+                            } else {
+                                Text("CONNECT")
+                                    .font(AppFont.ibmPlexMono(size: 12, weight: .medium))
+                                    .tracking(1.6)
+                                    .foregroundColor(.bg0)
+                            }
+                            Spacer()
+                        }
+                        .frame(height: 48)
+                        .background(Color.accentColor)
+                        .cornerRadius(10)
+                    }
+                    .disabled(isConnecting)
+                    .padding(.top, 12)
+
+                    // Offline Mode Button
+                    Button(action: enterOfflineMode) {
+                        Text("ENTER OFFLINE MODE")
+                            .font(AppFont.ibmPlexMono(size: 12, weight: .medium))
+                            .tracking(1.6)
+                            .foregroundColor(.textSecondary)
+                            .frame(maxWidth: .infinity)
                             .frame(height: 48)
-                            .background(Color.accentColor)
-                            .cornerRadius(10)
-                        }
-                        .disabled(isConnecting)
-                        .padding(.top, 12)
-
-                        // Offline Mode Button
-                        Button(action: enterOfflineMode) {
-                            Text("ENTER OFFLINE MODE")
-                                .font(AppFont.ibmPlexMono(size: 12, weight: .medium))
-                                .tracking(1.6)
-                                .foregroundColor(.textSecondary)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 48)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(Color.line2, lineWidth: 1),
-                                )
-                        }
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.line2, lineWidth: 1),
+                            )
                     }
-                    .padding([.horizontal, .bottom], 16)
                 }
-                .background(Color.bg2)
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.line2, lineWidth: 1),
-                )
+                .padding([.horizontal, .bottom], 16)
+            }
+            .background(Color.bg2)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.line2, lineWidth: 1),
+            )
+        }
+        // Keep the login form a comfortable width on large screens (so the
+        // Connect / Offline buttons aren't stretched across half the display).
+        .frame(maxWidth: isLarge ? 420 : .infinity, alignment: .leading)
+    }
 
-                // Saved Connections List
-                if !savedServers.isEmpty {
+    private func savedColumn(showWhenEmpty: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if savedServers.isEmpty {
+                if showWhenEmpty {
                     Text("SAVED CONNECTIONS")
                         .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
                         .tracking(1.6)
                         .foregroundColor(.textTertiary)
-                        .padding(.top, 10)
+                        .padding(.top, isLarge ? 0 : 10)
+                    Text("No saved connections yet.")
+                        .font(AppFont.inter(size: 13, weight: .regular))
+                        .foregroundColor(.textTertiary)
+                }
+            } else {
+                Text("SAVED CONNECTIONS")
+                    .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
+                    .tracking(1.6)
+                    .foregroundColor(.textTertiary)
+                    .padding(.top, isLarge ? 0 : 10)
 
-                    VStack(spacing: 8) {
-                        ForEach(savedServers, id: \.id) { server in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(server.friendlyName ?? "JRiver Server")
-                                        .font(AppFont.inter(size: 16, weight: .medium))
-                                        .foregroundColor(.textPrimary)
+                VStack(spacing: 8) {
+                    ForEach(savedServers, id: \.id) { server in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(server.friendlyName ?? "JRiver Server")
+                                    .font(AppFont.inter(size: 16, weight: .medium))
+                                    .foregroundColor(.textPrimary)
 
-                                    Text("\(server.host):\(server.useSsl ? server.sslPort : server.port)")
-                                        .font(AppFont.inter(size: 13, weight: .regular))
-                                        .foregroundColor(.textSecondary)
-                                }
-
-                                Spacer()
-
-                                Button(action: {
-                                    deleteServer(server)
-                                }) {
-                                    Image(systemName: "trash")
-                                        .foregroundColor(.errorColor)
-                                        .frame(width: 44, height: 44)
-                                }
+                                Text("\(server.host):\(server.useSsl ? server.sslPort : server.port)")
+                                    .font(AppFont.inter(size: 13, weight: .regular))
+                                    .foregroundColor(.textSecondary)
                             }
-                            .padding(12)
-                            .background(Color.bg2)
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.line, lineWidth: 1),
-                            )
-                            .onTapGesture {
-                                fillFormAndConnect(server: server)
+
+                            Spacer()
+
+                            Button(action: {
+                                deleteServer(server)
+                            }) {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.errorColor)
+                                    .frame(width: 44, height: 44)
                             }
+                        }
+                        .padding(12)
+                        .background(Color.bg2)
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.line, lineWidth: 1),
+                        )
+                        .onTapGesture {
+                            fillFormAndConnect(server: server)
                         }
                     }
                 }
             }
-            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-            .padding(.bottom, 30)
-        }
-        .background(Color.bg1.ignoresSafeArea())
-        .onAppear {
-            loadServers()
         }
     }
 

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import co.touchlab.kermit.Severity
@@ -28,7 +31,8 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBackClick: () -> Unit,
     onDisconnectClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isLarge: Boolean = false
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -43,7 +47,8 @@ fun SettingsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AppColors.bg1)
+            .background(AppColors.bg1),
+        horizontalAlignment = if (isLarge) Alignment.CenterHorizontally else Alignment.Start
     ) {
         // Header
         Row(
@@ -71,9 +76,15 @@ fun SettingsScreen(
         }
 
         LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
+            // Large screens: cap the card column to a comfortable reading width
+            // (centered by the parent's CenterHorizontally) instead of
+            // stretching edge to edge.
+            modifier = if (isLarge) {
+                Modifier.weight(1f).widthIn(max = 760.dp)
+            } else {
+                Modifier.weight(1f).fillMaxWidth()
+            },
+            contentPadding = if (isLarge) PaddingValues(horizontal = 32.dp, vertical = 8.dp) else PaddingValues(0.dp)
         ) {
             // Active Server Info Card
             item {
@@ -134,7 +145,7 @@ fun SettingsScreen(
                                     onClick = onDisconnectClick,
                                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.bg0),
                                     border = BoxBorder(AppColors.error),
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = if (isLarge) Modifier else Modifier.fillMaxWidth()
                                 ) {
                                     Text("DISCONNECT / CHANGE SERVER", style = AppTypography.chipMono, color = AppColors.error)
                                 }
@@ -189,7 +200,7 @@ fun SettingsScreen(
                                     disabledContainerColor = AppColors.bg3
                                 ),
                                 border = if (state.downloadedTracksCount > 0) BoxBorder(AppColors.error) else BoxBorder(AppColors.line),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = if (isLarge) Modifier else Modifier.fillMaxWidth()
                             ) {
                                 Text(
                                     text = "CLEAR DOWNLOADS",
@@ -233,21 +244,33 @@ fun SettingsScreen(
                                 color = AppColors.text2,
                                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                             )
-                            LocalAudioQuality.entries.forEachIndexed { index, quality ->
-                                if (index > 0) Spacer(modifier = Modifier.height(8.dp))
+                            LocalAudioQuality.entries.forEach { quality ->
                                 val selected = state.localAudioQuality == quality
-                                Button(
-                                    onClick = { viewModel.setLocalAudioQuality(quality) },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (selected) AppColors.accent else AppColors.bg0
-                                    ),
-                                    border = BoxBorder(if (selected) AppColors.accent else AppColors.line),
-                                    modifier = Modifier.fillMaxWidth()
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .selectable(
+                                            selected = selected,
+                                            role = Role.RadioButton,
+                                            onClick = { viewModel.setLocalAudioQuality(quality) }
+                                        )
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    RadioButton(
+                                        selected = selected,
+                                        onClick = null,
+                                        colors = RadioButtonDefaults.colors(
+                                            selectedColor = AppColors.accent,
+                                            unselectedColor = AppColors.text3
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
                                     Text(
                                         text = quality.label,
-                                        style = AppTypography.chipMono,
-                                        color = if (selected) AppColors.bg0 else AppColors.text
+                                        style = AppTypography.chipMono.copy(fontSize = 15.sp, letterSpacing = 1.sp),
+                                        color = if (selected) AppColors.accent else AppColors.text
                                     )
                                 }
                             }
@@ -300,7 +323,7 @@ fun SettingsScreen(
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.bg0),
                                 border = BoxBorder(AppColors.accent),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = if (isLarge) Modifier else Modifier.fillMaxWidth()
                             ) {
                                 Text(
                                     text = "SHARE LOG",
