@@ -525,21 +525,25 @@ struct PlayerTabContainerView: View {
         if isLarge {
             // Large screen: Now Playing hero + persistent queue rail side by
             // side. The queue is never pushed (hero's queue button is inert),
-            // so the rail reads the component-level queue VM.
-            HStack(spacing: 0) {
-                Group {
-                    if case let .nowPlaying(child) = onEnum(of: stack.activeChild) {
-                        NowPlayingView(viewModel: child.vm, onQueueClick: {})
-                    } else {
-                        Color.bg1
+            // so the rail reads the component-level queue VM. The rail takes at
+            // most ~36% of the width (capped at 380pt) so the hero isn't
+            // squeezed on narrower large widths (e.g. iPad portrait).
+            GeometryReader { geo in
+                HStack(spacing: 0) {
+                    Group {
+                        if case let .nowPlaying(child) = onEnum(of: stack.activeChild) {
+                            NowPlayingView(viewModel: child.vm, onQueueClick: {})
+                        } else {
+                            Color.bg1
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    Rectangle().fill(Color.line).frame(width: 1)
+
+                    QueueView(viewModel: component.queueViewModel, onBackClick: {}, isRail: true)
+                        .frame(width: min(380, geo.size.width * 0.36))
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                Rectangle().fill(Color.line).frame(width: 1)
-
-                QueueView(viewModel: component.queueViewModel, onBackClick: {}, isRail: true)
-                    .frame(width: 380)
             }
         } else {
             switch onEnum(of: stack.activeChild) {

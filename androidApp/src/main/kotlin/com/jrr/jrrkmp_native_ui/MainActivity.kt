@@ -571,19 +571,26 @@ private fun PlayerChildren(component: PlayerComponent, isLargeScreen: Boolean) {
                 // pop back so Now Playing is the active child.
                 component.closeQueue(); null
             }
-        Row(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                if (npVm != null) {
-                    NowPlayingScreen(viewModel = npVm, onQueueClick = {})
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            // Keep the Now Playing hero from being squeezed on narrower large
+            // screens (e.g. a Pixel Fold's inner display): the queue rail takes
+            // at most ~36% of the width, capped at 380dp, and the hero (weight)
+            // gets the rest — guaranteeing room for the ~260dp vinyl.
+            val queueWidth = minOf(380.dp, maxWidth * 0.36f)
+            Row(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    if (npVm != null) {
+                        NowPlayingScreen(viewModel = npVm, onQueueClick = {})
+                    }
                 }
+                Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(AppColors.line))
+                QueueScreen(
+                    viewModel = component.queueViewModel,
+                    onBackClick = {},
+                    modifier = Modifier.width(queueWidth),
+                    isRail = true,
+                )
             }
-            Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(AppColors.line))
-            QueueScreen(
-                viewModel = component.queueViewModel,
-                onBackClick = {},
-                modifier = Modifier.width(380.dp),
-                isRail = true,
-            )
         }
         return
     }
