@@ -146,6 +146,7 @@ fun LibraryLargeScreen(
                     isOffline = state.isOffline,
                     onAlbumInfoClick = { infoAlbum = it },
                     onRefresh = { viewModel.retry() },
+                    isLarge = true,
                 )
                 "browse" -> BrowseTab(
                     stack = state.browseStack,

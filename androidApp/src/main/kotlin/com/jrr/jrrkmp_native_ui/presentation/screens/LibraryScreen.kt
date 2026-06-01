@@ -639,7 +639,8 @@ fun RandomTab(
     onDownloadAlbum: (Album) -> Unit,
     isOffline: Boolean,
     onAlbumInfoClick: (Album) -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    isLarge: Boolean = false
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -667,9 +668,10 @@ fun RandomTab(
         } else {
             LazyVerticalGrid(
                 state = gridState,
-                columns = GridCells.Fixed(2),
+                // Large screens fit more, smaller covers (≈half the phone size).
+                columns = if (isLarge) GridCells.Adaptive(minSize = 180.dp) else GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(if (isLarge) 32.dp else 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
