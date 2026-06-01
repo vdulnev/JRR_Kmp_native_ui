@@ -59,6 +59,55 @@ fun parseMcwsResponse(xml: String): McwsResponse {
 }
 
 /**
+ * Parses a `Browse/Children` response into an **ordered** list, preserving the
+ * server's (view-scheme) order and tolerating duplicate display names.
+ *
+ * Unlike [parseMcwsResponse] — which collapses items into a `Map` keyed by the
+ * `Name` attribute (lossy: duplicate names collide and order is undefined) —
+ * `Browse/Children` is genuinely a sequence of `<Item Name="Display">id</Item>`,
+ * so it must be parsed positionally.
+ *
+ * Returns pairs of (displayName, childId) in document order.
+ */
+fun parseMcwsBrowseChildren(xml: String): List<Pair<String, String>> {
+    // Bail out on non-OK responses so we don't scrape stray <Item> tags.
+    val responseStart = xml.indexOf("<Response")
+    if (responseStart != -1) {
+        val responseEnd = xml.indexOf(">", responseStart)
+        if (responseEnd != -1) {
+            val status = extractAttribute(
+                xml.substring(responseStart, responseEnd), "Status"
+            )
+            if (status != null && status != "OK") return emptyList()
+        }
+    }
+
+    val result = mutableListOf<Pair<String, String>>()
+    var index = 0
+    while (index < xml.length) {
+        val itemStart = xml.indexOf("<Item", index)
+        if (itemStart == -1) break
+
+        val itemTagEnd = xml.indexOf(">", itemStart)
+        if (itemTagEnd == -1) break
+
+        val itemTagContent = xml.substring(itemStart, itemTagEnd)
+        val name = extractAttribute(itemTagContent, "Name")
+
+        val itemClose = xml.indexOf("</Item>", itemTagEnd)
+        if (itemClose == -1) break
+
+        if (name != null) {
+            val rawValue = xml.substring(itemTagEnd + 1, itemClose)
+            result.add(unescapeXml(name).trim() to unescapeXml(rawValue).trim())
+        }
+
+        index = itemClose + "</Item>".length
+    }
+    return result
+}
+
+/**
  * Parses WebPlay lookup response:
  * ```
  * <Response>

@@ -178,30 +178,31 @@ class LocalPlayerHandler(
     fun currentAudioQuality(): LocalAudioQuality = localAudioQualityProvider()
 
     private fun createMediaItem(track: Track): MediaItem {
+        // Resolve the server once — needed for a remote stream URL and for remote
+        // artwork (so Now Playing shows covers for non-downloaded tracks too).
+        val active = serverRepository.activeServer.value
+        val (serverUrl, token) = if (active != null) {
+            val host = active.host
+            val scheme = if (active.useSsl) "https" else "http"
+            val port = if (active.useSsl) active.sslPort else active.port
+            Pair("$scheme://$host:$port/MCWS/v1", active.token ?: "")
+        } else {
+            val activeServer = runBlocking { serverRepository.getLastUsedServer() }
+            if (activeServer != null) {
+                val host = activeServer.host
+                val scheme = if (activeServer.useSsl) "https" else "http"
+                val port = if (activeServer.useSsl) activeServer.sslPort else activeServer.port
+                Pair("$scheme://$host:$port/MCWS/v1", activeServer.authToken ?: "")
+            } else {
+                Pair("", "")
+            }
+        }
+
         val localPath = checkLocalFileProvider(track.fileKey)
         val uri = if (localPath != null && File(localPath).exists()) {
             log.v { "createMediaItem(${track.fileKey}) → local file" }
             Uri.fromFile(File(localPath))
         } else {
-            val active = serverRepository.activeServer.value
-            val (serverUrl, token) = if (active != null) {
-                val host = active.host
-                val scheme = if (active.useSsl) "https" else "http"
-                val port = if (active.useSsl) active.sslPort else active.port
-                Pair("$scheme://$host:$port/MCWS/v1", active.token ?: "")
-            } else {
-                val activeServer = runBlocking {
-                    serverRepository.getLastUsedServer()
-                }
-                if (activeServer != null) {
-                    val host = activeServer.host
-                    val scheme = if (activeServer.useSsl) "https" else "http"
-                    val port = if (activeServer.useSsl) activeServer.sslPort else activeServer.port
-                    Pair("$scheme://$host:$port/MCWS/v1", activeServer.authToken ?: "")
-                } else {
-                    Pair("", "")
-                }
-            }
             val quality = localAudioQualityProvider()
             log.v { "createMediaItem(${track.fileKey}) → remote $serverUrl quality=${quality.name} token=${token.redact()}" }
             Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&FileType=Key&Playback=1&${quality.mcwsParams}&Token=${token}")
@@ -220,11 +221,34 @@ class LocalPlayerHandler(
                     .setTitle(track.name)
                     .setArtist(track.artist)
                     .setAlbumTitle(track.album)
-                    .setArtworkUri(Uri.parse("content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_${track.fileKey}.jpg"))
+                    .setArtworkUri(artworkUriFor(track.fileKey, serverUrl, token))
                     .setExtras(extras)
                     .build()
             )
             .build()
+    }
+
+    /**
+     * Prefer the downloaded art file (instant, offline); otherwise fall back to
+     * the MCWS thumbnail endpoint so remote tracks still show a cover on the
+     * Now Playing screen / head unit.
+     */
+    private fun artworkUriFor(fileKey: String, serverUrl: String, token: String): Uri {
+        val localArt = File(context.filesDir, "downloads/art_$fileKey.jpg")
+        if (localArt.exists()) {
+            return Uri.parse(
+                "content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_$fileKey.jpg"
+            )
+        }
+        if (serverUrl.isNotEmpty() && token.isNotEmpty() && fileKey.isNotEmpty()) {
+            return Uri.parse(
+                "$serverUrl/File/GetImage?File=$fileKey&Type=Thumbnail" +
+                    "&Width=300&Height=300&Square=1&Token=$token"
+            )
+        }
+        return Uri.parse(
+            "content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_$fileKey.jpg"
+        )
     }
 
     override fun setQueue(tracks: List<Track>, startIndex: Int) {
