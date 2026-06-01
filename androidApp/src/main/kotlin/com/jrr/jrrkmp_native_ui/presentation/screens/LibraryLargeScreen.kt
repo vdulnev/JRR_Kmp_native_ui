@@ -316,7 +316,13 @@ private fun ArtistsSplit(
                     Text("Pick a name on the left to browse their albums.", style = AppTypography.itemSubtitle, color = AppColors.text3)
                 }
             } else {
-                val albums = state.artistAlbums
+                // Album filter local to the detail pane, independent of the
+                // master artist filter. Reset when the selected artist changes.
+                var albumFilter by remember(selected) { mutableStateOf("") }
+                val albums = remember(state.artistAlbums, albumFilter) {
+                    if (albumFilter.isBlank()) state.artistAlbums
+                    else state.artistAlbums.filter { it.name.contains(albumFilter, ignoreCase = true) }
+                }
                 Column(modifier = Modifier.fillMaxSize()) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(start = 32.dp, end = 32.dp, top = 22.dp, bottom = 8.dp),
@@ -348,6 +354,14 @@ private fun ArtistsSplit(
                                 Text("PLAY ALL", style = AppTypography.chipMono.copy(color = AppColors.bg0, fontWeight = FontWeight.Bold))
                             }
                         }
+                    }
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        ListFilterField(
+                            value = albumFilter,
+                            onValueChange = { albumFilter = it },
+                            placeholder = "Filter albums",
+                            collapsed = false,
+                        )
                     }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),

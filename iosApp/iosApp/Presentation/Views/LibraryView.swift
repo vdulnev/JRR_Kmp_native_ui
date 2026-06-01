@@ -270,6 +270,10 @@ struct LibraryView: View {
     /// Local mirror of the shared artists filter, so the text field stays
     /// responsive without round-tripping every keystroke through the flow.
     @State private var artistFilterText = ""
+    /// Split-pane (tablet) only: a separate client-side filter for the selected
+    /// artist's albums in the detail pane, independent of the master artist
+    /// filter (both panes are visible at once).
+    @State private var albumFilterText = ""
 
     init(viewModel: LibraryViewModel, onAlbumClick: @escaping (Album) -> Void, isLarge: Bool = false) {
         _observable = State(initialValue: LibraryObservable(viewModel: viewModel))
@@ -586,6 +590,9 @@ struct LibraryView: View {
                 artistFilterText = ""
             }
         }
+        .onChange(of: observable.selectedArtist) { _, _ in
+            albumFilterText = ""
+        }
     }
 
     /// Master artist list for the split-pane (no drill-down; taps just select).
@@ -681,14 +688,41 @@ struct LibraryView: View {
             .padding(.top, 22)
             .padding(.bottom, 8)
 
+            // Filter for this artist's albums (independent of the master list).
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.textTertiary)
+                TextField("Filter albums", text: $albumFilterText)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .foregroundColor(.textPrimary)
+                    .font(AppFont.inter(size: 14, weight: .regular))
+                if !albumFilterText.isEmpty {
+                    Button(action: { albumFilterText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.textSecondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 38)
+            .background(Color.bg2)
+            .cornerRadius(8)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.line, lineWidth: 1))
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+            .padding(.bottom, 6)
+
             if observable.isTabLoading {
                 Spacer()
                 ProgressView().tint(.accentColor)
                 Spacer()
             } else {
+                let displayAlbums = observable.artistAlbums.filter {
+                    albumFilterText.isEmpty || $0.name.range(of: albumFilterText, options: .caseInsensitive) != nil
+                }
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        ForEach(observable.artistAlbums, id: \.albumGroupId) { album in
+                        ForEach(displayAlbums, id: \.albumGroupId) { album in
                             albumRowItem(album: album) { onAlbumClick(album) }
                         }
                     }
@@ -897,10 +931,9 @@ struct LibraryView: View {
                 Spacer()
             } else {
                 ScrollView {
-                    let columns = [
-                        GridItem(.flexible(), spacing: 14),
-                        GridItem(.flexible(), spacing: 14),
-                    ]
+                    let columns = isLarge
+                        ? [GridItem(.adaptive(minimum: 168), spacing: 14)]
+                        : [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(observable.randomAlbums, id: \.name) { album in
@@ -931,7 +964,9 @@ struct LibraryView: View {
                                             }
                                         }
                                     }
-                                    .frame(height: 165)
+                                    .frame(maxWidth: .infinity)
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .clipped()
                                     .cornerRadius(AppSpacing.radiusArt)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: AppSpacing.radiusArt)
