@@ -11,12 +11,32 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
+import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.di.appContainer
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
+import com.jrr.jrrkmp_native_ui.domain.model.Track
+import com.jrr.jrrkmp_native_ui.domain.model.Album
+import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import kotlinx.coroutines.*
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.serialization.encodeToString
+import com.jrr.jrrkmp_native_ui.data.db.entity.LocalQueueTrackEntity
+import com.jrr.jrrkmp_native_ui.data.db.entity.LocalQueueStateEntity
 
+private val log = Logger.withTag("playback:CarService")
+
+private val json = kotlinx.serialization.json.Json {
+    ignoreUnknownKeys = true
+    coerceInputValues = true
+    isLenient = true
+}
+
+private fun normalizeForMatch(s: String): String {
+    return s.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
+}
+
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlaybackService : MediaLibraryService() {
 
     private var mediaLibrarySession: MediaLibrarySession? = null
@@ -56,7 +76,12 @@ class PlaybackService : MediaLibraryService() {
                 controllerInfo.connectionHints.getBoolean("androidx.media3.session.connection.CAR_CONNECTION", false)
         if (isCar) {
             val facade = this.appContainer.facade
-            facade.setZone(Zone.AndroidAuto, skipLoadQueue = true)
+            val currentZone = facade.activeZone.value
+            if (!currentZone.isLocal && !currentZone.isOffline) {
+                val hasConnection = !facade.currentServerHost.isNullOrEmpty()
+                val targetZone = if (hasConnection) Zone.Local else Zone.Offline
+                facade.setZone(targetZone)
+            }
         }
         return mediaLibrarySession
     }
@@ -64,11 +89,106 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         serviceScope.cancel()
         mediaLibrarySession?.run {
-            player.release()
             release()
             mediaLibrarySession = null
         }
         super.onDestroy()
+    }
+
+    private suspend fun getTrackByKey(mediaId: String): Track? {
+        if (mediaId.isEmpty() || !mediaId.all { it.isDigit() }) {
+            return null
+        }
+        val db = this@PlaybackService.appContainer.database
+        val localTrack = db.downloadedTrackDao().getTrack(mediaId)?.toTrack()
+        if (localTrack != null) {
+            return localTrack
+        }
+        val facade = this@PlaybackService.appContainer.facade
+        val isOffline = facade.currentServerHost.isNullOrEmpty()
+        if (!isOffline) {
+            try {
+                val mcwsClient = this@PlaybackService.appContainer.mcwsClient
+                val onlineTracks = mcwsClient.searchTracks("[Key]=[$mediaId]")
+                return onlineTracks.firstOrNull()
+            } catch (e: Exception) {
+                log.w(e) { "getTrackByKey($mediaId): online lookup failed" }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Resolve the active server's MCWS base URL and token once, so list
+     * conversions don't hit the DB ([getLastUsedServer]) per track. Prefers the
+     * in-memory active server, falling back to the last-used saved server.
+     */
+    private fun resolveServerUrlAndToken(): Pair<String, String> {
+        val active = this@PlaybackService.appContainer.serverRepository.activeServer.value
+        if (active != null) {
+            val scheme = if (active.useSsl) "https" else "http"
+            val port = if (active.useSsl) active.sslPort else active.port
+            return Pair("$scheme://${active.host}:$port/MCWS/v1", active.token ?: "")
+        }
+        val saved = runBlocking { this@PlaybackService.appContainer.serverRepository.getLastUsedServer() }
+        return if (saved != null) {
+            val scheme = if (saved.useSsl) "https" else "http"
+            val port = if (saved.useSsl) saved.sslPort else saved.port
+            Pair("$scheme://${saved.host}:$port/MCWS/v1", saved.authToken ?: "")
+        } else {
+            Pair("", "")
+        }
+    }
+
+    /** Single-track convenience: resolves server + quality, then maps. */
+    private fun mapTrackToMediaItem(track: Track): MediaItem {
+        val (serverUrl, token) = resolveServerUrlAndToken()
+        return mapDomainTrackToMediaItem(track, serverUrl, token, currentQuality())
+    }
+
+    /** List conversion: resolves server + quality once for the whole batch. */
+    private fun mapTracksToMediaItems(tracks: List<Track>): List<MediaItem> {
+        val (serverUrl, token) = resolveServerUrlAndToken()
+        val quality = currentQuality()
+        return tracks.map { mapDomainTrackToMediaItem(it, serverUrl, token, quality) }
+    }
+
+    private fun currentQuality(): LocalAudioQuality =
+        this@PlaybackService.appContainer.localPlayerHandler.currentAudioQuality()
+
+    private fun mapDomainTrackToMediaItem(
+        track: Track,
+        serverUrl: String,
+        token: String,
+        quality: LocalAudioQuality,
+    ): MediaItem {
+        val db = this@PlaybackService.appContainer.database
+        val localTrack = runBlocking { db.downloadedTrackDao().getTrack(track.fileKey) }
+        val uri = if (localTrack != null && File(localTrack.filePath).exists()) {
+            Uri.fromFile(File(localTrack.filePath))
+        } else {
+            Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&FileType=Key&Playback=1&${quality.mcwsParams}&Token=${token}")
+        }
+        val artUri = Uri.parse("content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_${track.fileKey}.jpg")
+        val extras = android.os.Bundle().apply {
+            putString("track_json", json.encodeToString(track))
+        }
+        return MediaItem.Builder()
+            .setMediaId(track.fileKey)
+            .setUri(uri)
+            .setTag(track)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(track.name)
+                    .setArtist(track.artist)
+                    .setAlbumTitle(track.album)
+                    .setArtworkUri(artUri)
+                    .setIsPlayable(true)
+                    .setIsBrowsable(false)
+                    .setExtras(extras)
+                    .build()
+            )
+            .build()
     }
 
     private inner class LibraryCallback : MediaLibrarySession.Callback {
@@ -103,8 +223,7 @@ class PlaybackService : MediaLibraryService() {
             val future = SettableFuture.create<LibraryResult<ImmutableList<MediaItem>>>()
             serviceScope.launch(Dispatchers.IO) {
                 try {
-                    val db = this@PlaybackService.appContainer.database
-                    val allTracks = db.downloadedTrackDao().getAllTracks()
+                    val repository = this@PlaybackService.appContainer.libraryRepository
                     val resultList = mutableListOf<MediaItem>()
 
                     if (parentId == "root_id") {
@@ -161,12 +280,12 @@ class PlaybackService : MediaLibraryService() {
                                 .build()
                         )
                     } else if (parentId == "downloads") {
-                        resultList.addAll(allTracks.sortedBy { it.name }.map { mapTrackToMediaItem(it) })
+                        val tracks = repository.getDownloadedTracks()
+                        resultList.addAll(mapTracksToMediaItems(tracks))
                     } else if (parentId == "recently_played") {
-                        val recent = emptyList<com.jrr.jrrkmp_native_ui.data.db.entity.DownloadedTrackEntity>()
-                        resultList.addAll(recent.map { mapTrackToMediaItem(it) })
+                        // Empty for now
                     } else if (parentId == "artists") {
-                        val artists = allTracks.map { it.artist }.distinct().sorted()
+                        val artists = repository.getArtists()
                         resultList.addAll(artists.map { artist ->
                             MediaItem.Builder()
                                 .setMediaId("artist|$artist")
@@ -182,16 +301,15 @@ class PlaybackService : MediaLibraryService() {
                         })
                     } else if (parentId.startsWith("artist|")) {
                         val artistName = parentId.substring("artist|".length)
-                        val albums = allTracks.filter { it.artist.equals(artistName, ignoreCase = true) }
-                            .map { it.album }.distinct().sorted()
+                        val albums = repository.getAlbumsByArtist(artistName)
                         resultList.addAll(albums.map { album ->
                             MediaItem.Builder()
-                                .setMediaId("artist_album|$artistName|$album")
+                                .setMediaId("artist_album|$artistName|${album.name}")
                                 .setMediaMetadata(
                                     MediaMetadata.Builder()
-                                        .setTitle(album)
+                                        .setTitle(album.name)
                                         .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
-                                        .setIsPlayable(false)
+                                        .setIsPlayable(true)
                                         .setIsBrowsable(true)
                                         .build()
                                 )
@@ -201,30 +319,65 @@ class PlaybackService : MediaLibraryService() {
                         val parts = parentId.split("|")
                         val artistName = parts.getOrNull(1) ?: ""
                         val albumName = parts.getOrNull(2) ?: ""
-                        val tracks = allTracks.filter {
-                            it.artist.equals(artistName, ignoreCase = true) && it.album.equals(albumName, ignoreCase = true)
-                        }.sortedWith(compareBy({ it.trackNumber ?: 0 }, { it.name }))
-                        resultList.addAll(tracks.map { mapTrackToMediaItem(it) })
+                        val albums = repository.getAlbumsByArtist(artistName)
+                        val album = albums.find { it.name.equals(albumName, ignoreCase = true) }
+                        if (album != null) {
+                            resultList.add(
+                                MediaItem.Builder()
+                                    .setMediaId("play_album|$artistName|$albumName")
+                                    .setMediaMetadata(
+                                        MediaMetadata.Builder()
+                                            .setTitle("Play All")
+                                            .setIsPlayable(true)
+                                            .setIsBrowsable(false)
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                            val tracks = repository.getAlbumTracks(album)
+                            resultList.addAll(mapTracksToMediaItems(tracks))
+                        }
                     } else if (parentId == "albums") {
-                        val albums = allTracks.map { it.album }.distinct().sorted()
+                        val albums = repository.getAllAlbums()
                         resultList.addAll(albums.map { album ->
                             MediaItem.Builder()
-                                .setMediaId("album|$album")
+                                .setMediaId("album|${album.albumArtist}|${album.name}")
                                 .setMediaMetadata(
                                     MediaMetadata.Builder()
-                                        .setTitle(album)
+                                        .setTitle(album.name)
+                                        .setSubtitle(album.albumArtist)
                                         .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
-                                        .setIsPlayable(false)
+                                        .setIsPlayable(true)
                                         .setIsBrowsable(true)
                                         .build()
                                 )
                                 .build()
                         })
                     } else if (parentId.startsWith("album|")) {
-                        val albumName = parentId.substring("album|".length)
-                        val tracks = allTracks.filter { it.album.equals(albumName, ignoreCase = true) }
-                            .sortedWith(compareBy({ it.trackNumber ?: 0 }, { it.name }))
-                        resultList.addAll(tracks.map { mapTrackToMediaItem(it) })
+                        val parts = parentId.split("|")
+                        val artistName = parts.getOrNull(1) ?: ""
+                        val albumName = parts.getOrNull(2) ?: ""
+                        val albums = repository.getAllAlbums()
+                        val album = albums.find {
+                            it.name.equals(albumName, ignoreCase = true) &&
+                                    it.albumArtist.equals(artistName, ignoreCase = true)
+                        }
+                        if (album != null) {
+                            resultList.add(
+                                MediaItem.Builder()
+                                    .setMediaId("play_album|$artistName|$albumName")
+                                    .setMediaMetadata(
+                                        MediaMetadata.Builder()
+                                            .setTitle("Play All")
+                                            .setIsPlayable(true)
+                                            .setIsBrowsable(false)
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                            val tracks = repository.getAlbumTracks(album)
+                            resultList.addAll(mapTracksToMediaItems(tracks))
+                        }
                     }
 
                     val pageStart = page * pageSize
@@ -237,6 +390,7 @@ class PlaybackService : MediaLibraryService() {
 
                     future.set(LibraryResult.ofItemList(ImmutableList.copyOf(pagedList), params))
                 } catch (e: Exception) {
+                    log.e(e) { "media library callback failed" }
                     future.setException(e)
                 }
             }
@@ -251,14 +405,14 @@ class PlaybackService : MediaLibraryService() {
             val future = SettableFuture.create<LibraryResult<MediaItem>>()
             serviceScope.launch(Dispatchers.IO) {
                 try {
-                    val db = this@PlaybackService.appContainer.database
-                    val track = db.downloadedTrackDao().getTrack(mediaId)
+                    val track = getTrackByKey(mediaId)
                     if (track != null) {
                         future.set(LibraryResult.ofItem(mapTrackToMediaItem(track), null))
                     } else {
                         future.set(LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE))
                     }
                 } catch (e: Exception) {
+                    log.e(e) { "media library callback failed" }
                     future.setException(e)
                 }
             }
@@ -279,11 +433,12 @@ class PlaybackService : MediaLibraryService() {
                     val resolver = VoiceSearchResolver()
                     val searchResult = resolver.resolve(query, null, allTracks)
 
-                    currentSearchResults[query] = searchResult.tracks.map { mapTrackToMediaItem(it) }
+                    currentSearchResults[query] = mapTracksToMediaItems(searchResult.tracks.map { it.toTrack() })
 
                     session.notifySearchResultChanged(browser, query, searchResult.tracks.size, params)
                     future.set(LibraryResult.ofVoid())
                 } catch (e: Exception) {
+                    log.e(e) { "media library callback failed" }
                     future.setException(e)
                 }
             }
@@ -311,103 +466,203 @@ class PlaybackService : MediaLibraryService() {
             return future
         }
 
-        override fun onAddMediaItems(
+        override fun onSetMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
-            mediaItems: List<MediaItem>
-        ): ListenableFuture<List<MediaItem>> {
+            mediaItems: List<MediaItem>,
+            startIndex: Int,
+            startPositionMs: Long
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
             val firstItem = mediaItems.firstOrNull()
             val query = firstItem?.requestMetadata?.searchQuery
             val extras = firstItem?.requestMetadata?.extras
 
-            if (query != null || extras != null) {
-                val future = SettableFuture.create<List<MediaItem>>()
-                serviceScope.launch(Dispatchers.IO) {
-                    try {
+            val future = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+            serviceScope.launch(Dispatchers.IO) {
+                try {
+                    val repository = this@PlaybackService.appContainer.libraryRepository
+                    val facade = this@PlaybackService.appContainer.facade
+
+                    withContext(Dispatchers.Main) {
+                        val hasConnection = !facade.currentServerHost.isNullOrEmpty()
+                        val targetZone = if (hasConnection) Zone.Local else Zone.Offline
+                        if (facade.activeZone.value.id != targetZone.id) {
+                            facade.setZone(targetZone, skipLoadQueue = true)
+                        }
+                    }
+
+                    val isVoiceSearch = query != null || (extras != null && extras.containsKey("android.intent.extra.focus"))
+                    if (isVoiceSearch) {
                         val db = this@PlaybackService.appContainer.database
                         val allTracks = db.downloadedTrackDao().getAllTracks()
-
                         val resolver = VoiceSearchResolver()
                         val searchResult = resolver.resolve(query, extras, allTracks)
                         val matchedTracks = searchResult.tracks
 
                         if (matchedTracks.isNotEmpty()) {
-                            val items = matchedTracks.map { mapTrackToMediaItem(it) }
+                            val items = mapTracksToMediaItems(matchedTracks.map { it.toTrack() })
                             withContext(Dispatchers.Main) {
-                                val facade = this@PlaybackService.appContainer.facade
-                                facade.setZone(Zone.AndroidAuto)
-                                val trackInfos = if (searchResult.forceShuffle) {
-                                    matchedTracks.map { it.toTrack() }.shuffled()
-                                } else {
-                                    matchedTracks.map { it.toTrack() }
-                                }
-                                facade.setQueue(trackInfos, 0)
                                 if (searchResult.forceShuffle) {
                                     facade.setShuffleMode(com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode.ON)
                                 } else {
                                     facade.setShuffleMode(com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode.OFF)
                                 }
-                                facade.play()
                             }
-                            future.set(items)
+                            future.set(
+                                MediaSession.MediaItemsWithStartPosition(
+                                    items,
+                                    if (searchResult.forceShuffle) (0 until items.size).random() else 0,
+                                    0L
+                                )
+                            )
                         } else {
-                            future.set(emptyList())
+                            future.set(MediaSession.MediaItemsWithStartPosition(emptyList(), 0, 0L))
                         }
-                    } catch (e: Exception) {
-                        future.set(mediaItems)
+                        return@launch
                     }
-                }
-                return future
-            }
 
-            // Normal item play
+                    val firstItem = mediaItems.firstOrNull()
+                    val mediaId = firstItem?.mediaId ?: ""
+
+                    val queueTracks = mutableListOf<Track>()
+                    var resolvedStartIndex = 0
+
+                    if (mediaId.startsWith("album|") || mediaId.startsWith("artist_album|") || mediaId.startsWith("play_album|")) {
+                        val parts = mediaId.split("|")
+                        val artistName = parts.getOrNull(1) ?: ""
+                        val albumName = parts.getOrNull(2) ?: ""
+                        try {
+                            val albums = if (artistName.isNotEmpty()) {
+                                repository.getAlbumsByArtist(artistName)
+                            } else {
+                                repository.getAllAlbums()
+                            }
+                            val album = albums.find {
+                                normalizeForMatch(it.name) == normalizeForMatch(albumName) &&
+                                        (artistName.isEmpty() || normalizeForMatch(it.albumArtist) == normalizeForMatch(artistName))
+                            }
+                            val albumTracks = album?.let { repository.getAlbumTracks(it) }
+                            if (!albumTracks.isNullOrEmpty()) {
+                                queueTracks.addAll(albumTracks)
+                            }
+                        } catch (e: Exception) {
+                            log.w(e) { "onSetMediaItems: album lookup failed for $mediaId" }
+                        }
+                    } else {
+                        val resolvedTracks = mediaItems.mapNotNull { item ->
+                            getTrackByKey(item.mediaId)
+                        }
+
+                        if (resolvedTracks.isNotEmpty()) {
+                            val selectedTrack = resolvedTracks.first()
+                            try {
+                                val albums = if (selectedTrack.albumArtist.isNotEmpty()) {
+                                    repository.getAlbumsByArtist(selectedTrack.albumArtist)
+                                } else {
+                                    repository.getAllAlbums()
+                                }
+                                val album = albums.find {
+                                    normalizeForMatch(it.name) == normalizeForMatch(selectedTrack.album) &&
+                                            normalizeForMatch(it.albumArtist) == normalizeForMatch(selectedTrack.albumArtist)
+                                }
+                                val albumTracks = album?.let { repository.getAlbumTracks(it) }
+                                if (!albumTracks.isNullOrEmpty()) {
+                                    queueTracks.addAll(albumTracks)
+                                    val idx = albumTracks.indexOfFirst { it.fileKey == selectedTrack.fileKey }
+                                    if (idx >= 0) {
+                                        resolvedStartIndex = idx
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                log.w(e) { "onSetMediaItems: track→album lookup failed" }
+                            }
+
+                            if (queueTracks.isEmpty()) {
+                                queueTracks.addAll(resolvedTracks)
+                                resolvedStartIndex = 0
+                            }
+                        }
+                    }
+
+                    if (queueTracks.isNotEmpty()) {
+                        val itemsToPlay = mapTracksToMediaItems(queueTracks)
+
+                        // Persist the resolved queue state to the database directly
+                        withContext(Dispatchers.Main) {
+                            val hasConnection = !facade.currentServerHost.isNullOrEmpty()
+                            val targetZone = if (hasConnection) Zone.Local else Zone.Offline
+                            val db = this@PlaybackService.appContainer.database
+                            serviceScope.launch(Dispatchers.IO) {
+                                try {
+                                    db.localQueueTrackDao().clearQueueForZone(targetZone.id)
+                                    val entities = queueTracks.mapIndexed { idx, track ->
+                                        LocalQueueTrackEntity(
+                                            zoneId = targetZone.id,
+                                            fileKey = track.fileKey,
+                                            trackJson = json.encodeToString(track),
+                                            position = idx
+                                        )
+                                    }
+                                    db.localQueueTrackDao().insertAll(entities)
+                                    db.localQueueStateDao().insertOrUpdate(
+                                        LocalQueueStateEntity(
+                                            zoneId = targetZone.id,
+                                            currentIndex = resolvedStartIndex
+                                        )
+                                    )
+                                } catch (e: Exception) {
+                                    log.w(e) { "onSetMediaItems: failed to persist queue state" }
+                                }
+                            }
+                        }
+
+                        future.set(
+                            MediaSession.MediaItemsWithStartPosition(
+                                itemsToPlay,
+                                resolvedStartIndex,
+                                startPositionMs
+                            )
+                        )
+                    } else {
+                        val fallbackItems = mediaItems.map { item ->
+                            val track = getTrackByKey(item.mediaId)
+                            if (track != null) mapTrackToMediaItem(track) else item
+                        }
+                        future.set(
+                            MediaSession.MediaItemsWithStartPosition(
+                                fallbackItems,
+                                startIndex,
+                                startPositionMs
+                            )
+                        )
+                    }
+                } catch (e: Exception) {
+                    log.e(e) { "media library callback failed" }
+                    future.setException(e)
+                }
+            }
+            return future
+        }
+
+        override fun onAddMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: List<MediaItem>
+        ): ListenableFuture<List<MediaItem>> {
             val future = SettableFuture.create<List<MediaItem>>()
             serviceScope.launch(Dispatchers.IO) {
                 try {
-                    val db = this@PlaybackService.appContainer.database
-                    val itemsToPlay = mediaItems.mapNotNull { item ->
-                        val track = db.downloadedTrackDao().getTrack(item.mediaId)
-                        track?.let { mapTrackToMediaItem(it) }
+                    val resolvedItems = mediaItems.map { item ->
+                        val track = getTrackByKey(item.mediaId)
+                        if (track != null) mapTrackToMediaItem(track) else item
                     }
-                    if (itemsToPlay.isNotEmpty()) {
-                        withContext(Dispatchers.Main) {
-                            val facade = this@PlaybackService.appContainer.facade
-                            facade.setZone(Zone.AndroidAuto)
-                            val trackInfos = itemsToPlay.mapNotNull { item ->
-                                val track = db.downloadedTrackDao().getTrack(item.mediaId)
-                                track?.toTrack()
-                            }
-                            facade.setQueue(trackInfos, 0)
-                            facade.play()
-                        }
-                        future.set(itemsToPlay)
-                    } else {
-                        future.set(mediaItems)
-                    }
+                    future.set(resolvedItems)
                 } catch (e: Exception) {
+                    log.w(e) { "onAddMediaItems: resolve failed, passing through" }
                     future.set(mediaItems)
                 }
             }
             return future
         }
-    }
-
-    private fun mapTrackToMediaItem(track: com.jrr.jrrkmp_native_ui.data.db.entity.DownloadedTrackEntity): MediaItem {
-        val artUri = Uri.parse("content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_${track.fileKey}.jpg")
-        val fileUri = Uri.fromFile(File(track.filePath))
-        return MediaItem.Builder()
-            .setMediaId(track.fileKey)
-            .setUri(fileUri)
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle(track.name)
-                    .setArtist(track.artist)
-                    .setAlbumTitle(track.album)
-                    .setArtworkUri(artUri)
-                    .setIsPlayable(true)
-                    .setIsBrowsable(false)
-                    .build()
-            )
-            .build()
     }
 }

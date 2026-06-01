@@ -15,6 +15,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +37,13 @@ class ServerRepository(
     private val httpClient: HttpClient,
 ) {
     private val serverDao = database.savedServerDao()
+
+    // Serialises connection recovery so the facade (init) and the shell
+    // view-model don't both authenticate/reconnect on startup. Once a recovery
+    // succeeds, concurrent/subsequent callers short-circuit (the facade is
+    // already connected, so re-running onRecovered is unnecessary).
+    private val recoveryMutex = Mutex()
+    private var recoverySucceeded = false
 
     private val _activeServer = MutableStateFlow<McwsServerData?>(null)
     val activeServer: StateFlow<McwsServerData?> = _activeServer.asStateFlow()
@@ -147,5 +156,83 @@ class ServerRepository(
     suspend fun deleteServer(server: SavedServerEntity) = withContext(Dispatchers.IO) {
         log.i { "deleteServer(host=${server.host})" }
         serverDao.delete(server)
+    }
+
+    suspend fun recoverActiveServer(
+        onRecovered: suspend (host: String, port: Int, useSsl: Boolean, sslPort: Int, token: String?) -> Unit
+    ): Boolean = withContext(Dispatchers.IO) {
+        recoveryMutex.withLock {
+            // Already recovered this process (e.g. the facade beat the shell to
+            // it): the connection is live, so don't re-authenticate.
+            if (recoverySucceeded) {
+                log.d { "recoverActiveServer: already recovered, skipping" }
+                return@withContext true
+            }
+            doRecoverActiveServer(onRecovered).also { recoverySucceeded = it }
+        }
+    }
+
+    private suspend fun doRecoverActiveServer(
+        onRecovered: suspend (host: String, port: Int, useSsl: Boolean, sslPort: Int, token: String?) -> Unit
+    ): Boolean {
+        return try {
+            val lastServer = getLastUsedServer() ?: return false
+            log.i { "Attempting background server connection recovery to: ${lastServer.host}" }
+
+            // Immediately notify caller using the saved token to allow instant browse queries
+            onRecovered(lastServer.host, lastServer.port, lastServer.useSsl, lastServer.sslPort, lastServer.authToken)
+
+            // Asynchronously verify token validity or re-authenticate if expired
+            val token = lastServer.authToken
+            val checkedFriendlyName = if (token != null) {
+                checkAlive(
+                    lastServer.host,
+                    lastServer.port,
+                    lastServer.useSsl,
+                    lastServer.sslPort,
+                    token
+                )
+            } else null
+
+            if (checkedFriendlyName == null) {
+                log.i { "Saved server authentication token invalid/expired. Re-authenticating..." }
+                val newToken = authenticate(
+                    lastServer.host,
+                    lastServer.port,
+                    lastServer.useSsl,
+                    lastServer.sslPort,
+                    lastServer.username,
+                    lastServer.passwordKey
+                )
+                if (newToken != null) {
+                    val finalFriendlyName = checkAlive(
+                        lastServer.host,
+                        lastServer.port,
+                        lastServer.useSsl,
+                        lastServer.sslPort,
+                        newToken
+                    ) ?: lastServer.friendlyName ?: "JRiver Server"
+
+                    val updatedServer = lastServer.copy(
+                        friendlyName = finalFriendlyName,
+                        lastUsedAt = io.ktor.util.date.getTimeMillis(),
+                        authToken = newToken
+                    )
+                    saveServer(updatedServer)
+                    log.i { "Re-authentication successful. Recovered server: $finalFriendlyName" }
+                    onRecovered(lastServer.host, lastServer.port, lastServer.useSsl, lastServer.sslPort, newToken)
+                    true
+                } else {
+                    log.w { "Re-authentication failed for recovered server" }
+                    false
+                }
+            } else {
+                log.i { "Saved token is valid. Recovered server: $checkedFriendlyName" }
+                true
+            }
+        } catch (e: Exception) {
+            log.e(e) { "Server connection recovery failed" }
+            false
+        }
     }
 }

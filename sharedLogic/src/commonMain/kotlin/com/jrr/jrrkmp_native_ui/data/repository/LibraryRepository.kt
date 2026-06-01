@@ -344,21 +344,30 @@ class LibraryRepository(
         val offline = isOfflineProvider.isOffline()
         log.d { "getArtists() offline=$offline" }
         if (offline) {
-            val artistsSet = mutableSetOf<String>()
-            val db = database ?: return@withContext emptyList()
-            db.downloadedTrackDao().getAllTracks().forEach {
-                val artist = it.artist.trim()
-                if (artist.isNotEmpty()) {
-                    artistsSet.add(artist)
-                }
-            }
-            return@withContext compilationsFirst(
-                artistsSet.sortedWith(compareBy { it.lowercase() }),
-            ).also { log.d { "getArtists offline → ${it.size} from cache" } }
+            return@withContext getOfflineArtists()
         }
-        val mcwsQuery =
-            "[Media Type]=Audio ~limit=-1,1,[Album Artist (auto)] ~sort=[Album Artist (auto)]"
-        compilationsFirst(mcwsClient.searchTracks(mcwsQuery).map { track -> track.albumArtist })
+        try {
+            val mcwsQuery =
+                "[Media Type]=Audio ~limit=-1,1,[Album Artist (auto)] ~sort=[Album Artist (auto)]"
+            compilationsFirst(mcwsClient.searchTracks(mcwsQuery).map { track -> track.albumArtist })
+        } catch (e: Exception) {
+            log.w(e) { "getArtists online search failed, falling back to offline" }
+            getOfflineArtists()
+        }
+    }
+
+    private suspend fun getOfflineArtists(): List<String> {
+        val artistsSet = mutableSetOf<String>()
+        val db = database ?: return emptyList()
+        db.downloadedTrackDao().getAllTracks().forEach {
+            val artist = it.artist.trim()
+            if (artist.isNotEmpty()) {
+                artistsSet.add(artist)
+            }
+        }
+        return compilationsFirst(
+            artistsSet.sortedWith(compareBy { it.lowercase() }),
+        ).also { log.d { "getOfflineArtists → ${it.size} from cache" } }
     }
 
     /**
@@ -381,25 +390,34 @@ class LibraryRepository(
         val offline = isOfflineProvider.isOffline()
         log.d { "getCompilationArtists() offline=$offline" }
         if (offline) {
-            val db = database ?: return@withContext emptyList()
-            return@withContext db.downloadedTrackDao().getAllTracks()
-                .asSequence()
-                .filter { it.albumArtist.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) }
+            return@withContext getOfflineCompilationArtists()
+        }
+        try {
+            val mcwsQuery =
+                "[Album Artist (auto)]=[${esc(MULTIPLE_ARTISTS_SENTINEL)}] " +
+                        "~limit=-1,1,[Artist] ~sort=[Artist]"
+            mcwsClient.searchTracks(mcwsQuery)
                 .map { it.artist.trim() }
                 .filter { it.isNotEmpty() }
                 .distinct()
-                .sortedWith(compareBy { it.lowercase() })
-                .toList()
-                .also { log.d { "getCompilationArtists offline → ${it.size}" } }
+                .also { log.d { "getCompilationArtists → ${it.size}" } }
+        } catch (e: Exception) {
+            log.w(e) { "getCompilationArtists online search failed, falling back to offline" }
+            getOfflineCompilationArtists()
         }
-        val mcwsQuery =
-            "[Album Artist (auto)]=[${esc(MULTIPLE_ARTISTS_SENTINEL)}] " +
-                "~limit=-1,1,[Artist] ~sort=[Artist]"
-        mcwsClient.searchTracks(mcwsQuery)
+    }
+
+    private suspend fun getOfflineCompilationArtists(): List<String> {
+        val db = database ?: return emptyList()
+        return db.downloadedTrackDao().getAllTracks()
+            .asSequence()
+            .filter { it.albumArtist.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) }
             .map { it.artist.trim() }
             .filter { it.isNotEmpty() }
             .distinct()
-            .also { log.d { "getCompilationArtists → ${it.size}" } }
+            .sortedWith(compareBy { it.lowercase() })
+            .toList()
+            .also { log.d { "getOfflineCompilationArtists → ${it.size}" } }
     }
 
     /**
@@ -412,86 +430,103 @@ class LibraryRepository(
             val offline = isOfflineProvider.isOffline()
             log.d { "getCompilationAlbumsByArtist($artistName) offline=$offline" }
             if (offline) {
-                val db = database ?: return@withContext emptyList()
-                val matchingFolders = db.downloadedTrackDao().getAllTracks()
-                    .asSequence()
-                    .filter { it.albumArtist.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) }
-                    .filter { it.artist.equals(artistName, ignoreCase = true) }
-                    .map { Album(it.toTrack()) }
-                    .toList()
-                return@withContext groupAlbumsByGroupId(matchingFolders)
-                    .sortedBy { it.name.lowercase() }
-                    .also { log.d { "getCompilationAlbumsByArtist offline → ${it.size}" } }
+                return@withContext getOfflineCompilationAlbumsByArtist(artistName)
             }
-            val mcwsQuery =
-                "[Album Artist (auto)]=[${esc(MULTIPLE_ARTISTS_SENTINEL)}] " +
-                    "[Artist]=[${esc(artistName)}] " +
-                    "~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
-            val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
-            groupAlbumsByGroupId(raw)
-                .sortedBy { it.name.lowercase() }
-                .also { log.d { "getCompilationAlbumsByArtist → ${it.size}" } }
+            try {
+                val mcwsQuery =
+                    "[Album Artist (auto)]=[${esc(MULTIPLE_ARTISTS_SENTINEL)}] " +
+                            "[Artist]=[${esc(artistName)}] " +
+                            "~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
+                val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
+                groupAlbumsByGroupId(raw)
+                    .sortedBy { it.name.lowercase() }
+                    .also { log.d { "getCompilationAlbumsByArtist → ${it.size}" } }
+            } catch (e: Exception) {
+                log.w(e) { "getCompilationAlbumsByArtist online search failed for $artistName, falling back to offline" }
+                getOfflineCompilationAlbumsByArtist(artistName)
+            }
         }
+
+    private suspend fun getOfflineCompilationAlbumsByArtist(artistName: String): List<Album> {
+        val db = database ?: return emptyList()
+        val matchingFolders = db.downloadedTrackDao().getAllTracks()
+            .asSequence()
+            .filter { it.albumArtist.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) }
+            .filter { it.artist.equals(artistName, ignoreCase = true) }
+            .map { Album(it.toTrack()) }
+            .toList()
+        return groupAlbumsByGroupId(matchingFolders)
+            .sortedBy { it.name.lowercase() }
+            .also { log.d { "getOfflineCompilationAlbumsByArtist → ${it.size}" } }
+    }
 
     suspend fun getAlbumsByArtist(artistName: String): List<Album> = withContext(Dispatchers.IO) {
         val offline = isOfflineProvider.isOffline()
         log.d { "getAlbumsByArtist($artistName) offline=$offline" }
         if (offline) {
-            val db = database ?: return@withContext emptyList()
-            val allTracks = db.downloadedTrackDao().getAllTracks()
-            val albums = allTracks
-                .asSequence()
-                .filter { it.artist.equals(artistName, ignoreCase = true) }
-                .filter { it.album.trim().isNotEmpty() }
-                .map { Album(it.toTrack()) }
-                .toList()
-            val grouped = groupAlbumsByGroupId(albums).sortedBy { it.name.lowercase() }
+            return@withContext getOfflineAlbumsByArtist(artistName)
+        }
+        try {
+            val mcwsQuery =
+                "[Album Artist (auto)]=[${esc(artistName)}] ~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
+            val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
+            val grouped = groupAlbumsByGroupId(raw).sortedBy { it.name.lowercase() }
+            // A multi-disc box set whose discs carry mixed album artists otherwise
+            // surfaces under each disc's artist (e.g. CD2 tagged "Aerosmith" next to
+            // CD1/CD3 resolved to "(Multiple Artists)"). When browsing a specific
+            // artist, drop such various-artists sets so they appear only under the
+            // multiple-artists sentinel. One prefix-match query per folded set —
+            // `[Filename (path)]="<parent>"` spans every disc subfolder.
             val filtered = if (artistName.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true)) {
                 grouped
             } else {
-                grouped.filterNot { album ->
-                    album.totalDiscs > 1 && isVariousArtistsSet(
-                        allTracks.asSequence()
-                            .filter {
-                                it.folderPath.startsWith(album.folderPath, ignoreCase = true)
-                            }
-                            .map { it.albumArtist }
-                            .toSet()
-                    )
+                coroutineScope {
+                    val variousFlags = grouped.map { album ->
+                        async {
+                            album.totalDiscs > 1 &&
+                                    isVariousArtistsSet(albumArtistsUnderFolder(album.folderPath))
+                        }
+                    }
+                    grouped.filterIndexed { index, _ -> !variousFlags[index].await() }
                 }
             }
-            return@withContext filtered
-                .also { log.d { "getAlbumsByArtist offline → ${it.size} from cache" } }
+            filtered.also {
+                log.d {
+                    "getAlbumsByArtist → ${it.size} groups (from ${raw.size} disc-level " +
+                            "entries, ${grouped.size - it.size} various-artist sets hidden)"
+                }
+            }
+        } catch (e: Exception) {
+            log.w(e) { "getAlbumsByArtist online search failed for $artistName, falling back to offline" }
+            getOfflineAlbumsByArtist(artistName)
         }
-        val mcwsQuery =
-            "[Album Artist (auto)]=[${esc(artistName)}] ~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
-        val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
-        val grouped = groupAlbumsByGroupId(raw).sortedBy { it.name.lowercase() }
-        // A multi-disc box set whose discs carry mixed album artists otherwise
-        // surfaces under each disc's artist (e.g. CD2 tagged "Aerosmith" next to
-        // CD1/CD3 resolved to "(Multiple Artists)"). When browsing a specific
-        // artist, drop such various-artists sets so they appear only under the
-        // multiple-artists sentinel. One prefix-match query per folded set —
-        // `[Filename (path)]="<parent>"` spans every disc subfolder.
+    }
+
+    private suspend fun getOfflineAlbumsByArtist(artistName: String): List<Album> {
+        val db = database ?: return emptyList()
+        val allTracks = db.downloadedTrackDao().getAllTracks()
+        val albums = allTracks
+            .asSequence()
+            .filter { it.artist.equals(artistName, ignoreCase = true) }
+            .filter { it.album.trim().isNotEmpty() }
+            .map { Album(it.toTrack()) }
+            .toList()
+        val grouped = groupAlbumsByGroupId(albums).sortedBy { it.name.lowercase() }
         val filtered = if (artistName.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true)) {
             grouped
         } else {
-            coroutineScope {
-                val variousFlags = grouped.map { album ->
-                    async {
-                        album.totalDiscs > 1 &&
-                            isVariousArtistsSet(albumArtistsUnderFolder(album.folderPath))
-                    }
-                }
-                grouped.filterIndexed { index, _ -> !variousFlags[index].await() }
+            grouped.filterNot { album ->
+                album.totalDiscs > 1 && isVariousArtistsSet(
+                    allTracks.asSequence()
+                        .filter {
+                            it.folderPath.startsWith(album.folderPath, ignoreCase = true)
+                        }
+                        .map { it.albumArtist }
+                        .toSet()
+                )
             }
         }
-        filtered.also {
-            log.d {
-                "getAlbumsByArtist → ${it.size} groups (from ${raw.size} disc-level " +
-                    "entries, ${grouped.size - it.size} various-artist sets hidden)"
-            }
-        }
+        return filtered.also { log.d { "getOfflineAlbumsByArtist → ${it.size} from cache" } }
     }
 
     /**
@@ -505,6 +540,38 @@ class LibraryRepository(
             "[Media Type]=Audio [Filename (path)]=\"${esc(folderPath)}\" " +
                 "~limit=-1,1,[Album Artist (auto)]"
         return mcwsClient.searchTracks(query).map { it.albumArtist }.toSet()
+    }
+
+    suspend fun getAllAlbums(): List<Album> = withContext(Dispatchers.IO) {
+        val offline = isOfflineProvider.isOffline()
+        log.d { "getAllAlbums() offline=$offline" }
+        if (offline) {
+            return@withContext getOfflineAllAlbums()
+        }
+        try {
+            // ~limit groups by the first field, so this caps distinct albums
+            // (one representative track each), not total tracks — 2000 covers
+            // large libraries for the car/full browse tree.
+            val mcwsQuery = "[Media Type]=Audio ~limit=2000,1,[Album],[Filename (path)] ~sort=[Album]"
+            val raw = mcwsClient.searchTracks(mcwsQuery).map { Album(it) }
+            groupAlbumsByGroupId(raw)
+                .sortedBy { it.name.lowercase() }
+        } catch (e: Exception) {
+            log.w(e) { "getAllAlbums online search failed, falling back to offline" }
+            getOfflineAllAlbums()
+        }
+    }
+
+    private suspend fun getOfflineAllAlbums(): List<Album> {
+        val db = database ?: return emptyList()
+        val allTracks = db.downloadedTrackDao().getAllTracks()
+        val albums = allTracks
+            .asSequence()
+            .filter { it.album.trim().isNotEmpty() }
+            .map { Album(it.toTrack()) }
+            .toList()
+        return groupAlbumsByGroupId(albums)
+            .sortedBy { it.name.lowercase() }
     }
 
     suspend fun getAlbumTracks(album: Album): List<Track> = withContext(Dispatchers.IO) {
@@ -521,52 +588,61 @@ class LibraryRepository(
                 "path=${album.folderPath}"
         }
         if (offline) {
-            val db = database ?: return@withContext emptyList()
-            return@withContext db.downloadedTrackDao().getAllTracks()
-                .filter { entity ->
-                    val sameAlbum = if (isGrouped) {
-                        // Per-disc rows carry the disc-suffixed name like
-                        // "100 Hits (Disc 1)"; normalise both sides.
-                        normalizeAlbumName(entity.album)
-                            .equals(album.name, ignoreCase = true)
-                    } else {
-                        entity.album.equals(album.name, ignoreCase = true)
-                    }
-                    val folderMatches = if (isGrouped) {
-                        // album.folderPath has been rewritten to the parent —
-                        // prefix-match every disc subfolder.
-                        entity.folderPath.startsWith(album.folderPath, ignoreCase = true)
-                    } else {
-                        entity.folderPath.equals(album.folderPath, ignoreCase = true)
-                    }
-                    sameAlbum && folderMatches
+            return@withContext getOfflineAlbumTracks(album, isGrouped)
+        }
+        try {
+            // Online: JRiver's `[Filename (path)]="<path>"` form is a prefix
+            // match — perfect for the grouped case where folderPath is the
+            // parent. For grouped multi-disc we skip the `[Album]=` filter
+            // (per-disc names don't match the normalised name) and rely on
+            // the parent-folder prefix + [Media Type]=Audio to scope the
+            // result — sibling albums would live under a different parent.
+            val mcwsQuery = if (isGrouped && album.folderPath.isNotEmpty()) {
+                "[Media Type]=Audio [Filename (path)]=\"${esc(album.folderPath)}\" " +
+                        "~sort=[Disc #],[Track #]"
+            } else {
+                val pathFilter = if (album.folderPath.isNotEmpty()) {
+                    "[Filename (path)]=\"${esc(album.folderPath)}\""
+                } else {
+                    ""
                 }
-                .map { it.toTrack().withFolderDiscNumber() }
+                "[Album]=[${esc(album.name)}] $pathFilter ~sort=[Disc #],[Track #]"
+            }
+            mcwsClient.searchTracks(mcwsQuery)
+                .map { it.withFolderDiscNumber() }
                 .let { if (isGrouped) assignDiscsBySubfolder(it) else it }
                 .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
-                .also { log.d { "getAlbumTracks offline → ${it.size} from cache" } }
+        } catch (e: Exception) {
+            log.w(e) { "getAlbumTracks online search failed for ${album.name}, falling back to offline" }
+            getOfflineAlbumTracks(album, isGrouped)
         }
-        // Online: JRiver's `[Filename (path)]="<path>"` form is a prefix
-        // match — perfect for the grouped case where folderPath is the
-        // parent. For grouped multi-disc we skip the `[Album]=` filter
-        // (per-disc names don't match the normalised name) and rely on
-        // the parent-folder prefix + [Media Type]=Audio to scope the
-        // result — sibling albums would live under a different parent.
-        val mcwsQuery = if (isGrouped && album.folderPath.isNotEmpty()) {
-            "[Media Type]=Audio [Filename (path)]=\"${esc(album.folderPath)}\" " +
-                "~sort=[Disc #],[Track #]"
-        } else {
-            val pathFilter = if (album.folderPath.isNotEmpty()) {
-                "[Filename (path)]=\"${esc(album.folderPath)}\""
-            } else {
-                ""
+    }
+
+    private suspend fun getOfflineAlbumTracks(album: Album, isGrouped: Boolean): List<Track> {
+        val db = database ?: return emptyList()
+        return db.downloadedTrackDao().getAllTracks()
+            .filter { entity ->
+                val sameAlbum = if (isGrouped) {
+                    // Per-disc rows carry the disc-suffixed name like
+                    // "100 Hits (Disc 1)"; normalise both sides.
+                    normalizeAlbumName(entity.album)
+                        .equals(album.name, ignoreCase = true)
+                } else {
+                    entity.album.equals(album.name, ignoreCase = true)
+                }
+                val folderMatches = if (isGrouped) {
+                    // album.folderPath has been rewritten to the parent —
+                    // prefix-match every disc subfolder.
+                    entity.folderPath.startsWith(album.folderPath, ignoreCase = true)
+                } else {
+                    entity.folderPath.equals(album.folderPath, ignoreCase = true)
+                }
+                sameAlbum && folderMatches
             }
-            "[Album]=[${esc(album.name)}] $pathFilter ~sort=[Disc #],[Track #]"
-        }
-        mcwsClient.searchTracks(mcwsQuery)
-            .map { it.withFolderDiscNumber() }
+            .map { it.toTrack().withFolderDiscNumber() }
             .let { if (isGrouped) assignDiscsBySubfolder(it) else it }
             .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
+            .also { log.d { "getOfflineAlbumTracks → ${it.size} from cache" } }
     }
 
     suspend fun getRandomAlbums(limit: Int = 10): List<Album> = withContext(Dispatchers.IO) {

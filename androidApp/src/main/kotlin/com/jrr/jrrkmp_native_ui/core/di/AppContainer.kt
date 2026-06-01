@@ -94,7 +94,7 @@ class AppContainer(context: Context) {
         LibraryRepository(
             database = database,
             mcwsClient = mcwsClient,
-            isOfflineProvider = { facade.activeZone.value == Zone.Offline },
+            isOfflineProvider = { facade.activeZone.value == Zone.Offline || facade.currentServerHost.isNullOrEmpty() },
         ).apply {
             onDownloadQueued = { track, jobId ->
                 val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.jrr.jrrkmp_native_ui.data.api.DownloadWorker>()

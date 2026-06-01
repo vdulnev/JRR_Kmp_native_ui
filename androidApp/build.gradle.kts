@@ -42,6 +42,9 @@ dependencies {
 
     // Room Multiplatform Runtime
     implementation(libs.androidx.room.runtime)
+
+    // Serialization
+    implementation(libs.kotlinx.serialization.json)
 }
 
 android {

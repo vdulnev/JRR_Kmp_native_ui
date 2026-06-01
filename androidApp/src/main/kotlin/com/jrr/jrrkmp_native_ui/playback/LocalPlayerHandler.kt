@@ -2,6 +2,8 @@ package com.jrr.jrrkmp_native_ui.playback
 
 import android.content.Context
 import android.net.Uri
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -18,8 +20,15 @@ import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 private val log = Logger.withTag("playback:Local")
+private val json = Json {
+    ignoreUnknownKeys = true
+    coerceInputValues = true
+    isLenient = true
+}
 
 class LocalPlayerHandler(
     private val context: Context,
@@ -53,6 +62,18 @@ class LocalPlayerHandler(
     private val _queue = MutableStateFlow<List<Track>>(emptyList())
     override val queue: StateFlow<List<Track>> = _queue
 
+    private fun getTrackFromMediaItem(mediaItem: MediaItem?): Track? {
+        if (mediaItem == null) return null
+        return (mediaItem.localConfiguration?.tag as? Track)
+            ?: mediaItem.mediaMetadata.extras?.getString("track_json")?.let {
+                try {
+                    json.decodeFromString<Track>(it)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+    }
+
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
             log.v { "ExoPlayer onPlaybackStateChanged(state=$state)" }
@@ -81,8 +102,31 @@ class LocalPlayerHandler(
             if (index >= 0 && index < _queue.value.size) {
                 _currentTrack.value = _queue.value[index]
             } else {
+                val track = getTrackFromMediaItem(mediaItem)
+                _currentTrack.value = track
+            }
+        }
+
+        override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            log.v { "ExoPlayer onTimelineChanged(reason=$reason, windowCount=${timeline.windowCount})" }
+            val tracks = mutableListOf<Track>()
+            val window = androidx.media3.common.Timeline.Window()
+            for (i in 0 until timeline.windowCount) {
+                timeline.getWindow(i, window)
+                val track = getTrackFromMediaItem(window.mediaItem)
+                if (track != null) {
+                    tracks.add(track)
+                }
+            }
+            _queue.value = tracks
+            val index = exoPlayer?.currentMediaItemIndex ?: -1
+            _currentIndex.value = index
+            if (index in tracks.indices) {
+                _currentTrack.value = tracks[index]
+            } else {
                 _currentTrack.value = null
             }
+            updateState()
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -93,16 +137,23 @@ class LocalPlayerHandler(
     private fun ensurePlayer() {
         if (exoPlayer == null) {
             log.d { "ensurePlayer: creating ExoPlayer instance" }
-            exoPlayer = ExoPlayer.Builder(context.applicationContext).build().apply {
-                addListener(playerListener)
-                volume = this@LocalPlayerHandler._volume.value
-                repeatMode = when (this@LocalPlayerHandler._repeatMode.value) {
-                    RepeatMode.OFF -> Player.REPEAT_MODE_OFF
-                    RepeatMode.TRACK -> Player.REPEAT_MODE_ONE
-                    RepeatMode.PLAYLIST -> Player.REPEAT_MODE_ALL
+            val audioAttributes = AudioAttributes.Builder()
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .setUsage(C.USAGE_MEDIA)
+                .build()
+            exoPlayer = ExoPlayer.Builder(context.applicationContext)
+                .setAudioAttributes(audioAttributes, true)
+                .setHandleAudioBecomingNoisy(true)
+                .build().apply {
+                    addListener(playerListener)
+                    volume = this@LocalPlayerHandler._volume.value
+                    repeatMode = when (this@LocalPlayerHandler._repeatMode.value) {
+                        RepeatMode.OFF -> Player.REPEAT_MODE_OFF
+                        RepeatMode.TRACK -> Player.REPEAT_MODE_ONE
+                        RepeatMode.PLAYLIST -> Player.REPEAT_MODE_ALL
+                    }
+                    shuffleModeEnabled = this@LocalPlayerHandler._shuffleMode.value == ShuffleMode.ON
                 }
-                shuffleModeEnabled = this@LocalPlayerHandler._shuffleMode.value == ShuffleMode.ON
-            }
         }
     }
 
@@ -121,6 +172,10 @@ class LocalPlayerHandler(
         ensurePlayer()
         return exoPlayer!!
     }
+
+    /** The user-configured streaming quality, so other producers of remote
+     *  media items (e.g. the Android Auto service) honour the same setting. */
+    fun currentAudioQuality(): LocalAudioQuality = localAudioQualityProvider()
 
     private fun createMediaItem(track: Track): MediaItem {
         val localPath = checkLocalFileProvider(track.fileKey)
@@ -152,15 +207,21 @@ class LocalPlayerHandler(
             Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&FileType=Key&Playback=1&${quality.mcwsParams}&Token=${token}")
         }
 
+        val extras = android.os.Bundle().apply {
+            putString("track_json", json.encodeToString(track))
+        }
+
         return MediaItem.Builder()
             .setUri(uri)
             .setMediaId(track.fileKey)
+            .setTag(track)
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(track.name)
                     .setArtist(track.artist)
                     .setAlbumTitle(track.album)
                     .setArtworkUri(Uri.parse("content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_${track.fileKey}.jpg"))
+                    .setExtras(extras)
                     .build()
             )
             .build()

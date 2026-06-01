@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import io.ktor.util.date.getTimeMillis
 
 private val log = Logger.withTag("vm:MainShell")
@@ -98,46 +100,22 @@ class MainShellViewModel(
                         )
                     }
 
-                    val token = serverRepository.authenticate(
-                        lastServer.host,
-                        lastServer.port,
-                        lastServer.useSsl,
-                        lastServer.sslPort,
-                        lastServer.username,
-                        lastServer.passwordKey
-                    )
+                    // Delegate auto-connect recovery to ServerRepository
+                    val success = serverRepository.recoverActiveServer { host, port, useSsl, sslPort, token ->
+                        withContext(Dispatchers.Main) {
+                            facade.setServerConnection(host, port, useSsl, sslPort, token)
+                        }
+                    }
 
-                    if (token != null) {
-                        log.d { "authenticated token=${token.redact()}" }
-                        val finalName = serverRepository.checkAlive(
-                            lastServer.host,
-                            lastServer.port,
-                            lastServer.useSsl,
-                            lastServer.sslPort,
-                            token
-                        ) ?: lastServer.friendlyName ?: "JRiver Server"
-
-                        val updatedServer = lastServer.copy(
-                            friendlyName = finalName,
-                            lastUsedAt = getTimeMillis(),
-                            authToken = token
-                        )
-                        serverRepository.saveServer(updatedServer)
-
-                        facade.setServerConnection(
-                            lastServer.host,
-                            lastServer.port,
-                            lastServer.useSsl,
-                            lastServer.sslPort,
-                            token
-                        )
-
+                    if (success) {
+                        val activeServer = serverRepository.getLastUsedServer()
+                        val finalName = activeServer?.friendlyName ?: lastServer.friendlyName ?: "JRiver Server"
                         log.i { "auto-connect ok → $finalName" }
                         showToast("Connected to $finalName")
                         _state.update { it.copy(activeTab = 2) }
                     } else {
-                        log.w { "auto-connect failed: authentication returned null" }
-                        showToast("Auto-connect failed: Authentication error")
+                        log.w { "auto-connect failed: authentication or connection check failed" }
+                        showToast("Auto-connect failed: Connection or authentication error")
                         _state.update { it.copy(activeTab = 1) }
                     }
                 } else {
