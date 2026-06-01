@@ -14,13 +14,20 @@ class PlaybackStateObserver: ObservableObject {
 
     private let database: JrrDatabase
     private let nowPlayingCoordinator: NowPlayingCoordinator
+    private let mcwsClient: McwsClient
 
     private var observationTasks: Set<Task<Void, Never>> = []
 
-    init(facade: AudioPlayerFacade, database: JrrDatabase, nowPlayingCoordinator: NowPlayingCoordinator) {
+    init(
+        facade: AudioPlayerFacade,
+        database: JrrDatabase,
+        nowPlayingCoordinator: NowPlayingCoordinator,
+        mcwsClient: McwsClient,
+    ) {
         log.d("init")
         self.database = database
         self.nowPlayingCoordinator = nowPlayingCoordinator
+        self.mcwsClient = mcwsClient
 
         observationTasks.insert(Task { @MainActor [weak self] in
             for await zone in facade.activeZone {
@@ -37,6 +44,9 @@ class PlaybackStateObserver: ObservableObject {
                 if let status {
                     let isActiveZoneLocalOrOffline = activeZone.isLocal || activeZone.isOffline
                     if isActiveZoneLocalOrOffline {
+                        let artworkUrl = status.trackFileKey.isEmpty
+                            ? nil
+                            : mcwsClient.buildImageUrl(fileKey: status.trackFileKey)
                         self.nowPlayingCoordinator.updateNowPlaying(
                             title: status.trackName,
                             artist: status.trackArtist,
@@ -44,6 +54,7 @@ class PlaybackStateObserver: ObservableObject {
                             positionMs: status.positionMs,
                             durationMs: status.durationMs,
                             isPlaying: status.state == .playing,
+                            artworkUrl: artworkUrl,
                         )
                     }
                 }

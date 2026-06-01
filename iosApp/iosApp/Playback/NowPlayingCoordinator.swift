@@ -11,6 +11,11 @@ class NowPlayingCoordinator {
     private var prevHandler: (() -> Void)?
     private var seekHandler: ((Int64) -> Void)?
 
+    // Cache artwork by URL so per-second position updates don't re-fetch it or
+    // wipe it from the now-playing info.
+    private var lastArtworkUrl: String?
+    private var cachedArtwork: MPMediaItemArtwork?
+
     init() {
         setupRemoteCommands()
     }
@@ -92,20 +97,34 @@ class NowPlayingCoordinator {
         nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = Double(positionMs) / 1000.0
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
 
-        if let artworkUrl, let url = URL(string: artworkUrl) {
-            fetchArtwork(url: url) { image in
-                if let image {
-                    let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in
-                        image
-                    }
-                    var updatedInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
-                    updatedInfo[MPMediaItemPropertyArtwork] = artwork
-                    MPNowPlayingInfoCenter.default().nowPlayingInfo = updatedInfo
-                }
-            }
+        // Keep already-loaded artwork in place across position-only updates.
+        if artworkUrl == lastArtworkUrl, let cachedArtwork {
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = cachedArtwork
         }
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        // CarPlay / lock screen drive the play-pause button off `playbackState`,
+        // not just the rate — set it explicitly so the control reflects reality.
+        MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
+
+        // Fetch artwork only when the track (URL) actually changes.
+        if let artworkUrl, artworkUrl != lastArtworkUrl, let url = URL(string: artworkUrl) {
+            log.d("now-playing: fetching artwork (isPlaying=\(isPlaying))")
+            lastArtworkUrl = artworkUrl
+            cachedArtwork = nil
+            fetchArtwork(url: url) { [weak self] image in
+                guard let self, let image else {
+                    log.w("now-playing: artwork fetch returned no image")
+                    return
+                }
+                log.d("now-playing: artwork set (\(Int(image.size.width))x\(Int(image.size.height)))")
+                let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                cachedArtwork = artwork
+                var updatedInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
+                updatedInfo[MPMediaItemPropertyArtwork] = artwork
+                MPNowPlayingInfoCenter.default().nowPlayingInfo = updatedInfo
+            }
+        }
     }
 
     private func fetchArtwork(url: URL, completion: @escaping (UIImage?) -> Void) {

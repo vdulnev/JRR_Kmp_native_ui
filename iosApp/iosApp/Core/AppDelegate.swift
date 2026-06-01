@@ -1,5 +1,8 @@
+import CarPlay
 import SharedLogic
 import UIKit
+
+private let log = SwiftLog("ui:iOS:AppDelegate")
 
 /// Holds the app-scoped [AppContainer]. SwiftUI surfaces reach it via
 /// `@Environment(AppContainer.self)`; non-SwiftUI surfaces (CarPlay, scene
@@ -21,5 +24,26 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
         container = AppContainer()
         return true
+    }
+
+    /// Route each scene role to its delegate. Because the app runs a UIKit
+    /// lifecycle (`main.swift`), this is always consulted — the SwiftUI `App`
+    /// lifecycle previously swallowed the CarPlay role and crashed on connect.
+    func application(
+        _: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options _: UIScene.ConnectionOptions,
+    ) -> UISceneConfiguration {
+        log.d("configurationForConnecting role=\(connectingSceneSession.role.rawValue)")
+        let config = UISceneConfiguration(
+            name: nil,
+            sessionRole: connectingSceneSession.role,
+        )
+        if connectingSceneSession.role == .carTemplateApplication {
+            config.delegateClass = CarPlaySceneDelegate.self
+        } else {
+            config.delegateClass = SceneDelegate.self
+        }
+        return config
     }
 }
