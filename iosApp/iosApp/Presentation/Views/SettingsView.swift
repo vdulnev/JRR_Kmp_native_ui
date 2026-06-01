@@ -235,17 +235,20 @@ struct SettingsView: View {
                         ForEach(LocalAudioQuality.allCases, id: \.self) { quality in
                             let selected = observable.localAudioQuality == quality
                             Button(action: { observable.setLocalAudioQuality(quality) }) {
-                                Text(quality.label)
-                                    .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
-                                    .foregroundColor(selected ? .bg0 : .textPrimary)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 38)
-                                    .background(selected ? Color.accentColor : Color.clear)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(selected ? Color.accentColor : Color.line2, lineWidth: 1),
-                                    )
+                                HStack(spacing: 10) {
+                                    Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(selected ? .accentColor : .textTertiary)
+                                    Text(quality.label)
+                                        .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                                        .foregroundColor(selected ? .accentColor : .textPrimary)
+                                    Spacer()
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 38)
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.vertical, 8)
