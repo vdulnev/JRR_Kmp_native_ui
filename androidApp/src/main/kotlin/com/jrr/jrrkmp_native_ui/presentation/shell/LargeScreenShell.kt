@@ -15,6 +15,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -99,6 +104,10 @@ fun LargeScreenShell(
         modifier = Modifier
             .fillMaxSize()
             .background(AppColors.bg1)
+            // Keep content clear of the status bar / camera cutout so the top
+            // bars (Now Playing queue button, album-detail back button) are
+            // visible and tappable. bg1 still fills behind the bars.
+            .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))
             .focusRequester(focusRequester)
             .focusable()
             .onKeyEvent { event ->
