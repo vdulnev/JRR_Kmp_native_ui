@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import co.touchlab.kermit.Severity
@@ -268,7 +269,7 @@ fun SettingsScreen(
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
                                         text = quality.label,
-                                        style = AppTypography.chipMono,
+                                        style = AppTypography.chipMono.copy(fontSize = 15.sp, letterSpacing = 1.sp),
                                         color = if (selected) AppColors.accent else AppColors.text
                                     )
                                 }
