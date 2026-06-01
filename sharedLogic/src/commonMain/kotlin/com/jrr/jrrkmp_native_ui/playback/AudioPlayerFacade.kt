@@ -216,6 +216,17 @@ class AudioPlayerFacade(
             log.i { "no last active zone, defaulting to Offline" }
             setZone(Zone.Offline)
         }
+
+        // Asynchronously restore last active server connection if it is not already set
+        if (serverRepository != null && currentServerHost.isNullOrEmpty()) {
+            coroutineScope.launch(ioDispatcher) {
+                serverRepository.recoverActiveServer { host, port, useSsl, sslPort, token ->
+                    withContext(mainDispatcher) {
+                        setServerConnection(host, port, useSsl, sslPort, token)
+                    }
+                }
+            }
+        }
     }
 
     fun setServerConnection(

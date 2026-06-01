@@ -204,6 +204,6 @@ private final class FacadeOfflineModeProvider: OfflineModeProvider {
     }
 
     func isOffline() -> Bool {
-        facade.activeZone.value == Zone.offline
+        facade.activeZone.value == Zone.offline || facade.currentServerHost?.isEmpty ?? true
     }
 }
