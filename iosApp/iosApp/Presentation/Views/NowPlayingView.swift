@@ -23,42 +23,52 @@ class NowPlayingObservable {
     var transientError: String?
     var imageUrl: String = ""
 
-    @ObservationIgnored private var observeTask: Task<Void, Never>?
-
     init(viewModel: NowPlayingViewModel) {
-        log.d("init")
         self.viewModel = viewModel
-
+        // Cheap, synchronous seed only. NO flow subscription here: this object is
+        // created via `@State(initialValue:)`, whose argument SwiftUI evaluates on
+        // every `NowPlayingView.init` — including the throwaway re-inits triggered
+        // when an ancestor body re-runs (e.g. once per playback tick). Subscribing
+        // in `init` made each throwaway subscribe-then-cancel a Kotlin flow and log
+        // init/deinit ~1/sec. The real subscription now runs from the view's
+        // `.task` (see `observe()`), which fires once per view *identity*.
         sync(state: viewModel.state.value)
+    }
 
-        observeTask = Task { @MainActor [weak self] in
-            guard let stateFlow = self?.viewModel.state else { return }
-            for await state in stateFlow {
-                self?.sync(state: state)
-            }
+    /// Drives the live state subscription. Call from the owning view's `.task`
+    /// so it starts once per view identity and is cancelled automatically when
+    /// the view disappears — never from a discarded `@State(initialValue:)` copy.
+    func observe() async {
+        log.d("observe: start")
+        defer { log.d("observe: end") }
+        for await state in viewModel.state {
+            sync(state: state)
         }
     }
 
-    deinit {
-        log.d("deinit")
-        observeTask?.cancel()
-    }
-
     private func sync(state: NowPlayingViewState) {
-        trackTitle = state.trackTitle
-        artistName = state.artistName
-        albumTitle = state.albumTitle
-        isPlaying = state.isPlaying
-        positionMs = state.positionMs
-        durationMs = state.durationMs
-        volume = state.volume
-        isMuted = state.isMuted
-        shuffleMode = state.shuffleMode
-        repeatMode = state.repeatMode
-        sampleRate = state.sampleRate
-        activeZoneName = state.activeZoneName
-        transientError = state.transientError
-        imageUrl = state.imageUrl
+        // Only assign when the value actually changed. The `@Observable` macro's
+        // generated setter fires an invalidation on EVERY assignment (it does
+        // not compare old vs. new), so blindly re-assigning all fields on each
+        // ~1/sec state tick would invalidate every view that reads any field —
+        // even stable ones like `trackTitle`. That re-evaluates the whole shell
+        // (and churns its child observables) once per second during playback.
+        // Position/duration/isPlaying still change every tick and correctly
+        // re-render only the leaf views that read them.
+        if trackTitle != state.trackTitle { trackTitle = state.trackTitle }
+        if artistName != state.artistName { artistName = state.artistName }
+        if albumTitle != state.albumTitle { albumTitle = state.albumTitle }
+        if isPlaying != state.isPlaying { isPlaying = state.isPlaying }
+        if positionMs != state.positionMs { positionMs = state.positionMs }
+        if durationMs != state.durationMs { durationMs = state.durationMs }
+        if volume != state.volume { volume = state.volume }
+        if isMuted != state.isMuted { isMuted = state.isMuted }
+        if shuffleMode != state.shuffleMode { shuffleMode = state.shuffleMode }
+        if repeatMode != state.repeatMode { repeatMode = state.repeatMode }
+        if sampleRate != state.sampleRate { sampleRate = state.sampleRate }
+        if activeZoneName != state.activeZoneName { activeZoneName = state.activeZoneName }
+        if transientError != state.transientError { transientError = state.transientError }
+        if imageUrl != state.imageUrl { imageUrl = state.imageUrl }
     }
 
     func play() {
@@ -335,6 +345,7 @@ struct NowPlayingView: View {
             .padding(.bottom, 24)
         }
         .background(Color.bg1.ignoresSafeArea())
+        .task { await observable.observe() }
     }
 
     private func formatTime(seconds: Int64) -> String {
