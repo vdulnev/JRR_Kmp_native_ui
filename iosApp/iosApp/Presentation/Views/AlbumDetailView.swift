@@ -21,33 +21,27 @@ class AlbumDetailObservable {
     var isOffline: Bool = true
     var errorMessage: String?
 
-    @ObservationIgnored private var observeTask: Task<Void, Never>?
-
     init(viewModel: AlbumDetailViewModel) {
-        log.d("init")
         self.viewModel = viewModel
         albumName = viewModel.album.name
         artistName = viewModel.album.albumArtist
-
+        // Cheap synchronous seed only. The live subscription runs from the owning
+        // view's `.task` (see `observe()`), never from `init`. SwiftUI re-runs
+        // `init` for the throwaway `@State(initialValue:)` copy each time an
+        // ancestor body re-evaluates (e.g. ~1/sec during playback); subscribing
+        // here made every throwaway subscribe-then-cancel a Kotlin flow and log
+        // init/deinit once per second.
         sync(state: viewModel.state.value)
-
-        observeTask = Task { @MainActor [weak self] in
-            guard let stateFlow = self?.viewModel.state else { return }
-            for await state in stateFlow {
-                self?.sync(state: state)
-            }
-        }
     }
 
-    deinit {
-        log.d("deinit")
-        observeTask?.cancel()
-        // No viewModel.dispose() here: the AlbumDetailViewModel is now owned by
-        // the Decompose `LibraryComponent.Child.Detail` and retained in Essenty's
-        // InstanceKeeper. It is torn down deterministically (viewModelScope
-        // cancelled via onCleared) when the Detail child is popped — disposing
-        // it from this transient Swift wrapper would kill a VM the component may
-        // still hold alive in its back stack across tab switches.
+    /// Drives the live state subscription. Call from the owning view's `.task`
+    /// so it starts once per view identity and stops when the view disappears.
+    func observe() async {
+        log.d("observe: start")
+        defer { log.d("observe: end") }
+        for await state in viewModel.state {
+            sync(state: state)
+        }
     }
 
     private func sync(state: AlbumDetailViewState) {
@@ -158,6 +152,7 @@ struct AlbumDetailView: View {
             if observable == nil {
                 observable = AlbumDetailObservable(viewModel: viewModel)
             }
+            await observable?.observe()
         }
     }
 }

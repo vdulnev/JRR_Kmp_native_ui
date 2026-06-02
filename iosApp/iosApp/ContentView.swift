@@ -271,11 +271,6 @@ struct ContentView: View {
     }
 
     var body: some View {
-        let isPlaying = nowPlayingObservable.isPlaying
-        let duration = nowPlayingObservable.durationMs
-        let position = nowPlayingObservable.positionMs
-        let progress = duration > 0 ? Double(position) / Double(duration) : 0.0
-
         ZStack {
             Color.bg1.ignoresSafeArea()
 
@@ -391,25 +386,12 @@ struct ContentView: View {
                 VStack {
                     Spacer()
 
-                    MiniPlayer(
-                        title: nowPlayingObservable.trackTitle,
-                        artist: nowPlayingObservable.artistName,
-                        imageUrl: nowPlayingObservable.imageUrl.isEmpty ? nil : nowPlayingObservable.imageUrl,
-                        isPlaying: isPlaying,
-                        progress: progress,
-                        onPlayPauseClick: {
-                            if isPlaying {
-                                nowPlayingObservable.pause()
-                            } else {
-                                nowPlayingObservable.play()
-                            }
-                        },
-                        onNextClick: {
-                            nowPlayingObservable.next()
-                        },
-                        onPrevClick: {
-                            nowPlayingObservable.previous()
-                        },
+                    // The per-second position/progress reads live inside this
+                    // subview so only it re-renders on each tick — the parent
+                    // `ContentView.body` (and its Library/Queue children) does
+                    // not re-evaluate every second.
+                    MiniPlayerOverlay(
+                        nowPlaying: nowPlayingObservable,
                         onBodyClick: {
                             withAnimation {
                                 container.root.selectTab(config: RootConfigPlayer.shared)
@@ -499,6 +481,10 @@ struct ContentView: View {
         .task {
             mainShellObservable.performAutoConnect()
         }
+        .task {
+            // Mini-player's observable subscribes here (init no longer does).
+            await nowPlayingObservable.observe()
+        }
         // Bridge connect-driven tab changes (auto-connect success → Player,
         // failure/cancel/disconnect → Server) into the component tree. Manual
         // tab taps don't touch mainShellObservable, so this only fires for
@@ -506,6 +492,46 @@ struct ContentView: View {
         .onChange(of: mainShellObservable.activeTab) { _, newTab in
             container.root.selectTab(config: config(forTag: newTab))
         }
+    }
+}
+
+/// Floating mini-player for the compact (TabView) shell. Owns the per-second
+/// playback reads (`isPlaying`, `positionMs`, `durationMs`) so that only this
+/// subview re-renders on each position tick. Keeping these reads out of
+/// `ContentView.body` prevents the whole shell — and its `LibraryView` /
+/// `QueueView` children — from re-evaluating (and their observables from
+/// churning init/deinit) once per second during playback.
+private struct MiniPlayerOverlay: View {
+    var nowPlaying: NowPlayingObservable
+    let onBodyClick: () -> Void
+
+    var body: some View {
+        let isPlaying = nowPlaying.isPlaying
+        let duration = nowPlaying.durationMs
+        let position = nowPlaying.positionMs
+        let progress = duration > 0 ? Double(position) / Double(duration) : 0.0
+
+        MiniPlayer(
+            title: nowPlaying.trackTitle,
+            artist: nowPlaying.artistName,
+            imageUrl: nowPlaying.imageUrl.isEmpty ? nil : nowPlaying.imageUrl,
+            isPlaying: isPlaying,
+            progress: progress,
+            onPlayPauseClick: {
+                if isPlaying {
+                    nowPlaying.pause()
+                } else {
+                    nowPlaying.play()
+                }
+            },
+            onNextClick: {
+                nowPlaying.next()
+            },
+            onPrevClick: {
+                nowPlaying.previous()
+            },
+            onBodyClick: onBodyClick,
+        )
     }
 }
 

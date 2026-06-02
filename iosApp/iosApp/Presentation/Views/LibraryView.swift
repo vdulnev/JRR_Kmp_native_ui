@@ -25,25 +25,25 @@ class LibraryObservable {
     var isTabLoading: Bool = false
     var transientError: String?
 
-    @ObservationIgnored private var observeTask: Task<Void, Never>?
-
     init(viewModel: LibraryViewModel) {
-        log.d("init")
         self.viewModel = viewModel
-
+        // Cheap synchronous seed only. The live subscription runs from the owning
+        // view's `.task` (see `observe()`), never from `init`. SwiftUI re-runs
+        // `init` for the throwaway `@State(initialValue:)` copy each time an
+        // ancestor body re-evaluates (e.g. ~1/sec during playback); subscribing
+        // here made every throwaway subscribe-then-cancel a Kotlin flow and log
+        // init/deinit once per second.
         sync(state: viewModel.state.value)
-
-        observeTask = Task { @MainActor [weak self] in
-            guard let stateFlow = self?.viewModel.state else { return }
-            for await state in stateFlow {
-                self?.sync(state: state)
-            }
-        }
     }
 
-    deinit {
-        log.d("deinit")
-        observeTask?.cancel()
+    /// Drives the live state subscription. Call from the owning view's `.task`
+    /// so it starts once per view identity and stops when the view disappears.
+    func observe() async {
+        log.d("observe: start")
+        defer { log.d("observe: end") }
+        for await state in viewModel.state {
+            sync(state: state)
+        }
     }
 
     private func sync(state: LibraryViewState) {
@@ -365,6 +365,7 @@ struct LibraryView: View {
         .sheet(item: $infoAlbum) { album in
             InfoView(title: album.name, fields: album.toInfoFields())
         }
+        .task { await observable.observe() }
     }
 
     /// Tab Button Helper
