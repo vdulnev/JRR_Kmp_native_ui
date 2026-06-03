@@ -455,6 +455,11 @@ struct ContentView: View {
                                 )
                         }
                     }
+                    .padding(36)
+                    .liquidGlass(
+                        in: RoundedRectangle(cornerRadius: 20, style: .continuous),
+                        shadow: .card,
+                    )
                     .padding(24)
                 }
                 .transition(.opacity)
@@ -469,13 +474,10 @@ struct ContentView: View {
                         .foregroundColor(.textPrimary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        .background(Color.bg3)
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.line2, lineWidth: 1),
+                        .liquidGlass(
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous),
+                            shadow: .toast,
                         )
-                        .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
                         .padding(.bottom, !isPlayerActive && nowPlayingObservable.trackTitle != "Idle" ? 140 : 80) // Position above tab bar/miniplayer
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -483,6 +485,13 @@ struct ContentView: View {
             }
         }
         .environment(chrome)
+        // The app is a dark-only theme painted with explicit color tokens, but
+        // system materials (Liquid Glass) follow the environment color scheme.
+        // Without this, on a device in *light* mode the glass renders as a light
+        // frosted panel (e.g. the transport bar went light-grey on iOS). Pin the
+        // scheme to dark so glass is dark on every platform/device setting; the
+        // custom hex colors are unaffected.
+        .preferredColorScheme(.dark)
         // Switching tabs always restores the chrome (the new tab starts at the
         // top, and the mini-player should be visible there).
         .onChange(of: activeTag) { _, _ in

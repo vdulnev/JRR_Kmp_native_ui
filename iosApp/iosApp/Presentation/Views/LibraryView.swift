@@ -280,6 +280,9 @@ struct LibraryView: View {
     /// artist's albums in the detail pane, independent of the master artist
     /// filter (both panes are visible at once).
     @State private var albumFilterText = ""
+    /// Namespace for the Liquid Glass tab-selection pill so it can morph between
+    /// tabs as the active tab changes.
+    @Namespace private var tabGlassNS
 
     init(viewModel: LibraryViewModel, onAlbumClick: @escaping (Album) -> Void, isLarge: Bool = false) {
         _observable = State(initialValue: LibraryObservable(viewModel: viewModel))
@@ -308,8 +311,9 @@ struct LibraryView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            // Tab strip
-            HStack(spacing: 0) {
+            // Tab strip — active tab marked by a Liquid Glass pill that morphs
+            // horizontally between tabs (OS 26+); a flat accent fill below that.
+            HStack(spacing: 6) {
                 tabButton(title: "Artists", id: "artists")
                 if !observable.isOffline {
                     tabButton(title: "Random", id: "random")
@@ -318,6 +322,12 @@ struct LibraryView: View {
                 tabButton(title: "Downloads", id: "downloads")
                 tabButton(title: "Favorites", id: "favorites")
             }
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+            .padding(.vertical, 8)
+            // Slide the active-tab glass pill between tabs. `currentTab` updates
+            // asynchronously (VM state flow → observable), so animate implicitly
+            // off its value rather than wrapping the tap in `withAnimation`.
+            .animation(.spring(response: 0.42, dampingFraction: 0.8), value: observable.currentTab)
             .background(Color.bg1)
 
             // Tab Content
@@ -376,25 +386,27 @@ struct LibraryView: View {
 
     /// Tab Button Helper
     private func tabButton(title: String, id: String) -> some View {
-        Button(action: {
+        let active = observable.currentTab == id
+        return Button(action: {
             observable.switchTab(id)
         }) {
-            VStack(spacing: 4) {
-                Text(title.uppercased())
-                    .font(AppFont.ibmPlexMono(size: 10.5, weight: .medium))
-                    .tracking(1.6)
-                    .foregroundColor(observable.currentTab == id ? .accentColor : .textTertiary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-
-                // Active Underline
-                Rectangle()
-                    .fill(observable.currentTab == id ? Color.accentColor : Color.clear)
-                    .frame(height: 2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 12)
+            Text(title.uppercased())
+                .font(AppFont.ibmPlexMono(size: 10.5, weight: .medium))
+                .tracking(1.6)
+                .foregroundColor(active ? .accentColor : .textTertiary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+                .contentShape(Capsule())
+                .slidingGlassPill(
+                    selected: active,
+                    id: "libTab",
+                    in: tabGlassNS,
+                    shape: Capsule(style: .continuous),
+                )
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Artists Tab View
