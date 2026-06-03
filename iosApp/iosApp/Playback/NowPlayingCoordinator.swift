@@ -1,6 +1,10 @@
 import Foundation
 import MediaPlayer
-import UIKit
+#if canImport(UIKit)
+    import UIKit
+#elseif canImport(AppKit)
+    import AppKit
+#endif
 
 private let log = SwiftLog("playback:NowPlayingCoordinator")
 
@@ -127,11 +131,11 @@ class NowPlayingCoordinator {
         }
     }
 
-    private func fetchArtwork(url: URL, completion: @escaping (UIImage?) -> Void) {
+    private func fetchArtwork(url: URL, completion: @escaping (PlatformImage?) -> Void) {
         Task {
             do {
                 let (data, _) = try await URLSession.sslBypassingSession.data(from: url)
-                let image = UIImage(data: data)
+                let image = PlatformImage(data: data)
                 await MainActor.run {
                     completion(image)
                 }

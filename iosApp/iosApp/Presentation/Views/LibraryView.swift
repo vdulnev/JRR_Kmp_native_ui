@@ -193,51 +193,57 @@ private struct HidesChromeOnScroll: ViewModifier {
     private let threshold: CGFloat = 20
 
     func body(content: Content) -> some View {
-        content.onScrollGeometryChange(for: Metrics.self) { geo in
-            Metrics(
-                offset: geo.contentOffset.y,
-                maxOffset: max(0, geo.contentSize.height - geo.containerSize.height),
-            )
-        } action: { old, new in
-            let offset = new.offset
-            // A relayout (chrome toggled → inset / container size changed) moves
-            // the offset without any gesture. Resync and ignore.
-            if new.maxOffset != old.maxOffset {
+        // `onScrollGeometryChange` requires macOS 15; we target 14. On iOS it
+        // drives the hide-on-scroll chrome; on macOS it's a no-op (chrome stays).
+        #if os(iOS)
+            content.onScrollGeometryChange(for: Metrics.self) { geo in
+                Metrics(
+                    offset: geo.contentOffset.y,
+                    maxOffset: max(0, geo.contentSize.height - geo.containerSize.height),
+                )
+            } action: { old, new in
+                let offset = new.offset
+                // A relayout (chrome toggled → inset / container size changed) moves
+                // the offset without any gesture. Resync and ignore.
+                if new.maxOffset != old.maxOffset {
+                    lastOffset = offset
+                    return
+                }
+                // Pull-down past the top is a deliberate "give me the chrome back"
+                // gesture — and the only escape hatch on a list that fits once
+                // collapsed. (Purely gesture-driven otherwise, like Android: no
+                // absolute top-reveal, so a short list that fits after collapsing
+                // just stays collapsed instead of popping the chrome back.)
+                if offset < 0 {
+                    chrome.setCollapsed(false)
+                    lastOffset = offset
+                    accum = 0
+                    return
+                }
+                // Rubber-band overscroll past the bottom is not a real position;
+                // don't let the bounce read as a direction change.
+                if offset > new.maxOffset {
+                    lastOffset = offset
+                    return
+                }
+                let dy = offset - lastOffset
                 lastOffset = offset
-                return
+                // Reset the accumulator when direction reverses so a flick the other
+                // way responds immediately instead of unwinding a stale sum.
+                if dy > 0, accum < 0 { accum = 0 }
+                if dy < 0, accum > 0 { accum = 0 }
+                accum += dy
+                if accum > threshold {
+                    chrome.setCollapsed(true) // scrolled down enough
+                    accum = 0
+                } else if accum < -threshold {
+                    chrome.setCollapsed(false) // scrolled up enough
+                    accum = 0
+                }
             }
-            // Pull-down past the top is a deliberate "give me the chrome back"
-            // gesture — and the only escape hatch on a list that fits once
-            // collapsed. (Purely gesture-driven otherwise, like Android: no
-            // absolute top-reveal, so a short list that fits after collapsing
-            // just stays collapsed instead of popping the chrome back.)
-            if offset < 0 {
-                chrome.setCollapsed(false)
-                lastOffset = offset
-                accum = 0
-                return
-            }
-            // Rubber-band overscroll past the bottom is not a real position;
-            // don't let the bounce read as a direction change.
-            if offset > new.maxOffset {
-                lastOffset = offset
-                return
-            }
-            let dy = offset - lastOffset
-            lastOffset = offset
-            // Reset the accumulator when direction reverses so a flick the other
-            // way responds immediately instead of unwinding a stale sum.
-            if dy > 0, accum < 0 { accum = 0 }
-            if dy < 0, accum > 0 { accum = 0 }
-            accum += dy
-            if accum > threshold {
-                chrome.setCollapsed(true) // scrolled down enough
-                accum = 0
-            } else if accum < -threshold {
-                chrome.setCollapsed(false) // scrolled up enough
-                accum = 0
-            }
-        }
+        #else
+            content
+        #endif
     }
 }
 
@@ -274,6 +280,9 @@ struct LibraryView: View {
     /// artist's albums in the detail pane, independent of the master artist
     /// filter (both panes are visible at once).
     @State private var albumFilterText = ""
+    /// Namespace for the Liquid Glass tab-selection pill so it can morph between
+    /// tabs as the active tab changes.
+    @Namespace private var tabGlassNS
 
     init(viewModel: LibraryViewModel, onAlbumClick: @escaping (Album) -> Void, isLarge: Bool = false) {
         _observable = State(initialValue: LibraryObservable(viewModel: viewModel))
@@ -302,8 +311,9 @@ struct LibraryView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            // Tab strip
-            HStack(spacing: 0) {
+            // Tab strip — active tab marked by a Liquid Glass pill that morphs
+            // horizontally between tabs (OS 26+); a flat accent fill below that.
+            HStack(spacing: 6) {
                 tabButton(title: "Artists", id: "artists")
                 if !observable.isOffline {
                     tabButton(title: "Random", id: "random")
@@ -312,6 +322,12 @@ struct LibraryView: View {
                 tabButton(title: "Downloads", id: "downloads")
                 tabButton(title: "Favorites", id: "favorites")
             }
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+            .padding(.vertical, 8)
+            // Slide the active-tab glass pill between tabs. `currentTab` updates
+            // asynchronously (VM state flow → observable), so animate implicitly
+            // off its value rather than wrapping the tap in `withAnimation`.
+            .animation(.spring(response: 0.42, dampingFraction: 0.8), value: observable.currentTab)
             .background(Color.bg1)
 
             // Tab Content
@@ -370,25 +386,27 @@ struct LibraryView: View {
 
     /// Tab Button Helper
     private func tabButton(title: String, id: String) -> some View {
-        Button(action: {
+        let active = observable.currentTab == id
+        return Button(action: {
             observable.switchTab(id)
         }) {
-            VStack(spacing: 4) {
-                Text(title.uppercased())
-                    .font(AppFont.ibmPlexMono(size: 10.5, weight: .medium))
-                    .tracking(1.6)
-                    .foregroundColor(observable.currentTab == id ? .accentColor : .textTertiary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-
-                // Active Underline
-                Rectangle()
-                    .fill(observable.currentTab == id ? Color.accentColor : Color.clear)
-                    .frame(height: 2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 12)
+            Text(title.uppercased())
+                .font(AppFont.ibmPlexMono(size: 10.5, weight: .medium))
+                .tracking(1.6)
+                .foregroundColor(active ? .accentColor : .textTertiary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+                .contentShape(Capsule())
+                .slidingGlassPill(
+                    selected: active,
+                    id: "libTab",
+                    in: tabGlassNS,
+                    shape: Capsule(style: .continuous),
+                )
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Artists Tab View
@@ -694,7 +712,7 @@ struct LibraryView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.textTertiary)
                 TextField("Filter albums", text: $albumFilterText)
-                    .textInputAutocapitalization(.never)
+                    .noAutocapitalization()
                     .disableAutocorrection(true)
                     .foregroundColor(.textPrimary)
                     .font(AppFont.inter(size: 14, weight: .regular))
@@ -856,7 +874,7 @@ struct LibraryView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.textTertiary)
                 TextField(placeholder, text: $artistFilterText)
-                    .textInputAutocapitalization(.never)
+                    .noAutocapitalization()
                     .disableAutocorrection(true)
                     .foregroundColor(.textPrimary)
                     .font(AppFont.inter(size: 14, weight: .regular))

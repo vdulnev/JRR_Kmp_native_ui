@@ -85,14 +85,9 @@ private struct Sidebar: View {
             .padding(.bottom, 18)
 
             // Nav
-            VStack(spacing: 2) {
-                NavItem(label: "Now Playing", systemImage: "play.circle.fill", selected: activeTag == 2) { onSelect(2) }
-                NavItem(label: "Library", systemImage: "music.note.house.fill", selected: activeTag == 0) { onSelect(0) }
-                NavItem(label: "Zones", systemImage: "speaker.wave.3.fill", selected: activeTag == 3) { onSelect(3) }
-                NavItem(label: "Settings", systemImage: "gearshape.fill", selected: activeTag == 4) { onSelect(4) }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            NavSection(activeTag: activeTag, onSelect: onSelect)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
 
             Spacer()
 
@@ -130,6 +125,49 @@ private struct Sidebar: View {
     }
 }
 
+/// Sidebar navigation list. On iOS 26 / macOS 26 the selected item's accent
+/// glass pill *morphs* between rows as the selection changes: every item shares
+/// one `glassEffectID` inside a `GlassEffectContainer`, so SwiftUI treats the
+/// pill as a single glass entity and slides/stretches it across the transition
+/// (taps in `ContentView` are wrapped in `withAnimation`). On older OSes it
+/// falls back to the previous flat `accentDim` fill on the selected row.
+private struct NavSection: View {
+    let activeTag: Int
+    let onSelect: (Int) -> Void
+
+    /// Tag drives both selection and the upstream `RootConfig` mapping.
+    private static let items: [(tag: Int, label: String, icon: String)] = [
+        (2, "Now Playing", "play.circle.fill"),
+        (0, "Library", "music.note.house.fill"),
+        (3, "Zones", "speaker.wave.3.fill"),
+        (4, "Settings", "gearshape.fill"),
+    ]
+
+    @Namespace private var glassNS
+
+    var body: some View {
+        VStack(spacing: 2) {
+            ForEach(Self.items, id: \.tag) { item in
+                NavItem(label: item.label, systemImage: item.icon, selected: activeTag == item.tag) {
+                    onSelect(item.tag)
+                }
+                .slidingGlassPill(
+                    selected: activeTag == item.tag,
+                    id: "navSelection",
+                    in: glassNS,
+                    shape: RoundedRectangle(cornerRadius: 10, style: .continuous),
+                )
+            }
+        }
+        // Drive the pill slide implicitly off the selected tag. Selection
+        // arrives asynchronously (Decompose → observable), so a `withAnimation`
+        // around the tap can't capture it; an `.animation(_:value:)` here opens
+        // the transaction whenever `activeTag` actually changes, so the
+        // matched-geometry pill glides between rows.
+        .animation(.spring(response: 0.42, dampingFraction: 0.8), value: activeTag)
+    }
+}
+
 private struct NavItem: View {
     let label: String
     let systemImage: String
@@ -150,10 +188,7 @@ private struct NavItem: View {
             .foregroundColor(selected ? .accentColor : .textTertiary)
             .padding(.horizontal, 14)
             .frame(height: 46)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(selected ? Color.accentColor.opacity(0.13) : Color.clear),
-            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -214,9 +249,7 @@ private struct DockedNowPlaying: View {
             }
             .padding(12)
         }
-        .background(Color.bg3)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.line2, lineWidth: 1))
+        .liquidGlass(in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture(perform: onBodyClick)
     }

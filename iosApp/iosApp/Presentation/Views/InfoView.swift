@@ -40,7 +40,7 @@ struct InfoView: View {
                     ForEach(0 ..< fields.count, id: \.self) { idx in
                         let field = fields[idx]
                         Button(action: {
-                            UIPasteboard.general.string = field.value
+                            Clipboard.copy(field.value)
                         }) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(field.label.uppercased())
@@ -77,7 +77,7 @@ struct InfoView: View {
             // Actions
             HStack(spacing: 12) {
                 Button(action: {
-                    UIPasteboard.general.string = allText
+                    Clipboard.copy(allText)
                 }) {
                     HStack {
                         Image(systemName: "doc.on.doc")
@@ -91,25 +91,29 @@ struct InfoView: View {
                     .cornerRadius(8)
                 }
 
-                Button(action: {
-                    let av = UIActivityViewController(activityItems: [allText], applicationActivities: nil)
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let rootVC = windowScene.windows.first?.rootViewController
-                    {
-                        rootVC.present(av, animated: true)
+                // Share uses UIKit's activity sheet (iOS only). On macOS the
+                // "Copy All" action above covers the same need.
+                #if os(iOS)
+                    Button(action: {
+                        let av = UIActivityViewController(activityItems: [allText], applicationActivities: nil)
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                           let rootVC = windowScene.windows.first?.rootViewController
+                        {
+                            rootVC.present(av, animated: true)
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("Share")
+                                .font(AppFont.inter(size: 13, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.bg3)
+                        .foregroundColor(.textPrimary)
+                        .cornerRadius(8)
                     }
-                }) {
-                    HStack {
-                        Image(systemName: "square.and.arrow.up")
-                        Text("Share")
-                            .font(AppFont.inter(size: 13, weight: .semibold))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.bg3)
-                    .foregroundColor(.textPrimary)
-                    .cornerRadius(8)
-                }
+                #endif
             }
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
             .padding(.vertical, 16)

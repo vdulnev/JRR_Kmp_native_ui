@@ -124,7 +124,9 @@ final class ChromeVisibility {
 
 struct ContentView: View {
     @Environment(AppContainer.self) private var container
-    @Environment(\.horizontalSizeClass) private var hSizeClass
+    #if os(iOS)
+        @Environment(\.horizontalSizeClass) private var hSizeClass
+    #endif
 
     @State private var nowPlayingViewModel: NowPlayingViewModel
     @State private var nowPlayingObservable: NowPlayingObservable
@@ -152,26 +154,30 @@ struct ContentView: View {
 
         _rootObservable = State(initialValue: RootStackObservable(container.root))
 
-        // Configure standard tab bar appearance with custom premium dark system theme
-        let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
+        // Configure standard tab bar appearance with custom premium dark system
+        // theme. iOS-only: macOS has no `UITabBar`, and the Mac always uses the
+        // `LargeScreenShell` sidebar path (no bottom tab bar).
+        #if os(iOS)
+            let appearance = UITabBarAppearance()
+            appearance.configureWithOpaqueBackground()
 
-        let barColor = UIColor(red: 22 / 255.0, green: 22 / 255.0, blue: 24 / 255.0, alpha: 1.0) // bg2: 0x161618
-        let lineColor = UIColor.white.withAlphaComponent(0.06) // line
+            let barColor = UIColor(red: 22 / 255.0, green: 22 / 255.0, blue: 24 / 255.0, alpha: 1.0) // bg2: 0x161618
+            let lineColor = UIColor.white.withAlphaComponent(0.06) // line
 
-        appearance.backgroundColor = barColor
-        appearance.shadowColor = lineColor
+            appearance.backgroundColor = barColor
+            appearance.shadowColor = lineColor
 
-        let goldAccent = UIColor(red: 200 / 255.0, green: 146 / 255.0, blue: 42 / 255.0, alpha: 1.0) // accentColor: 0xC8922A
-        let dimText = UIColor.white.withAlphaComponent(0.3)
+            let goldAccent = UIColor(red: 200 / 255.0, green: 146 / 255.0, blue: 42 / 255.0, alpha: 1.0) // accentColor: 0xC8922A
+            let dimText = UIColor.white.withAlphaComponent(0.3)
 
-        appearance.stackedLayoutAppearance.normal.iconColor = dimText
-        appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: dimText]
-        appearance.stackedLayoutAppearance.selected.iconColor = goldAccent
-        appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: goldAccent]
+            appearance.stackedLayoutAppearance.normal.iconColor = dimText
+            appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: dimText]
+            appearance.stackedLayoutAppearance.selected.iconColor = goldAccent
+            appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: goldAccent]
 
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+        #endif
     }
 
     // MARK: Active-tab helpers
@@ -192,7 +198,11 @@ struct ContentView: View {
     /// the bottom tab bar. Compact widths (iPhone, narrow iPad multitasking)
     /// keep the existing TabView.
     private var isLarge: Bool {
-        hSizeClass == .regular
+        #if os(macOS)
+            return true // Mac window → always the sidebar (LargeScreenShell) layout
+        #else
+            return hSizeClass == .regular
+        #endif
     }
 
     /// The active destination's content, sans tab-bar chrome — used by the
@@ -445,6 +455,11 @@ struct ContentView: View {
                                 )
                         }
                     }
+                    .padding(36)
+                    .liquidGlass(
+                        in: RoundedRectangle(cornerRadius: 20, style: .continuous),
+                        shadow: .card,
+                    )
                     .padding(24)
                 }
                 .transition(.opacity)
@@ -459,13 +474,10 @@ struct ContentView: View {
                         .foregroundColor(.textPrimary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        .background(Color.bg3)
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.line2, lineWidth: 1),
+                        .liquidGlass(
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous),
+                            shadow: .toast,
                         )
-                        .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
                         .padding(.bottom, !isPlayerActive && nowPlayingObservable.trackTitle != "Idle" ? 140 : 80) // Position above tab bar/miniplayer
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -473,6 +485,13 @@ struct ContentView: View {
             }
         }
         .environment(chrome)
+        // The app is a dark-only theme painted with explicit color tokens, but
+        // system materials (Liquid Glass) follow the environment color scheme.
+        // Without this, on a device in *light* mode the glass renders as a light
+        // frosted panel (e.g. the transport bar went light-grey on iOS). Pin the
+        // scheme to dark so glass is dark on every platform/device setting; the
+        // custom hex colors are unaffected.
+        .preferredColorScheme(.dark)
         // Switching tabs always restores the chrome (the new tab starts at the
         // top, and the mini-player should be visible there).
         .onChange(of: activeTag) { _, _ in
@@ -668,7 +687,7 @@ struct LibraryTabContainerView: View {
             // Hide the system bar (each screen draws its own header) while
             // keeping the interactive pop gesture — NavigationStack preserves it
             // under `.toolbar(.hidden,...)`, unlike `navigationBarHidden`.
-            .toolbar(.hidden, for: .navigationBar)
+            .hiddenNavigationBar()
             .navigationDestination(for: String.self) { groupId in
                 Group {
                     if let detail = detailChild(forGroupId: groupId) {
@@ -682,7 +701,7 @@ struct LibraryTabContainerView: View {
                         Color.bg1
                     }
                 }
-                .toolbar(.hidden, for: .navigationBar)
+                .hiddenNavigationBar()
             }
         }
     }

@@ -315,6 +315,17 @@ struct NowPlayingView: View {
                         .frame(width: 44, height: 44)
                 }
             }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 18)
+            // Glass control bar (OS 26+). `clipsContent: false` lets the gold
+            // play-disc's glow bleed past the capsule; clear fallbacks keep the
+            // pre-26 look unchanged (no bar behind the controls).
+            .liquidGlass(
+                in: Capsule(style: .continuous),
+                fallbackFill: .clear,
+                fallbackBorder: .clear,
+                clipsContent: false,
+            )
             .padding(.horizontal, AppSpacing.nowPlayingHorizontalMargin)
 
             Spacer()

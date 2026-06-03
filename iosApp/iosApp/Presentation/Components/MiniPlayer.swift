@@ -149,13 +149,10 @@ struct MiniPlayer: View {
             .frame(maxHeight: .infinity)
         }
         .frame(height: 64)
-        .background(Color.bg3)
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.line2, lineWidth: 1),
+        .liquidGlass(
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous),
+            shadow: .miniPlayer,
         )
-        .shadow(color: Color.black.opacity(0.55), radius: 16, x: 0, y: 8)
         .onTapGesture(perform: onBodyClick)
     }
 }

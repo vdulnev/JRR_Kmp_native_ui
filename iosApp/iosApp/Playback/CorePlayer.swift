@@ -28,41 +28,47 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         setupAudioSession()
     }
 
+    /// AVAudioSession is iOS-only. macOS routes audio without an explicit session,
+    /// so `AVQueuePlayer` plays directly and there's no interruption handling.
     private func setupAudioSession() {
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [])
-            try session.setActive(true)
+        #if os(iOS)
+            do {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playback, mode: .default, options: [])
+                try session.setActive(true)
 
-            NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)
-                .sink { [weak self] notification in
-                    self?.handleInterruption(notification: notification)
-                }
-                .store(in: &cancellables)
-        } catch {
-            log.e("Failed to setup AVAudioSession: \(error)")
-        }
+                NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)
+                    .sink { [weak self] notification in
+                        self?.handleInterruption(notification: notification)
+                    }
+                    .store(in: &cancellables)
+            } catch {
+                log.e("Failed to setup AVAudioSession: \(error)")
+            }
+        #endif
     }
 
-    private func handleInterruption(notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue)
-        else {
-            return
-        }
+    #if os(iOS)
+        private func handleInterruption(notification: Notification) {
+            guard let userInfo = notification.userInfo,
+                  let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: typeValue)
+            else {
+                return
+            }
 
-        if type == .began {
-            pause()
-        } else if type == .ended {
-            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
-                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                if options.contains(.shouldResume) {
-                    play()
+            if type == .began {
+                pause()
+            } else if type == .ended {
+                if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                    let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                    if options.contains(.shouldResume) {
+                        play()
+                    }
                 }
             }
         }
-    }
+    #endif
 
     private func setupPlayer() {
         let player = AVQueuePlayer()
