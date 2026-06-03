@@ -43,7 +43,13 @@ kotlin {
             export(libs.essenty.instance.keeper)
         }
     }
-    
+
+    jvm {
+        compilerOptions {
+            jvmTarget = JvmTarget.JVM_11
+        }
+    }
+
     androidLibrary {
        namespace = "com.jrr.jrrkmp_native_ui.sharedLogic"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -92,6 +98,9 @@ kotlin {
         appleMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
+        jvmMain.dependencies {
+            implementation(libs.ktor.client.okhttp)
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
@@ -104,4 +113,5 @@ dependencies {
     add("kspIosSimulatorArm64", libs.androidx.room.compiler)
     add("kspIosArm64", libs.androidx.room.compiler)
     add("kspMacosArm64", libs.androidx.room.compiler)
+    add("kspJvm", libs.androidx.room.compiler)
 }
