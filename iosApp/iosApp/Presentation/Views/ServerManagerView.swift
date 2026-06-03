@@ -100,7 +100,7 @@ struct ServerManagerView: View {
 
                         HStack(spacing: 12) {
                             customTextField(title: "Port", text: useSsl ? $sslPort : $port, placeholder: useSsl ? "52200" : "52199")
-                                .keyboardType(.numberPad)
+                                .numericKeyboard()
 
                             Toggle(isOn: $useSsl) {
                                 Text("Use SSL")
@@ -339,7 +339,7 @@ struct ServerManagerView: View {
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(Color.line2, lineWidth: 1),
                 )
-                .textInputAutocapitalization(.never)
+                .noAutocapitalization()
                 .disableAutocorrection(true)
         }
     }
@@ -361,7 +361,7 @@ struct ServerManagerView: View {
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(Color.line2, lineWidth: 1),
                 )
-                .textInputAutocapitalization(.never)
+                .noAutocapitalization()
                 .disableAutocorrection(true)
         }
     }

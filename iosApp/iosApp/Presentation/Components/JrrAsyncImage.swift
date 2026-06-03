@@ -4,7 +4,7 @@ private let log = SwiftLog("ui:iOS:JrrAsyncImage")
 
 /// Global Image Cache for UI Images
 class JrrImageCache {
-    static let shared = NSCache<NSURL, UIImage>()
+    static let shared = NSCache<NSURL, PlatformImage>()
 }
 
 struct JrrAsyncImage<Content: View, Placeholder: View>: View {
@@ -12,7 +12,7 @@ struct JrrAsyncImage<Content: View, Placeholder: View>: View {
     let content: (Image) -> Content
     let placeholder: () -> Placeholder
 
-    @State private var image: UIImage? = nil
+    @State private var image: PlatformImage? = nil
     @State private var isLoading = false
     @State private var loadError = false
     @State private var currentTask: Task<Void, Never>? = nil
@@ -30,7 +30,7 @@ struct JrrAsyncImage<Content: View, Placeholder: View>: View {
     var body: some View {
         Group {
             if let image {
-                content(Image(uiImage: image))
+                content(Image(platformImage: image))
             } else {
                 placeholder()
             }
@@ -87,7 +87,7 @@ struct JrrAsyncImage<Content: View, Placeholder: View>: View {
                 }
                 try Task.checkCancellation()
 
-                guard let uiImage = UIImage(data: data) else {
+                guard let uiImage = PlatformImage(data: data) else {
                     await MainActor.run {
                         isLoading = false
                         loadError = true

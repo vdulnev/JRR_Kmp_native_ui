@@ -379,7 +379,7 @@ struct SettingsView: View {
                     .listRowBackground(Color.bg2)
                 }
             }
-            .listStyle(InsetGroupedListStyle())
+            .insetGroupedListStyle()
             .scrollContentBackground(.hidden)
             .background(Color.bg1)
             // Large screens: cap the card column to a comfortable reading width

@@ -6,15 +6,33 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CBD7211C1E1AF115B597B6DB /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DC42241BFADD111D594F3215 /* Cocoa.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
+		737CB8E3A7E954F57FEB6906 /* macApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = macApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C93BF9D70AF8DCD7F45B9ABE /* JRRKmpnativeui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JRRKmpnativeui.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DC42241BFADD111D594F3215 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		7AD87C50700F2D5CB159BC12 /* Exceptions for "iosApp" folder in "macApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				main.swift,
+				Core/AppDelegate.swift,
+				Core/SceneDelegate.swift,
+				CarPlaySceneDelegate.swift,
+				Info.plist,
+			);
+			target = A4EC9562620460972B125505 /* macApp */;
+		};
 		E5D9D3FC62D81DD9367A6339 /* Exceptions for "iosApp" folder in "iosApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				MacSqliteStubs.c,
 			);
 			target = 47D6E1DB031EA059DFACBF88 /* iosApp */;
 		};
@@ -25,12 +43,15 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				E5D9D3FC62D81DD9367A6339 /* Exceptions for "iosApp" folder in "iosApp" target */,
+				7AD87C50700F2D5CB159BC12 /* Exceptions for "iosApp" folder in "macApp" target */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
 		};
 		B68DBB3960B894C453FB07AD /* Configuration */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = Configuration;
 			sourceTree = "<group>";
 		};
@@ -44,6 +65,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B7857EE155329BA209A7D69A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CBD7211C1E1AF115B597B6DB /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -51,6 +80,7 @@
 			isa = PBXGroup;
 			children = (
 				C93BF9D70AF8DCD7F45B9ABE /* JRRKmpnativeui.app */,
+				737CB8E3A7E954F57FEB6906 /* macApp.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -61,7 +91,24 @@
 				B68DBB3960B894C453FB07AD /* Configuration */,
 				6965CE93384262396BF3ABEB /* iosApp */,
 				12ACE18A31F49AAB18E1000D /* Products */,
+				ABDAB75AC8CCDA810F6E1F1A /* Frameworks */,
 			);
+			sourceTree = "<group>";
+		};
+		ABDAB75AC8CCDA810F6E1F1A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C77EC82B8663809E814C2992 /* OS X */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		C77EC82B8663809E814C2992 /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				DC42241BFADD111D594F3215 /* Cocoa.framework */,
+			);
+			name = "OS X";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -84,10 +131,29 @@
 				6965CE93384262396BF3ABEB /* iosApp */,
 			);
 			name = iosApp;
-			packageProductDependencies = (
-			);
 			productName = iosApp;
 			productReference = C93BF9D70AF8DCD7F45B9ABE /* JRRKmpnativeui.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A4EC9562620460972B125505 /* macApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AE71AA4C37B2FF6CD3FB3730 /* Build configuration list for PBXNativeTarget "macApp" */;
+			buildPhases = (
+				8967DE3AC7C1F6EEB6D73837 /* Compile Kotlin Framework */,
+				1968AC50D4E3A319DDCECAD4 /* Sources */,
+				B7857EE155329BA209A7D69A /* Frameworks */,
+				C46870C5551CD64CFBAA0E43 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				6965CE93384262396BF3ABEB /* iosApp */,
+			);
+			name = macApp;
+			productName = macApp;
+			productReference = 737CB8E3A7E954F57FEB6906 /* macApp.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -114,20 +180,26 @@
 			);
 			mainGroup = 4F3E0C034DDFD9376AF359F6;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 12ACE18A31F49AAB18E1000D /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				47D6E1DB031EA059DFACBF88 /* iosApp */,
+				A4EC9562620460972B125505 /* macApp */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		05385220C5AFC55F034D9B02 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C46870C5551CD64CFBAA0E43 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -156,9 +228,34 @@
 			shellPath = /bin/sh;
 			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :sharedLogic:embedAndSignAppleFrameworkForXcode\n";
 		};
+		8967DE3AC7C1F6EEB6D73837 /* Compile Kotlin Framework */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Compile Kotlin Framework";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :sharedLogic:embedAndSignAppleFrameworkForXcode\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		1968AC50D4E3A319DDCECAD4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		602D5E9EDB4CC8171C0C954B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -169,6 +266,37 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		3DD6735F7614FA74E7DC3B98 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6742UG6L9C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.jrr.jrrkmp-native-ui.macos";
+				PRODUCT_NAME = JRRKmpnativeui;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 		7A14615BEE10B8B51A307A73 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -197,6 +325,37 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		7D304020C3E2F3C008BAF044 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6742UG6L9C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.jrr.jrrkmp-native-ui.macos";
+				PRODUCT_NAME = JRRKmpnativeui;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
 		};
 		836441D37D715E984FB95B89 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -358,6 +517,15 @@
 			buildConfigurations = (
 				BFA04ACF1F28BBFB32D9D24D /* Debug */,
 				836441D37D715E984FB95B89 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AE71AA4C37B2FF6CD3FB3730 /* Build configuration list for PBXNativeTarget "macApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3DD6735F7614FA74E7DC3B98 /* Release */,
+				7D304020C3E2F3C008BAF044 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

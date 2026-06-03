@@ -75,7 +75,10 @@ struct QueueView: View {
     /// beside Now Playing); shows the track count instead.
     var isRail: Bool = false
 
-    @State private var editMode: EditMode = .inactive
+    /// Cross-platform edit/reorder flag. SwiftUI's `EditMode` + `\.editMode`
+    /// environment key are iOS-only; on iOS we derive an `EditMode` binding from
+    /// this below, on macOS List drag-reordering works without it.
+    @State private var isEditing = false
 
     init(viewModel: QueueViewModel, onBackClick: @escaping () -> Void, isRail: Bool = false) {
         _observable = State(initialValue: QueueObservable(viewModel: viewModel))
@@ -120,10 +123,10 @@ struct QueueView: View {
                 HStack(spacing: 12) {
                     Button(action: {
                         withAnimation {
-                            editMode = editMode == .active ? .inactive : .active
+                            isEditing.toggle()
                         }
                     }) {
-                        Text(editMode == .active ? "DONE" : "EDIT")
+                        Text(isEditing ? "DONE" : "EDIT")
                             .font(AppFont.ibmPlexMono(size: 11, weight: .medium))
                             .foregroundColor(.accentColor)
                             .frame(height: 44)
@@ -205,7 +208,7 @@ struct QueueView: View {
                         }
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            if editMode != .active {
+                            if !isEditing {
                                 observable.playByIndex(index: index)
                             }
                         }
@@ -230,7 +233,9 @@ struct QueueView: View {
                 .listStyle(PlainListStyle())
                 .scrollContentBackground(.hidden)
                 .background(Color.bg1)
-                .environment(\.editMode, $editMode)
+                #if os(iOS)
+                    .environment(\.editMode, .constant(isEditing ? .active : .inactive))
+                #endif
             }
         }
         .background(Color.bg1.ignoresSafeArea())

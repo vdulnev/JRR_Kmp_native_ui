@@ -193,51 +193,57 @@ private struct HidesChromeOnScroll: ViewModifier {
     private let threshold: CGFloat = 20
 
     func body(content: Content) -> some View {
-        content.onScrollGeometryChange(for: Metrics.self) { geo in
-            Metrics(
-                offset: geo.contentOffset.y,
-                maxOffset: max(0, geo.contentSize.height - geo.containerSize.height),
-            )
-        } action: { old, new in
-            let offset = new.offset
-            // A relayout (chrome toggled → inset / container size changed) moves
-            // the offset without any gesture. Resync and ignore.
-            if new.maxOffset != old.maxOffset {
+        // `onScrollGeometryChange` requires macOS 15; we target 14. On iOS it
+        // drives the hide-on-scroll chrome; on macOS it's a no-op (chrome stays).
+        #if os(iOS)
+            content.onScrollGeometryChange(for: Metrics.self) { geo in
+                Metrics(
+                    offset: geo.contentOffset.y,
+                    maxOffset: max(0, geo.contentSize.height - geo.containerSize.height),
+                )
+            } action: { old, new in
+                let offset = new.offset
+                // A relayout (chrome toggled → inset / container size changed) moves
+                // the offset without any gesture. Resync and ignore.
+                if new.maxOffset != old.maxOffset {
+                    lastOffset = offset
+                    return
+                }
+                // Pull-down past the top is a deliberate "give me the chrome back"
+                // gesture — and the only escape hatch on a list that fits once
+                // collapsed. (Purely gesture-driven otherwise, like Android: no
+                // absolute top-reveal, so a short list that fits after collapsing
+                // just stays collapsed instead of popping the chrome back.)
+                if offset < 0 {
+                    chrome.setCollapsed(false)
+                    lastOffset = offset
+                    accum = 0
+                    return
+                }
+                // Rubber-band overscroll past the bottom is not a real position;
+                // don't let the bounce read as a direction change.
+                if offset > new.maxOffset {
+                    lastOffset = offset
+                    return
+                }
+                let dy = offset - lastOffset
                 lastOffset = offset
-                return
+                // Reset the accumulator when direction reverses so a flick the other
+                // way responds immediately instead of unwinding a stale sum.
+                if dy > 0, accum < 0 { accum = 0 }
+                if dy < 0, accum > 0 { accum = 0 }
+                accum += dy
+                if accum > threshold {
+                    chrome.setCollapsed(true) // scrolled down enough
+                    accum = 0
+                } else if accum < -threshold {
+                    chrome.setCollapsed(false) // scrolled up enough
+                    accum = 0
+                }
             }
-            // Pull-down past the top is a deliberate "give me the chrome back"
-            // gesture — and the only escape hatch on a list that fits once
-            // collapsed. (Purely gesture-driven otherwise, like Android: no
-            // absolute top-reveal, so a short list that fits after collapsing
-            // just stays collapsed instead of popping the chrome back.)
-            if offset < 0 {
-                chrome.setCollapsed(false)
-                lastOffset = offset
-                accum = 0
-                return
-            }
-            // Rubber-band overscroll past the bottom is not a real position;
-            // don't let the bounce read as a direction change.
-            if offset > new.maxOffset {
-                lastOffset = offset
-                return
-            }
-            let dy = offset - lastOffset
-            lastOffset = offset
-            // Reset the accumulator when direction reverses so a flick the other
-            // way responds immediately instead of unwinding a stale sum.
-            if dy > 0, accum < 0 { accum = 0 }
-            if dy < 0, accum > 0 { accum = 0 }
-            accum += dy
-            if accum > threshold {
-                chrome.setCollapsed(true) // scrolled down enough
-                accum = 0
-            } else if accum < -threshold {
-                chrome.setCollapsed(false) // scrolled up enough
-                accum = 0
-            }
-        }
+        #else
+            content
+        #endif
     }
 }
 
@@ -694,7 +700,7 @@ struct LibraryView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.textTertiary)
                 TextField("Filter albums", text: $albumFilterText)
-                    .textInputAutocapitalization(.never)
+                    .noAutocapitalization()
                     .disableAutocorrection(true)
                     .foregroundColor(.textPrimary)
                     .font(AppFont.inter(size: 14, weight: .regular))
@@ -856,7 +862,7 @@ struct LibraryView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.textTertiary)
                 TextField(placeholder, text: $artistFilterText)
-                    .textInputAutocapitalization(.never)
+                    .noAutocapitalization()
                     .disableAutocorrection(true)
                     .foregroundColor(.textPrimary)
                     .font(AppFont.inter(size: 14, weight: .regular))

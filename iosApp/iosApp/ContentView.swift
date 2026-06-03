@@ -124,7 +124,9 @@ final class ChromeVisibility {
 
 struct ContentView: View {
     @Environment(AppContainer.self) private var container
-    @Environment(\.horizontalSizeClass) private var hSizeClass
+    #if os(iOS)
+        @Environment(\.horizontalSizeClass) private var hSizeClass
+    #endif
 
     @State private var nowPlayingViewModel: NowPlayingViewModel
     @State private var nowPlayingObservable: NowPlayingObservable
@@ -152,26 +154,30 @@ struct ContentView: View {
 
         _rootObservable = State(initialValue: RootStackObservable(container.root))
 
-        // Configure standard tab bar appearance with custom premium dark system theme
-        let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
+        // Configure standard tab bar appearance with custom premium dark system
+        // theme. iOS-only: macOS has no `UITabBar`, and the Mac always uses the
+        // `LargeScreenShell` sidebar path (no bottom tab bar).
+        #if os(iOS)
+            let appearance = UITabBarAppearance()
+            appearance.configureWithOpaqueBackground()
 
-        let barColor = UIColor(red: 22 / 255.0, green: 22 / 255.0, blue: 24 / 255.0, alpha: 1.0) // bg2: 0x161618
-        let lineColor = UIColor.white.withAlphaComponent(0.06) // line
+            let barColor = UIColor(red: 22 / 255.0, green: 22 / 255.0, blue: 24 / 255.0, alpha: 1.0) // bg2: 0x161618
+            let lineColor = UIColor.white.withAlphaComponent(0.06) // line
 
-        appearance.backgroundColor = barColor
-        appearance.shadowColor = lineColor
+            appearance.backgroundColor = barColor
+            appearance.shadowColor = lineColor
 
-        let goldAccent = UIColor(red: 200 / 255.0, green: 146 / 255.0, blue: 42 / 255.0, alpha: 1.0) // accentColor: 0xC8922A
-        let dimText = UIColor.white.withAlphaComponent(0.3)
+            let goldAccent = UIColor(red: 200 / 255.0, green: 146 / 255.0, blue: 42 / 255.0, alpha: 1.0) // accentColor: 0xC8922A
+            let dimText = UIColor.white.withAlphaComponent(0.3)
 
-        appearance.stackedLayoutAppearance.normal.iconColor = dimText
-        appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: dimText]
-        appearance.stackedLayoutAppearance.selected.iconColor = goldAccent
-        appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: goldAccent]
+            appearance.stackedLayoutAppearance.normal.iconColor = dimText
+            appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: dimText]
+            appearance.stackedLayoutAppearance.selected.iconColor = goldAccent
+            appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: goldAccent]
 
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+        #endif
     }
 
     // MARK: Active-tab helpers
@@ -192,7 +198,11 @@ struct ContentView: View {
     /// the bottom tab bar. Compact widths (iPhone, narrow iPad multitasking)
     /// keep the existing TabView.
     private var isLarge: Bool {
-        hSizeClass == .regular
+        #if os(macOS)
+            return true // Mac window → always the sidebar (LargeScreenShell) layout
+        #else
+            return hSizeClass == .regular
+        #endif
     }
 
     /// The active destination's content, sans tab-bar chrome — used by the
@@ -668,7 +678,7 @@ struct LibraryTabContainerView: View {
             // Hide the system bar (each screen draws its own header) while
             // keeping the interactive pop gesture — NavigationStack preserves it
             // under `.toolbar(.hidden,...)`, unlike `navigationBarHidden`.
-            .toolbar(.hidden, for: .navigationBar)
+            .hiddenNavigationBar()
             .navigationDestination(for: String.self) { groupId in
                 Group {
                     if let detail = detailChild(forGroupId: groupId) {
@@ -682,7 +692,7 @@ struct LibraryTabContainerView: View {
                         Color.bg1
                     }
                 }
-                .toolbar(.hidden, for: .navigationBar)
+                .hiddenNavigationBar()
             }
         }
     }
