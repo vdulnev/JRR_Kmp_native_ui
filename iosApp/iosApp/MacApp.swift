@@ -31,6 +31,15 @@
                 ContentView(container: container)
                     .environment(container)
                     .environmentObject(container.playbackStateObserver)
+                    // The UI draws all its own button/field chrome and was built
+                    // against iOS's plain control defaults. macOS defaults to
+                    // bordered buttons and bezeled text fields, which double up
+                    // with the custom visuals (square buttons, boxed text). Force
+                    // plain styles app-wide so the custom design shows through;
+                    // these propagate to every descendant control.
+                    .buttonStyle(.plain)
+                    .textFieldStyle(.plain)
+                    .tint(.accentColor)
                     .frame(minWidth: 900, minHeight: 640)
             }
             .defaultSize(width: 1200, height: 820)
