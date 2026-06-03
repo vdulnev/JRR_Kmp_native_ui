@@ -2,6 +2,7 @@ package com.jrr.jrrkmp_native_ui
 
 import android.os.Bundle
 import android.content.Context
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -123,9 +124,51 @@ class MainActivity : ComponentActivity() {
         // tree in MainShell below, until Phase 5 relocates it into RootComponent.
         val connectViewModel = MainShellViewModel(facade, serverRepository, settings)
 
+        // Map artwork URLs to a locally-downloaded file when present (parses the
+        // `File=<key>` param, checks filesDir/downloads/art_<key>.jpg). Ported
+        // from the inline LocalContext logic that lived in MiniPlayer/VinylSleeve
+        // before those moved to the shared :composeUi module.
+        val artworkResolver = com.jrr.jrrkmp_native_ui.presentation.ArtworkResolver { imageUrl ->
+            val fileParam = "File="
+            val index = imageUrl.indexOf(fileParam)
+            val fileKey = if (index != -1) {
+                val start = index + fileParam.length
+                val end = imageUrl.indexOf('&', start)
+                if (end == -1) imageUrl.substring(start) else imageUrl.substring(start, end)
+            } else null
+            if (fileKey != null) {
+                val artFile = java.io.File(filesDir, "downloads/art_${fileKey}.jpg")
+                if (artFile.exists()) artFile else imageUrl
+            } else {
+                imageUrl
+            }
+        }
+
+        // Platform UI actions (toast + share) used by the shared screens, which
+        // no longer reference android.widget.Toast / Intent directly.
+        val platformUi = object : com.jrr.jrrkmp_native_ui.presentation.PlatformUi {
+            override fun showToast(message: String) {
+                Toast.makeText(this@MainActivity, message, Toast.LENGTH_SHORT).show()
+            }
+
+            override fun shareText(text: String, subject: String?, chooserTitle: String?) {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                    if (subject != null) putExtra(Intent.EXTRA_SUBJECT, subject)
+                }
+                startActivity(Intent.createChooser(intent, chooserTitle))
+            }
+        }
+
         setContent {
             JrrTheme {
-                CompositionLocalProvider(LocalMcwsClient provides mcwsClient) {
+                CompositionLocalProvider(
+                    LocalMcwsClient provides mcwsClient,
+                    com.jrr.jrrkmp_native_ui.presentation.LocalArtworkResolver provides artworkResolver,
+                    com.jrr.jrrkmp_native_ui.presentation.LocalPlatformUi provides platformUi,
+                    com.jrr.jrrkmp_native_ui.presentation.LocalDatabase provides database,
+                ) {
                     MainShell(
                         root = root,
                         connectViewModel = connectViewModel,
