@@ -23,15 +23,19 @@ kotlin {
 
     listOf(
         iosArm64(),
-        iosSimulatorArm64()
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
+        iosSimulatorArm64(),
+        // Native macOS (Apple Silicon). Shares the `appleMain` source set with
+        // iOS; consumed by the `macApp` Xcode target via the same
+        // `embedAndSignAppleFrameworkForXcode` build phase.
+        macosArm64(),
+    ).forEach { appleTarget ->
+        appleTarget.binaries.framework {
             baseName = "SharedLogic"
             isStatic = true
             // Surface Decompose/Essenty types (Value, ChildStack, Cancellation,
             // LifecycleRegistry, DefaultComponentContext, …) by name in the
-            // generated Swift header so the iOS host can bridge the component
-            // tree. Each must be `api` in commonMain for export to resolve.
+            // generated Swift header so the host can bridge the component tree.
+            // Each must be `api` in commonMain for export to resolve.
             export(libs.decompose)
             export(libs.essenty.lifecycle)
             export(libs.essenty.state.keeper)
@@ -83,7 +87,9 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
         }
-        iosMain.dependencies {
+        // Darwin (iOS + macOS): Ktor Darwin engine. The platform `actual`s
+        // (player engine, Room DB builder, HTTP client) live in appleMain.
+        appleMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
         commonTest.dependencies {
@@ -97,4 +103,5 @@ dependencies {
     add("kspAndroid", libs.androidx.room.compiler)
     add("kspIosSimulatorArm64", libs.androidx.room.compiler)
     add("kspIosArm64", libs.androidx.room.compiler)
+    add("kspMacosArm64", libs.androidx.room.compiler)
 }
