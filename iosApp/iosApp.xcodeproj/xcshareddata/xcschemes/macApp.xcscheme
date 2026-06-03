@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A4EC9562620460972B125505"
-               BuildableName = "macApp.app"
+               BuildableName = "JRRKmpnativeui.app"
                BlueprintName = "macApp"
                ReferencedContainer = "container:iosApp.xcodeproj">
             </BuildableReference>
