@@ -17,6 +17,12 @@ group = proj.main_group.new_group('tvOSApp', 'tvOSApp')
   target.source_build_phase.add_file_reference(ref)
 end
 
+# Reuse a few iosApp Swift files (shared, platform-guarded) for tvOS.
+['iosApp/Playback/CorePlayer.swift', 'iosApp/Core/SwiftLog.swift'].each do |rel|
+  ref = proj.main_group.new_reference(rel)
+  target.source_build_phase.add_file_reference(ref)
+end
+
 # Asset catalog (tvOS App Icon & Top Shelf brand assets)
 assets = group.new_reference('Assets.xcassets')
 target.resources_build_phase.add_file_reference(assets)

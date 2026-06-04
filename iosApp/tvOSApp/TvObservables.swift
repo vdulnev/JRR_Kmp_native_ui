@@ -69,6 +69,7 @@ final class ZonesObservable {
     let viewModel: ZonesViewModel
 
     var serverZones: [Zone] = []
+    var deviceZones: [Zone] = []
     var activeZoneId = ""
     var isLoading = false
 
@@ -85,6 +86,8 @@ final class ZonesObservable {
 
     private func sync(_ state: ZonesViewState) {
         serverZones = state.serverZones
+        // On-device playback only; drop the Offline pseudo-zone for this app.
+        deviceZones = state.deviceZones.filter { $0.isLocal }
         activeZoneId = state.activeZoneId
         isLoading = state.isLoading
     }

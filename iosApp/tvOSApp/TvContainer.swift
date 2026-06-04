@@ -14,6 +14,9 @@ final class TvContainer {
     let libraryRepository: LibraryRepository
     let localPlayerEngine: IosLocalPlayerEngine
     let facade: AudioPlayerFacade
+    /// Native AVPlayer driver for on-device ("Local") playback. Registers
+    /// itself as the engine's controller; retained for the app's lifetime.
+    let corePlayer: CorePlayer
 
     init() {
         let builder = DatabaseBuilder().createBuilder()
@@ -37,6 +40,8 @@ final class TvContainer {
             saveLocalAudioQuality: { UserDefaults.standard.set($0, forKey: "local_audio_quality") },
             loadLocalAudioQuality: { UserDefaults.standard.string(forKey: "local_audio_quality") }
         )
+
+        corePlayer = CorePlayer(engine: engine, database: db, facade: facade)
 
         libraryRepository = LibraryRepository(
             database: db,

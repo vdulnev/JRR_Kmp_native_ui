@@ -13,20 +13,14 @@ struct TvZonesView: View {
                     if zones.isLoading && zones.serverZones.isEmpty {
                         ProgressView()
                     }
+                    Section("This Device") {
+                        ForEach(zones.deviceZones, id: \.id) { zone in
+                            zoneRow(zone, model: zones)
+                        }
+                    }
                     Section("Server Zones") {
                         ForEach(zones.serverZones, id: \.id) { zone in
-                            Button {
-                                zones.select(zone)
-                            } label: {
-                                HStack {
-                                    Text(zone.name)
-                                    Spacer()
-                                    if zone.id == zones.activeZoneId {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(.tint)
-                                    }
-                                }
-                            }
+                            zoneRow(zone, model: zones)
                         }
                     }
                 }
@@ -41,6 +35,20 @@ struct TvZonesView: View {
                 let vm = ZonesObservable(viewModel: container.makeZonesViewModel())
                 zones = vm
                 vm.refresh()
+            }
+        }
+    }
+
+    private func zoneRow(_ zone: Zone, model: ZonesObservable) -> some View {
+        Button {
+            model.select(zone)
+        } label: {
+            HStack {
+                Text(zone.name)
+                Spacer()
+                if zone.id == model.activeZoneId {
+                    Image(systemName: "checkmark").foregroundStyle(.tint)
+                }
             }
         }
     }

@@ -28,10 +28,11 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         setupAudioSession()
     }
 
-    /// AVAudioSession is iOS-only. macOS routes audio without an explicit session,
-    /// so `AVQueuePlayer` plays directly and there's no interruption handling.
+    /// AVAudioSession exists on iOS and tvOS. macOS routes audio without an
+    /// explicit session, so `AVQueuePlayer` plays directly and there's no
+    /// interruption handling there.
     private func setupAudioSession() {
-        #if os(iOS)
+        #if os(iOS) || os(tvOS)
             do {
                 let session = AVAudioSession.sharedInstance()
                 try session.setCategory(.playback, mode: .default, options: [])
@@ -48,7 +49,7 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
         #endif
     }
 
-    #if os(iOS)
+    #if os(iOS) || os(tvOS)
         private func handleInterruption(notification: Notification) {
             guard let userInfo = notification.userInfo,
                   let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
