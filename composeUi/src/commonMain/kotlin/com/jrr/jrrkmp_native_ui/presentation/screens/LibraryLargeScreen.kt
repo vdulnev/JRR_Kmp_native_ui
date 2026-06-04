@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.domain.model.Album
+import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.presentation.components.AlphabetIndexBar
 import com.jrr.jrrkmp_native_ui.presentation.components.InfoDialog
 import com.jrr.jrrkmp_native_ui.presentation.components.sectionLetterFor
@@ -70,6 +72,12 @@ fun LibraryLargeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var infoAlbum by remember { mutableStateOf<Album?>(null) }
+    var infoTrack by remember { mutableStateOf<Track?>(null) }
+
+    // Browse grouping toggle + per-album collapse state, hoisted so they
+    // survive switching away from and back to the Browse tab.
+    var browseGrouped by remember { mutableStateOf(false) }
+    val browseCollapsedAlbums = remember { mutableStateMapOf<String, Boolean>() }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.bg1)) {
         // Header
@@ -164,7 +172,10 @@ fun LibraryLargeScreen(
                     onAddBrowseItemToQueue = { viewModel.addBrowseItemToQueue(it) },
                     onDownloadBrowseItem = { viewModel.downloadBrowseItem(it) },
                     isOffline = state.isOffline,
-                    onTrackInfoClick = {},
+                    onTrackInfoClick = { infoTrack = it },
+                    grouped = browseGrouped,
+                    onGroupedChange = { browseGrouped = it },
+                    collapsedAlbums = browseCollapsedAlbums,
                     onBackClick = { viewModel.popBrowseNode() },
                     isLarge = true,
                 )
@@ -194,6 +205,10 @@ fun LibraryLargeScreen(
 
     infoAlbum?.let { album ->
         InfoDialog(title = album.name, fields = album.toInfoFields(), onDismiss = { infoAlbum = null })
+    }
+
+    infoTrack?.let { track ->
+        InfoDialog(title = track.name, fields = track.toInfoFields(), onDismiss = { infoTrack = null })
     }
 }
 

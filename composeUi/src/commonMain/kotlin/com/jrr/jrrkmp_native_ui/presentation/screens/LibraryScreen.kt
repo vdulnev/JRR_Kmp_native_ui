@@ -27,6 +27,10 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.UnfoldMore
 import com.jrr.jrrkmp_native_ui.presentation.components.InfoDialog
 import com.jrr.jrrkmp_native_ui.presentation.components.toInfoFields
 import androidx.compose.material3.*
@@ -47,6 +51,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +65,7 @@ import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
 import com.jrr.jrrkmp_native_ui.data.api.BrowseNode
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
+import com.jrr.jrrkmp_native_ui.domain.model.groupByArtistAndAlbum
 import com.jrr.jrrkmp_native_ui.presentation.components.AlphabetIndexBar
 import com.jrr.jrrkmp_native_ui.presentation.components.sectionLetterFor
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.LibraryViewModel
@@ -97,6 +103,11 @@ fun LibraryScreen(
     val artistAlbumsListState = rememberLazyListState()
     val compilationArtistsListState = rememberLazyListState()
     val randomAlbumsGridState = rememberLazyGridState()
+
+    // Browse grouping toggle + per-album collapse state are hoisted here so
+    // they survive switching away from and back to the Browse tab.
+    var browseGrouped by remember { mutableStateOf(false) }
+    val browseCollapsedAlbums = remember { mutableStateMapOf<String, Boolean>() }
 
     LaunchedEffect(state.transientError) {
         state.transientError?.let { error ->
@@ -241,6 +252,9 @@ fun LibraryScreen(
                     onDownloadBrowseItem = { viewModel.downloadBrowseItem(it) },
                     isOffline = state.isOffline,
                     onTrackInfoClick = { infoTrack = it },
+                    grouped = browseGrouped,
+                    onGroupedChange = { browseGrouped = it },
+                    collapsedAlbums = browseCollapsedAlbums,
                     onBackClick = {
                         viewModel.popBrowseNode()
                     }
@@ -812,9 +826,17 @@ fun BrowseTab(
     onDownloadBrowseItem: (BrowseItem) -> Unit,
     isOffline: Boolean,
     onTrackInfoClick: (Track) -> Unit,
+    grouped: Boolean,
+    onGroupedChange: (Boolean) -> Unit,
+    collapsedAlbums: MutableMap<String, Boolean>,
     onBackClick: () -> Unit,
     isLarge: Boolean = false
 ) {
+    // `grouped`: when on, a flat track listing is reorganised into Album Artist
+    // → Album sections (multi-disc albums merged via albumGroupId). Hoisted by
+    // the caller so it survives switching away from the Browse tab.
+    val showingTracks = children.isEmpty() && tracks.isNotEmpty()
+
     Column(modifier = Modifier.fillMaxSize()) {
         // Breadcrumbs / Back button
         Row(
@@ -832,8 +854,55 @@ fun BrowseTab(
             Text(
                 text = stack.last().label.uppercase(),
                 style = AppTypography.sectionLabel,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
+            if (showingTracks) {
+                if (grouped) {
+                    val albumGroupIds = remember(tracks) {
+                        tracks.map { it.albumGroupId }.distinct()
+                    }
+                    IconButton(
+                        onClick = { albumGroupIds.forEach { collapsedAlbums[it] = true } },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.UnfoldLess,
+                            contentDescription = "Collapse all albums",
+                            tint = AppColors.text2,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = { collapsedAlbums.clear() },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.UnfoldMore,
+                            contentDescription = "Expand all albums",
+                            tint = AppColors.text2,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "GROUP",
+                    style = AppTypography.sectionLabel,
+                    color = AppColors.text2
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Switch(
+                    checked = grouped,
+                    onCheckedChange = onGroupedChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = AppColors.accent,
+                        checkedTrackColor = AppColors.accentDim
+                    )
+                )
+            }
         }
 
         if (isLoading) {
@@ -865,6 +934,19 @@ fun BrowseTab(
                         )
                     }
                 }
+            } else if (grouped) {
+                BrowseGroupedTracks(
+                    tracks = tracks,
+                    pad = pad,
+                    isOffline = isOffline,
+                    collapsedAlbums = collapsedAlbums,
+                    onTrackClick = onTrackClick,
+                    onPlayTrack = onPlayTrack,
+                    onPlayTrackNext = onPlayTrackNext,
+                    onAddTrackToQueue = onAddTrackToQueue,
+                    onDownloadTrack = onDownloadTrack,
+                    onTrackInfoClick = onTrackInfoClick
+                )
             } else {
                 LazyVerticalGrid(
                     columns = cells,
@@ -884,6 +966,87 @@ fun BrowseTab(
                             onInfoClick = { onTrackInfoClick(track) },
                             onClick = { onTrackClick(track, tracks) }
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Renders a flat browse track listing reorganised into Album Artist → Album
+ * sections (see [groupByArtistAndAlbum]). Albums are keyed by
+ * [Track.albumGroupId], which already folds the separate disc folders of a
+ * multi-disc album into one group; within an album tracks are ordered by disc
+ * then track number and split under "DISC N" sub-headers when more than one
+ * disc is present (mirroring AlbumDetailScreen).
+ */
+@Composable
+private fun BrowseGroupedTracks(
+    tracks: List<Track>,
+    pad: Dp,
+    isOffline: Boolean,
+    collapsedAlbums: MutableMap<String, Boolean>,
+    onTrackClick: (Track, List<Track>) -> Unit,
+    onPlayTrack: (Track) -> Unit,
+    onPlayTrackNext: (Track) -> Unit,
+    onAddTrackToQueue: (Track) -> Unit,
+    onDownloadTrack: (Track) -> Unit,
+    onTrackInfoClick: (Track) -> Unit
+) {
+    val artistGroups = remember(tracks) { tracks.groupByArtistAndAlbum() }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = pad, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        artistGroups.forEach { artistGroup ->
+            item(key = "artist:${artistGroup.artist}") {
+                Text(
+                    text = artistGroup.artist.uppercase(),
+                    style = AppTypography.sectionLabel,
+                    color = AppColors.accent,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                )
+            }
+            artistGroup.albums.forEach { album ->
+                val isCollapsed = collapsedAlbums[album.groupId] == true
+                item(key = "album:${album.groupId}") {
+                    AlbumHeaderItem(
+                        albumName = album.name,
+                        artistName = artistGroup.artist,
+                        artworkFileKey = album.artworkFileKey,
+                        collapsed = isCollapsed,
+                        showArtwork = false,
+                        onClick = { collapsedAlbums[album.groupId] = !isCollapsed }
+                    )
+                }
+                if (!isCollapsed) {
+                    val discGroups = album.tracks.groupBy { it.discNumber }
+                    discGroups.forEach { (discNumber, discTracks) ->
+                        if (discGroups.size > 1) {
+                            item(key = "disc:${album.groupId}:$discNumber") {
+                                Text(
+                                    text = "DISC $discNumber",
+                                    style = AppTypography.sectionLabel,
+                                    color = AppColors.text3,
+                                    modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
+                                )
+                            }
+                        }
+                        items(discTracks, key = { it.fileKey }) { track ->
+                            TrackRowItem(
+                                track = track,
+                                onPlay = { onPlayTrack(track) },
+                                onPlayNext = { onPlayTrackNext(track) },
+                                onAddToQueue = { onAddTrackToQueue(track) },
+                                onDownload = { onDownloadTrack(track) },
+                                isOffline = isOffline,
+                                onInfoClick = { onTrackInfoClick(track) },
+                                onClick = { onTrackClick(track, album.tracks) }
+                            )
+                        }
                     }
                 }
             }
@@ -1230,32 +1393,38 @@ fun AlbumHeaderItem(
     albumName: String,
     artistName: String,
     artworkFileKey: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    collapsed: Boolean? = null,
+    showArtwork: Boolean = true,
+    onClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(top = 12.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(AppColors.bg3)
-        ) {
-            val imageUrl = LocalMcwsClient.current.buildImageUrl(artworkFileKey)
-            if (imageUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = albumName,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+        if (showArtwork) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(AppColors.bg3)
+            ) {
+                val imageUrl = LocalMcwsClient.current.buildImageUrl(artworkFileKey)
+                if (imageUrl.isNotEmpty()) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = albumName,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
             }
+            Spacer(modifier = Modifier.width(12.dp))
         }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = albumName.ifEmpty { "Unknown Album" },
                 style = AppTypography.itemTitle.copy(fontWeight = FontWeight.Bold),
@@ -1268,6 +1437,14 @@ fun AlbumHeaderItem(
                 color = AppColors.text2,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (collapsed != null) {
+            Icon(
+                imageVector = if (collapsed) Icons.Default.KeyboardArrowRight else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (collapsed) "Expand album" else "Collapse album",
+                tint = AppColors.text3,
+                modifier = Modifier.size(24.dp)
             )
         }
     }
@@ -1592,6 +1769,15 @@ fun TrackRowItem(
                         onClick = {
                             showMenu = false
                             onDownload()
+                        }
+                    )
+                }
+                onInfoClick?.let {
+                    DropdownMenuItem(
+                        text = { Text("Info", style = AppTypography.itemTitle) },
+                        onClick = {
+                            showMenu = false
+                            it()
                         }
                     )
                 }
