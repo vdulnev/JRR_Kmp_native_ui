@@ -5,7 +5,7 @@ import SwiftUI
 /// (which the shared `McwsClient` reads to build request URLs).
 struct TvConnectView: View {
     @Environment(TvContainer.self) private var container
-    @Binding var connected: Bool
+    let onConnected: () -> Void
 
     @State private var host = ""
     @State private var port = "52199"
@@ -54,7 +54,21 @@ struct TvConnectView: View {
                     container.serverRepository.setActiveServer(
                         host: host, port: p, useSsl: false, sslPort: 52200, token: token
                     )
-                    connected = true
+                    // Persist so the connection is restored on next launch.
+                    let server = SavedServerEntity(
+                        id: "\(host):\(p)",
+                        host: host,
+                        port: p,
+                        username: username,
+                        passwordKey: password,
+                        friendlyName: host,
+                        lastUsedAt: Int64(Date().timeIntervalSince1970 * 1000),
+                        authToken: token,
+                        useSsl: false,
+                        sslPort: 52200
+                    )
+                    try? await container.serverRepository.saveServer(server: server)
+                    onConnected()
                 } else {
                     status = "Authentication failed — check host, port, and credentials."
                 }
