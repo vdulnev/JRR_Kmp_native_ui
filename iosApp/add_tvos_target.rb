@@ -12,7 +12,7 @@ target = proj.new_target(:application, 'tvOSApp', :tvos, '17.0', nil, :swift)
 
 # Source files (classic group + references, not a synchronized group)
 group = proj.main_group.new_group('tvOSApp', 'tvOSApp')
-%w[TvOSApp TvContainer TvRootView TvMainView TvConnectView TvLibraryView TvObservables TvAlbumTracksView TvZonesView TvArtwork TvSearchView TvNowPlayingDetailView].each do |name|
+%w[TvOSApp TvContainer TvRootView TvMainView TvConnectView TvLibraryView TvLibraryRootView TvRandomAlbumsView TvBrowseView TvFavoritesView TvSettingsView TvObservables TvAlbumTracksView TvZonesView TvArtwork TvSearchView TvNowPlayingDetailView].each do |name|
   ref = group.new_reference("#{name}.swift")
   target.source_build_phase.add_file_reference(ref)
 end

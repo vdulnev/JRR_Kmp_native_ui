@@ -1,11 +1,9 @@
 import SharedLogic
 import SwiftUI
 
-/// Library browse tab: album artists → albums → tracks. Reads the library via
-/// `LibraryRepository` directly (suspend → async). Lives inside the top-level
-/// `TvMainView` TabView, so search / zones / now-playing are sibling tabs
-/// rather than a focus-trapped toolbar/bottom bar.
-struct TvLibraryView: View {
+/// Artists library sub-tab: album artists → albums → tracks. Reads the library
+/// via `LibraryRepository` directly (suspend → async).
+struct TvArtistsView: View {
     @Environment(TvContainer.self) private var container
     @State private var artists: [String] = []
     @State private var loading = true

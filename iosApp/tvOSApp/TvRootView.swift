@@ -16,7 +16,7 @@ struct TvRootView: View {
             ProgressView("Connecting…")
                 .task { await restore() }
         case .connected:
-            TvMainView()
+            TvMainView(onDisconnect: { phase = .disconnected })
         case .disconnected:
             TvConnectView(onConnected: { phase = .connected })
         }
