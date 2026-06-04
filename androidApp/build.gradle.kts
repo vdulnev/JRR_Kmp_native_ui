@@ -13,6 +13,8 @@ kotlin {
 }
 dependencies {
     implementation(projects.sharedLogic)
+    // Shared Compose UI (theme/components/screens) reused by the desktop host.
+    implementation(projects.composeUi)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -36,8 +38,10 @@ dependencies {
     implementation(libs.media3.session)
     implementation(libs.media3.datasource.okhttp)
 
-    // Coil & WorkManager
-    implementation(libs.coil.compose)
+    // Coil 3 (image loading) + OkHttp network fetcher (reuses the trust-all
+    // OkHttpClient for JRiver's self-signed cert). WorkManager for downloads.
+    implementation(libs.coil3.compose)
+    implementation(libs.coil3.network.okhttp)
     implementation(libs.androidx.work.runtime.ktx)
 
     // Room Multiplatform Runtime
