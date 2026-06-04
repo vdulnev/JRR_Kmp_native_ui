@@ -37,6 +37,10 @@ kotlin {
             // is `implementation` (non-transitive) in sharedLogic, so the desktop
             // host needs it on its compile classpath to construct them.
             implementation(libs.androidx.lifecycle.viewmodel)
+            // VLCJ (libvlc bindings) backs on-device audio playback. Requires a
+            // system VLC install (libvlc discovered at runtime); bundling the
+            // natives with the installer is a Phase 5 concern.
+            implementation(libs.vlcj)
         }
     }
 }

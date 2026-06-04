@@ -353,13 +353,39 @@ gain a common/desktop path first: **Coil 2** (6 files), **`android.widget.Toast`
   [JrrApplication.kt:28-39](../androidApp/src/main/kotlin/com/jrr/jrrkmp_native_ui/JrrApplication.kt)).
 - **Exit criteria:** album art renders on desktop and still renders on Android.
 
-### Phase 4 — Desktop local playback (VLCJ)
+### Phase 4 — Desktop local playback (VLCJ) ✅ COMPLETE (pending live-server audio check)
 
-- Real `LocalPlayerEngine` via **VLCJ** (libvlc), implementing all ~25 interface
-  methods ([LocalPlayerEngine.kt](../sharedLogic/src/commonMain/kotlin/com/jrr/jrrkmp_native_ui/playback/LocalPlayerEngine.kt)),
-  replacing the Phase 2 stub.
-- Bundle/resolve the libvlc native libraries with the installer (see §6 risk).
-- **Exit criteria:** local file/stream playback works on Windows.
+- Real `LocalPlayerEngine` via **VLCJ** (libvlc) ✓ — `DesktopPlayerEngine`
+  rewritten from the Phase 2 stub, implementing all interface methods. It is the
+  JVM analogue of the Android ExoPlayer
+  [LocalPlayerHandler.kt](../androidApp/src/main/kotlin/com/jrr/jrrkmp_native_ui/playback/LocalPlayerHandler.kt):
+  single player + app-managed queue, streaming the MCWS `File/GetFile` endpoint
+  for the active server, honouring the user's `LocalAudioQuality`.
+  - **Stream URL** built from `serverRepository.activeServer` exactly like
+    Android: `…/MCWS/v1/File/GetFile?File=<key>&FileType=Key&Playback=1&<quality.mcwsParams>&Token=<t>`.
+    Returns null (no-op) when offline.
+  - **Advance logic** (`onTrackFinished`) honours repeat (TRACK / PLAYLIST) and
+    shuffle (random next), mirroring ExoPlayer's behaviour.
+  - **Threading:** libvlc fires events on a native thread; re-entering the player
+    from there can deadlock, so track-advance is bounced onto a single-thread
+    `advanceExecutor`. Volume is reapplied in the `playing` event (libvlc resets
+    it per media).
+  - **Graceful degradation:** libvlc is discovered lazily on first *real*
+    playback; if absent, the engine logs one Error and no-ops (remote zone
+    control unaffected). Passive lifecycle calls (`stop`/`pause`/`clearQueue`/
+    `setVolume`/position polls) are guarded on `isInitialized()`, so a
+    remote-only session never loads libvlc. `release()` (wired to the window
+    close) tears it down only if it was started.
+  - Container passes `serverRepository` + a `LocalAudioQuality` provider (reads
+    `DesktopSettings`) into the engine.
+- **Verified:** `:desktopApp:compileKotlinJvm` green; `:desktopApp:run` boots,
+  libvlc initialises on demand ("VLCJ audio player initialised") on a machine
+  with VLC installed, and stays unloaded at boot for the offline/remote path.
+- libvlc natives are resolved from the **system VLC install** at runtime;
+  bundling them in the installer is deferred to Phase 5 (see §6 risk).
+- **Exit criteria (remaining for sign-off):** confirm audio output by streaming
+  a track from a live JRiver server on Windows — needs a server + credentials to
+  exercise end-to-end (engine wiring, URL build, and libvlc load are confirmed).
 
 ### Phase 5 — Packaging
 

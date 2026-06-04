@@ -8,6 +8,7 @@ import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.createDatabase
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
+import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 
@@ -36,7 +37,15 @@ class DesktopAppContainer(private val settings: DesktopSettings) {
     val mcwsClient: McwsClient get() = mcwsCore.mcwsClient
     val serverRepository: ServerRepository get() = mcwsCore.serverRepository
 
-    val localPlayerEngine: DesktopPlayerEngine by lazy { DesktopPlayerEngine() }
+    val localPlayerEngine: DesktopPlayerEngine by lazy {
+        log.d { "lazy: localPlayerEngine (VLCJ)" }
+        DesktopPlayerEngine(
+            serverRepository = serverRepository,
+            localAudioQualityProvider = {
+                LocalAudioQuality.fromName(settings.getLocalAudioQuality())
+            },
+        )
+    }
 
     val facade: AudioPlayerFacade by lazy {
         log.d { "lazy: facade" }

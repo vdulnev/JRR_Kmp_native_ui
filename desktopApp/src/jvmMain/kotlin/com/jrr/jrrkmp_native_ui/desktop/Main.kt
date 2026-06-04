@@ -96,7 +96,11 @@ fun main() = application {
     val artworkResolver = remember { ArtworkResolver { it } }
 
     Window(
-        onCloseRequest = ::exitApplication,
+        onCloseRequest = {
+            // Release libvlc (no-op if playback never started) before quitting.
+            container.localPlayerEngine.release()
+            exitApplication()
+        },
         title = "JRR Desktop",
     ) {
         JrrTheme {
