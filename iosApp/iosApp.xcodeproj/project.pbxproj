@@ -7,17 +7,42 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1A04D0DE117A5A16A20ED396 /* TvLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93E58C5E3ABE4EE3BAB99B3D /* TvLibraryView.swift */; };
+		1C70359B9D8D3A5FE8048307 /* TvContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4552806B45D90F35EB20B55B /* TvContainer.swift */; };
+		3DB0BDF1647A6EB66D45C705 /* TvConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E5BAE7F7D6D4F2CD1DDE81 /* TvConnectView.swift */; };
+		60B0DADFB0E302C054684323 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E91E1CF3DAC22FE488FCF765 /* Foundation.framework */; };
+		81D145E908AE748145DD04AD /* TvRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1BA42F3FA813C9478A363C0 /* TvRootView.swift */; };
+		95A3EC10D60A6BA9FCC9007E /* TvConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1194EA197D00A7FEE99F8CA5 /* TvConnectView.swift */; };
+		A2226B296C295F30997D6F32 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E91E1CF3DAC22FE488FCF765 /* Foundation.framework */; };
+		A9AC4FACA103F9941A75C96C /* TvOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2CCB5F9A7DFBCDE912D5AC6 /* TvOSApp.swift */; };
+		C13245D6017E9DDBAFBAF05B /* TvOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C838C2CBE839C20684F0EAAA /* TvOSApp.swift */; };
 		CBD7211C1E1AF115B597B6DB /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DC42241BFADD111D594F3215 /* Cocoa.framework */; };
+		D0BA1F39A5707D00244F3EF6 /* TvRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335598D0308102832F6545E2 /* TvRootView.swift */; };
+		E1F8A385E4F7B392A348E398 /* TvContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F574F11374C3ED45828C00 /* TvContainer.swift */; };
+		E4AE0B53AA901CAD46ECF593 /* TvLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F955CC6E9C26457EFC9E3301 /* TvLibraryView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		02538AEE1C4847A5E78584CE /* tvOSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tvOSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1194EA197D00A7FEE99F8CA5 /* TvConnectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvConnectView.swift; sourceTree = "<group>"; };
+		164E337EA9EF9F37CDBEB7BB /* tvOSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tvOSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		335598D0308102832F6545E2 /* TvRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvRootView.swift; sourceTree = "<group>"; };
+		4552806B45D90F35EB20B55B /* TvContainer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvContainer.swift; sourceTree = "<group>"; };
 		737CB8E3A7E954F57FEB6906 /* macApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = macApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		78E5BAE7F7D6D4F2CD1DDE81 /* TvConnectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvConnectView.swift; sourceTree = "<group>"; };
+		93E58C5E3ABE4EE3BAB99B3D /* TvLibraryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvLibraryView.swift; sourceTree = "<group>"; };
+		93F574F11374C3ED45828C00 /* TvContainer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvContainer.swift; sourceTree = "<group>"; };
+		A2CCB5F9A7DFBCDE912D5AC6 /* TvOSApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvOSApp.swift; sourceTree = "<group>"; };
+		C838C2CBE839C20684F0EAAA /* TvOSApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvOSApp.swift; sourceTree = "<group>"; };
 		C93BF9D70AF8DCD7F45B9ABE /* JRRKmpnativeui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JRRKmpnativeui.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1BA42F3FA813C9478A363C0 /* TvRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvRootView.swift; sourceTree = "<group>"; };
 		DC42241BFADD111D594F3215 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		E91E1CF3DAC22FE488FCF765 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		F955CC6E9C26457EFC9E3301 /* TvLibraryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvLibraryView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		7AD87C50700F2D5CB159BC12 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		7AD87C50700F2D5CB159BC12 /* Exceptions for "iosApp" folder in "macApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				main.swift,
@@ -28,7 +53,7 @@
 			);
 			target = A4EC9562620460972B125505 /* macApp */;
 		};
-		E5D9D3FC62D81DD9367A6339 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		E5D9D3FC62D81DD9367A6339 /* Exceptions for "iosApp" folder in "iosApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -42,8 +67,8 @@
 		6965CE93384262396BF3ABEB /* iosApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				E5D9D3FC62D81DD9367A6339 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
-				7AD87C50700F2D5CB159BC12 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				E5D9D3FC62D81DD9367A6339 /* Exceptions for "iosApp" folder in "iosApp" target */,
+				7AD87C50700F2D5CB159BC12 /* Exceptions for "iosApp" folder in "macApp" target */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
@@ -65,6 +90,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		31005BED3589D49CFC5B20A0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				60B0DADFB0E302C054684323 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B7857EE155329BA209A7D69A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -81,6 +114,8 @@
 			children = (
 				C93BF9D70AF8DCD7F45B9ABE /* JRRKmpnativeui.app */,
 				737CB8E3A7E954F57FEB6906 /* macApp.app */,
+				164E337EA9EF9F37CDBEB7BB /* tvOSApp.app */,
+				02538AEE1C4847A5E78584CE /* tvOSApp.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -92,13 +127,23 @@
 				6965CE93384262396BF3ABEB /* iosApp */,
 				12ACE18A31F49AAB18E1000D /* Products */,
 				ABDAB75AC8CCDA810F6E1F1A /* Frameworks */,
+				EFE692B39829EF21A3ED6883 /* tvOSApp */,
 			);
+			sourceTree = "<group>";
+		};
+		85A50E09807F1474C6790486 /* tvOS */ = {
+			isa = PBXGroup;
+			children = (
+				E91E1CF3DAC22FE488FCF765 /* Foundation.framework */,
+			);
+			name = tvOS;
 			sourceTree = "<group>";
 		};
 		ABDAB75AC8CCDA810F6E1F1A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				C77EC82B8663809E814C2992 /* OS X */,
+				85A50E09807F1474C6790486 /* tvOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -109,6 +154,19 @@
 				DC42241BFADD111D594F3215 /* Cocoa.framework */,
 			);
 			name = "OS X";
+			sourceTree = "<group>";
+		};
+		EFE692B39829EF21A3ED6883 /* tvOSApp */ = {
+			isa = PBXGroup;
+			children = (
+				C838C2CBE839C20684F0EAAA /* TvOSApp.swift */,
+				93F574F11374C3ED45828C00 /* TvContainer.swift */,
+				D1BA42F3FA813C9478A363C0 /* TvRootView.swift */,
+				1194EA197D00A7FEE99F8CA5 /* TvConnectView.swift */,
+				93E58C5E3ABE4EE3BAB99B3D /* TvLibraryView.swift */,
+			);
+			name = tvOSApp;
+			path = tvOSApp;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -156,6 +214,24 @@
 			productReference = 737CB8E3A7E954F57FEB6906 /* macApp.app */;
 			productType = "com.apple.product-type.application";
 		};
+		EDC1190D43D1F8A4CF6BB4C6 /* tvOSApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C27FFD5574D35D3F7BAD9C57 /* Build configuration list for PBXNativeTarget "tvOSApp" */;
+			buildPhases = (
+				5C37A96058D7D5E89669D80D /* Compile Kotlin Framework */,
+				12D05E173FCD934EA6C1B554 /* Sources */,
+				31005BED3589D49CFC5B20A0 /* Frameworks */,
+				BFB5D300D2A050400E538641 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = tvOSApp;
+			productName = tvOSApp;
+			productReference = 02538AEE1C4847A5E78584CE /* tvOSApp.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -187,12 +263,20 @@
 			targets = (
 				47D6E1DB031EA059DFACBF88 /* iosApp */,
 				A4EC9562620460972B125505 /* macApp */,
+				EDC1190D43D1F8A4CF6BB4C6 /* tvOSApp */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		05385220C5AFC55F034D9B02 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BFB5D300D2A050400E538641 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -228,6 +312,24 @@
 			shellPath = /bin/sh;
 			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :sharedLogic:embedAndSignAppleFrameworkForXcode\n";
 		};
+		5C37A96058D7D5E89669D80D /* Compile Kotlin Framework */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Compile Kotlin Framework";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED set to YES\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :sharedLogic:embedAndSignAppleFrameworkForXcode\n";
+		};
 		8967DE3AC7C1F6EEB6D73837 /* Compile Kotlin Framework */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -249,6 +351,18 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		12D05E173FCD934EA6C1B554 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C13245D6017E9DDBAFBAF05B /* TvOSApp.swift in Sources */,
+				E1F8A385E4F7B392A348E398 /* TvContainer.swift in Sources */,
+				81D145E908AE748145DD04AD /* TvRootView.swift in Sources */,
+				95A3EC10D60A6BA9FCC9007E /* TvConnectView.swift in Sources */,
+				1A04D0DE117A5A16A20ED396 /* TvLibraryView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		1968AC50D4E3A319DDCECAD4 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -415,6 +529,30 @@
 			};
 			name = Release;
 		};
+		8DA973D3C1EAA669431E0D83 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.jrr.jrrkmp-native-ui.tvos";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+			};
+			name = Debug;
+		};
 		A594E2E60DAC56201034FB21 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -443,6 +581,56 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
+		};
+		B5A6CCB15181C6E69B8F31B4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.jrr.jrrkmp-native-ui.tvos";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+			};
+			name = Debug;
+		};
+		BD47AE31632DA7D065BA0724 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.jrr.jrrkmp-native-ui.tvos";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
 		};
 		BFA04ACF1F28BBFB32D9D24D /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -509,6 +697,32 @@
 			};
 			name = Debug;
 		};
+		C3E8926FA915DB1119C6D891 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.jrr.jrrkmp-native-ui.tvos";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -526,6 +740,15 @@
 			buildConfigurations = (
 				3DD6735F7614FA74E7DC3B98 /* Release */,
 				7D304020C3E2F3C008BAF044 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C27FFD5574D35D3F7BAD9C57 /* Build configuration list for PBXNativeTarget "tvOSApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BD47AE31632DA7D065BA0724 /* Release */,
+				8DA973D3C1EAA669431E0D83 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
