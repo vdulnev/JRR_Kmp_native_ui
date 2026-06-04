@@ -65,7 +65,8 @@ import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
 import com.jrr.jrrkmp_native_ui.data.api.BrowseNode
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
-import com.jrr.jrrkmp_native_ui.domain.model.groupByArtistAndAlbum
+import com.jrr.jrrkmp_native_ui.data.repository.groupTracksByArtistAndAlbum
+import com.jrr.jrrkmp_native_ui.data.repository.albumGroupKeyOf
 import com.jrr.jrrkmp_native_ui.presentation.components.AlphabetIndexBar
 import com.jrr.jrrkmp_native_ui.presentation.components.sectionLetterFor
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.LibraryViewModel
@@ -861,7 +862,7 @@ fun BrowseTab(
             if (showingTracks) {
                 if (grouped) {
                     val albumGroupIds = remember(tracks) {
-                        tracks.map { it.albumGroupId }.distinct()
+                        tracks.map { albumGroupKeyOf(it) }.distinct()
                     }
                     IconButton(
                         onClick = { albumGroupIds.forEach { collapsedAlbums[it] = true } },
@@ -994,7 +995,7 @@ private fun BrowseGroupedTracks(
     onDownloadTrack: (Track) -> Unit,
     onTrackInfoClick: (Track) -> Unit
 ) {
-    val artistGroups = remember(tracks) { tracks.groupByArtistAndAlbum() }
+    val artistGroups = remember(tracks) { groupTracksByArtistAndAlbum(tracks) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

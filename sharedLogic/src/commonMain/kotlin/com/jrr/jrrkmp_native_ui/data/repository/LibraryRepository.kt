@@ -223,7 +223,7 @@ private val PARENS_BLOCK = Regex("""\s*[(\[][^()\[\]]*[)\]]\s*""")
  * Includes `albumArtist` so different artists' albums don't collide on
  * shared root folders.
  */
-private fun computeGroupKey(album: Album): String {
+internal fun computeGroupKey(album: Album): String {
     val normalized = normalizeAlbumName(album.name)
     val hasDiscMarker = normalized != album.name
     val taggedMultiDisc = album.totalDiscs > 1 && album.discNumber > 0

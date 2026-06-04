@@ -1079,7 +1079,7 @@ struct LibraryView: View {
     }
 
     private func collapseAllBrowseAlbums() {
-        collapsedBrowseAlbums = Set(observable.browseTracks.map(\.albumGroupId))
+        collapsedBrowseAlbums = Set(observable.browseTracks.map { BrowseTrackGroupingKt.albumGroupKeyOf(track: $0) })
     }
 
     @ViewBuilder
@@ -1211,46 +1211,12 @@ struct LibraryView: View {
         .padding(.top, 12)
     }
 
-    /// Album within an artist section. Keyed by `Track.albumGroupId`, which
-    /// already folds the separate disc folders of a multi-disc album into one
-    /// group; `tracks` are ordered by disc then track number.
-    private struct BrowseAlbumGroup {
-        let groupId: String
-        let name: String
-        let tracks: [Track]
-    }
-
-    private struct BrowseArtistGroup {
-        let artist: String
-        let albums: [BrowseAlbumGroup]
-    }
-
-    /// Mirrors the shared `groupByArtistAndAlbum()` (Album Artist → Album,
-    /// keyed on `albumGroupId`, ordered by disc/track, sorted case-insensitively).
-    private func groupedBrowseTracks(_ tracks: [Track]) -> [BrowseArtistGroup] {
-        let byArtist = Dictionary(grouping: tracks) {
-            $0.albumArtist.isEmpty ? "Unknown Artist" : $0.albumArtist
-        }
-        return byArtist.map { artist, artistTracks in
-            let byAlbum = Dictionary(grouping: artistTracks) { $0.albumGroupId }
-            let albums = byAlbum.map { groupId, albumTracks -> BrowseAlbumGroup in
-                let sorted = albumTracks.sorted { a, b in
-                    a.discNumber != b.discNumber
-                        ? a.discNumber < b.discNumber
-                        : a.trackNumber < b.trackNumber
-                }
-                let name = sorted.first.map { $0.album.isEmpty ? "Unknown Album" : $0.album } ?? "Unknown Album"
-                return BrowseAlbumGroup(groupId: groupId, name: name, tracks: sorted)
-            }
-            .sorted { $0.name.lowercased() < $1.name.lowercased() }
-            return BrowseArtistGroup(artist: artist, albums: albums)
-        }
-        .sorted { $0.artist.lowercased() < $1.artist.lowercased() }
-    }
-
     @ViewBuilder
     private func browseGroupedTracksList() -> some View {
-        let groups = groupedBrowseTracks(observable.browseTracks)
+        // Reuses the shared multi-disc folding (BrowseTrackGrouping.kt): a 2-CD
+        // set whose per-disc rows carry "… [CD1]"/"[CD2]" tags collapses into a
+        // single normalised album, matching the Artists→Albums view.
+        let groups = BrowseTrackGroupingKt.groupTracksByArtistAndAlbum(tracks: observable.browseTracks)
         LazyVStack(alignment: .leading, spacing: 8) {
             ForEach(groups, id: \.artist) { artistGroup in
                 Text(artistGroup.artist.uppercased())
@@ -1288,7 +1254,7 @@ struct LibraryView: View {
         .padding(.top, 12)
     }
 
-    private func browseAlbumHeader(album: BrowseAlbumGroup, artist: String, collapsed: Bool) -> some View {
+    private func browseAlbumHeader(album: AlbumTrackGroup, artist: String, collapsed: Bool) -> some View {
         Button {
             if collapsed {
                 collapsedBrowseAlbums.remove(album.groupId)

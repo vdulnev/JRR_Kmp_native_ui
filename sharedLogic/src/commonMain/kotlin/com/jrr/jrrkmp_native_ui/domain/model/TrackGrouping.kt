@@ -1,9 +1,14 @@
 package com.jrr.jrrkmp_native_ui.domain.model
 
 /**
- * A single album within an [ArtistTrackGroup]. Keyed by [Track.albumGroupId],
- * so the separate disc folders of a multi-disc album are folded into one group.
- * [tracks] are ordered by disc then track number.
+ * A single album within an [ArtistTrackGroup]. [groupId] is the stable
+ * multi-disc-aware album key, so the separate disc folders of a multi-disc
+ * album are folded into one group. [tracks] are ordered by disc then track
+ * number, with disc numbers recovered from sibling disc subfolders when the
+ * per-track Disc# tags are missing.
+ *
+ * Produced by `groupTracksByArtistAndAlbum` (in the data layer, where the
+ * shared multi-disc folding/normalisation helpers live).
  */
 data class AlbumTrackGroup(
     val groupId: String,
@@ -17,32 +22,3 @@ data class ArtistTrackGroup(
     val artist: String,
     val albums: List<AlbumTrackGroup>,
 )
-
-/**
- * Reorganises a flat track listing into an Album Artist → Album hierarchy.
- *
- * Albums are keyed by [Track.albumGroupId], which already merges the separate
- * disc folders of a multi-disc album into a single group. Within each album
- * tracks are ordered by disc then track number; artists and albums are sorted
- * case-insensitively by name.
- */
-fun List<Track>.groupByArtistAndAlbum(): List<ArtistTrackGroup> =
-    groupBy { it.albumArtist.ifEmpty { "Unknown Artist" } }
-        .map { (artist, artistTracks) ->
-            val albums = artistTracks.groupBy { it.albumGroupId }
-                .map { (groupId, albumTracks) ->
-                    val sorted = albumTracks.sortedWith(
-                        compareBy({ it.discNumber }, { it.trackNumber }),
-                    )
-                    val first = sorted.firstOrNull()
-                    AlbumTrackGroup(
-                        groupId = groupId,
-                        name = first?.album?.ifEmpty { "Unknown Album" } ?: "Unknown Album",
-                        artworkFileKey = first?.fileKey ?: "",
-                        tracks = sorted,
-                    )
-                }
-                .sortedWith(compareBy { it.name.lowercase() })
-            ArtistTrackGroup(artist, albums)
-        }
-        .sortedWith(compareBy { it.artist.lowercase() })
