@@ -256,6 +256,13 @@ class LibraryViewModel(
         }
     }
 
+    /** Re-fetch the children/tracks of the current browse node. */
+    fun refreshBrowse() {
+        val current = _state.value.browseStack.lastOrNull() ?: return
+        log.d { "refreshBrowse(nodeId=${current.nodeId})" }
+        loadBrowseNodeContent(current.nodeId)
+    }
+
     private fun loadBrowseNodeContent(nodeId: String) {
         viewModelScope.launch {
             log.d { "loadBrowseNodeContent(nodeId=$nodeId)" }

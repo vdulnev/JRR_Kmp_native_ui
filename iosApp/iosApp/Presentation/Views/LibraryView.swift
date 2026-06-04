@@ -91,6 +91,10 @@ class LibraryObservable {
         viewModel.popBrowseNode()
     }
 
+    func refreshBrowse() {
+        viewModel.refreshBrowse()
+    }
+
     func playTrack(_ track: Track) {
         viewModel.playTrack(track: track)
     }
@@ -1050,31 +1054,33 @@ struct LibraryView: View {
     private func browseGroupBar() -> some View {
         let showingTracks = observable.browseChildren.isEmpty && !observable.browseTracks.isEmpty
         if showingTracks {
-            HStack(spacing: 12) {
+            HStack {
                 Spacer()
-                if browseGrouped {
-                    Button { collapseAllBrowseAlbums() } label: {
-                        Image(systemName: "rectangle.compress.vertical")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.textSecondary)
+                Menu {
+                    Button { observable.refreshBrowse() } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    Button { collapsedBrowseAlbums = [] } label: {
-                        Image(systemName: "rectangle.expand.vertical")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.textSecondary)
+                    Toggle(isOn: $browseGrouped) {
+                        Label("Group by album artist", systemImage: "person.2")
                     }
-                    .buttonStyle(PlainButtonStyle())
+                    if browseGrouped {
+                        Button { collapseAllBrowseAlbums() } label: {
+                            Label("Collapse all", systemImage: "rectangle.compress.vertical")
+                        }
+                        Button { collapsedBrowseAlbums = [] } label: {
+                            Label("Expand all", systemImage: "rectangle.expand.vertical")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.textSecondary)
+                        .frame(width: 32, height: 32)
                 }
-                Text("GROUP")
-                    .styleSectionLabel()
-                    .foregroundColor(.textSecondary)
-                Toggle("", isOn: $browseGrouped)
-                    .labelsHidden()
-                    .tint(.accentColor)
+                .buttonStyle(PlainButtonStyle())
             }
             .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-            .padding(.vertical, 8)
+            .padding(.vertical, 4)
         }
     }
 

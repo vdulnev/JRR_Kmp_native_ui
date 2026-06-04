@@ -21,11 +21,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -260,6 +262,7 @@ fun LibraryScreen(
                     onPlayTracksNext = { viewModel.playTracksNext(it) },
                     onAddTracksToQueue = { viewModel.addTracksToQueue(it) },
                     onDownloadTracks = { it.forEach(viewModel::downloadTrack) },
+                    onRefresh = { viewModel.refreshBrowse() },
                     onBackClick = {
                         viewModel.popBrowseNode()
                     }
@@ -838,6 +841,7 @@ fun BrowseTab(
     onPlayTracksNext: (List<Track>) -> Unit,
     onAddTracksToQueue: (List<Track>) -> Unit,
     onDownloadTracks: (List<Track>) -> Unit,
+    onRefresh: () -> Unit,
     onBackClick: () -> Unit,
     isLarge: Boolean = false
 ) {
@@ -868,49 +872,52 @@ fun BrowseTab(
                 modifier = Modifier.weight(1f)
             )
             if (showingTracks) {
-                if (grouped) {
-                    val albumGroupIds = remember(tracks) {
-                        tracks.map { albumGroupKeyOf(it) }.distinct()
-                    }
-                    IconButton(
-                        onClick = { albumGroupIds.forEach { collapsedAlbums[it] = true } },
-                        modifier = Modifier.size(24.dp)
-                    ) {
+                var showHeaderMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { showHeaderMenu = true }, modifier = Modifier.size(24.dp)) {
                         Icon(
-                            imageVector = Icons.Default.UnfoldLess,
-                            contentDescription = "Collapse all albums",
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Track list options",
                             tint = AppColors.text2,
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = { collapsedAlbums.clear() },
-                        modifier = Modifier.size(24.dp)
+                    DropdownMenu(
+                        expanded = showHeaderMenu,
+                        onDismissRequest = { showHeaderMenu = false },
+                        modifier = Modifier.background(AppColors.bg2)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.UnfoldMore,
-                            contentDescription = "Expand all albums",
-                            tint = AppColors.text2,
-                            modifier = Modifier.size(20.dp)
+                        DropdownMenuItem(
+                            text = { Text("Refresh", style = AppTypography.itemTitle) },
+                            leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = AppColors.text2) },
+                            onClick = { showHeaderMenu = false; onRefresh() }
                         )
+                        DropdownMenuItem(
+                            text = { Text("Group by album artist", style = AppTypography.itemTitle) },
+                            trailingIcon = {
+                                if (grouped) Icon(Icons.Default.Check, contentDescription = "On", tint = AppColors.accent)
+                            },
+                            // Leave the menu open so the collapse/expand items appear immediately.
+                            onClick = { onGroupedChange(!grouped) }
+                        )
+                        if (grouped) {
+                            DropdownMenuItem(
+                                text = { Text("Collapse all", style = AppTypography.itemTitle) },
+                                leadingIcon = { Icon(Icons.Default.UnfoldLess, contentDescription = null, tint = AppColors.text2) },
+                                onClick = {
+                                    showHeaderMenu = false
+                                    tracks.map { albumGroupKeyOf(it) }.distinct()
+                                        .forEach { collapsedAlbums[it] = true }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Expand all", style = AppTypography.itemTitle) },
+                                leadingIcon = { Icon(Icons.Default.UnfoldMore, contentDescription = null, tint = AppColors.text2) },
+                                onClick = { showHeaderMenu = false; collapsedAlbums.clear() }
+                            )
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "GROUP",
-                    style = AppTypography.sectionLabel,
-                    color = AppColors.text2
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Switch(
-                    checked = grouped,
-                    onCheckedChange = onGroupedChange,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = AppColors.accent,
-                        checkedTrackColor = AppColors.accentDim
-                    )
-                )
             }
         }
 

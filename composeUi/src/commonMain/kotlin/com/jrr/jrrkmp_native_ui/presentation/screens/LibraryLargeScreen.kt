@@ -180,6 +180,7 @@ fun LibraryLargeScreen(
                     onPlayTracksNext = { viewModel.playTracksNext(it) },
                     onAddTracksToQueue = { viewModel.addTracksToQueue(it) },
                     onDownloadTracks = { it.forEach(viewModel::downloadTrack) },
+                    onRefresh = { viewModel.refreshBrowse() },
                     onBackClick = { viewModel.popBrowseNode() },
                     isLarge = true,
                 )
