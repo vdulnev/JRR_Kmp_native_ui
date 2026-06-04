@@ -13,6 +13,7 @@ final class NowPlayingObservable {
     var isPlaying = false
     var activeZoneName = "No Zone Selected"
     var hasTrack = false
+    var imageUrl = ""
 
     init(viewModel: NowPlayingViewModel) {
         self.viewModel = viewModel
@@ -31,6 +32,7 @@ final class NowPlayingObservable {
         isPlaying = state.isPlaying
         activeZoneName = state.activeZoneName
         hasTrack = state.trackTitle != "Idle"
+        imageUrl = state.imageUrl
     }
 
     func playPause() { isPlaying ? viewModel.pause() : viewModel.play() }

@@ -24,6 +24,13 @@ struct TvLibraryView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
+                        TvSearchView()
+                    } label: {
+                        Label("Search", systemImage: "magnifyingglass")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
                         TvZonesView()
                     } label: {
                         Label("Zone", systemImage: "hifispeaker.2.fill")
@@ -80,11 +87,14 @@ struct TvArtistAlbumsView: View {
                     NavigationLink {
                         TvAlbumTracksView(album: album)
                     } label: {
-                        VStack(alignment: .leading) {
-                            Text(album.name.isEmpty ? "Unknown Album" : album.name)
-                                .font(.headline)
-                            if !album.date.isEmpty {
-                                Text(album.date).font(.subheadline).foregroundStyle(.secondary)
+                        HStack(spacing: 16) {
+                            TvArtwork(urlString: container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey), size: 80)
+                            VStack(alignment: .leading) {
+                                Text(album.name.isEmpty ? "Unknown Album" : album.name)
+                                    .font(.headline)
+                                if !album.date.isEmpty {
+                                    Text(album.date).font(.subheadline).foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -110,7 +120,8 @@ struct TvNowPlayingBar: View {
     @Bindable var model: NowPlayingObservable
 
     var body: some View {
-        HStack(spacing: 40) {
+        HStack(spacing: 24) {
+            TvArtwork(urlString: model.imageUrl, size: 60)
             VStack(alignment: .leading) {
                 Text(model.trackTitle).font(.headline).lineLimit(1)
                 Text(model.hasTrack ? model.artistName : model.activeZoneName)

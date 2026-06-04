@@ -12,10 +12,14 @@ target = proj.new_target(:application, 'tvOSApp', :tvos, '17.0', nil, :swift)
 
 # Source files (classic group + references, not a synchronized group)
 group = proj.main_group.new_group('tvOSApp', 'tvOSApp')
-%w[TvOSApp TvContainer TvRootView TvConnectView TvLibraryView TvObservables TvAlbumTracksView TvZonesView].each do |name|
+%w[TvOSApp TvContainer TvRootView TvConnectView TvLibraryView TvObservables TvAlbumTracksView TvZonesView TvArtwork TvSearchView].each do |name|
   ref = group.new_reference("#{name}.swift")
   target.source_build_phase.add_file_reference(ref)
 end
+
+# Asset catalog (tvOS App Icon & Top Shelf brand assets)
+assets = group.new_reference('Assets.xcassets')
+target.resources_build_phase.add_file_reference(assets)
 
 # "Compile Kotlin Framework" — builds + embeds the tvOS SharedLogic framework.
 # Must run before Compile Sources so `import SharedLogic` resolves.
@@ -44,6 +48,7 @@ target.build_configurations.each do |config|
   bs['LD_RUNPATH_SEARCH_PATHS'] = ['$(inherited)', '@executable_path/Frameworks']
   bs['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
   bs['ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS'] = 'NO'
+  bs['ASSETCATALOG_COMPILER_APPICON_NAME'] = 'App Icon & Top Shelf Image'
   # Default (ad-hoc "-") signing for the simulator. Disabling signing makes the
   # Kotlin embedAndSign task skip (no EXPANDED_CODE_SIGN_IDENTITY), which leaves
   # the SKIE-processed framework out of the build.
