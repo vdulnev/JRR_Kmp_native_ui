@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.arkivanov.decompose.DefaultComponentContext
@@ -102,6 +103,7 @@ fun main() = application {
             exitApplication()
         },
         title = "JRR Desktop",
+        icon = painterResource("jrr_icon.png"),
     ) {
         JrrTheme {
             CompositionLocalProvider(

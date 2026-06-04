@@ -113,6 +113,14 @@ compose.desktop {
             // (Trim to a `modules(...)` allowlist later to shrink the image.)
             includeAllModules = true
 
+            macOS {
+                iconFile.set(project.file("packaging/jrr.icns"))
+            }
+
+            linux {
+                iconFile.set(project.file("packaging/jrr.png"))
+            }
+
             windows {
                 menuGroup = "JRR"
                 menu = true
@@ -121,7 +129,7 @@ compose.desktop {
                 // Stable across releases so installers upgrade in place rather
                 // than landing side-by-side. Do not regenerate.
                 upgradeUuid = "7b2c1a64-5e8d-4f93-a1c6-0d9e2f4b6a83"
-                // iconFile.set(project.file("packaging/jrr.ico")) // TODO: add a branded .ico
+                iconFile.set(project.file("packaging/jrr.ico"))
             }
         }
     }
