@@ -121,12 +121,19 @@ struct TvNowPlayingBar: View {
 
     var body: some View {
         HStack(spacing: 24) {
-            TvArtwork(urlString: model.imageUrl, size: 60)
-            VStack(alignment: .leading) {
-                Text(model.trackTitle).font(.headline).lineLimit(1)
-                Text(model.hasTrack ? model.artistName : model.activeZoneName)
-                    .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            NavigationLink {
+                TvNowPlayingDetailView(model: model)
+            } label: {
+                HStack(spacing: 24) {
+                    TvArtwork(urlString: model.imageUrl, size: 60)
+                    VStack(alignment: .leading) {
+                        Text(model.trackTitle).font(.headline).lineLimit(1)
+                        Text(model.hasTrack ? model.artistName : model.activeZoneName)
+                            .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
             }
+            .buttonStyle(.plain)
             Spacer()
             Button { model.previous() } label: { Image(systemName: "backward.fill") }
             Button { model.playPause() } label: {

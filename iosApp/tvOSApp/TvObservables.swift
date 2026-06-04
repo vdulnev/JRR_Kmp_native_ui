@@ -10,10 +10,15 @@ final class NowPlayingObservable {
 
     var trackTitle = "Idle"
     var artistName = ""
+    var albumTitle = ""
     var isPlaying = false
     var activeZoneName = "No Zone Selected"
     var hasTrack = false
     var imageUrl = ""
+    var positionMs: Int64 = 0
+    var durationMs: Int64 = 0
+    var shuffleOn = false
+    var repeatLabel = "Off"
 
     init(viewModel: NowPlayingViewModel) {
         self.viewModel = viewModel
@@ -29,15 +34,31 @@ final class NowPlayingObservable {
     private func sync(_ state: NowPlayingViewState) {
         trackTitle = state.trackTitle
         artistName = state.artistName
+        albumTitle = state.albumTitle
         isPlaying = state.isPlaying
         activeZoneName = state.activeZoneName
         hasTrack = state.trackTitle != "Idle"
         imageUrl = state.imageUrl
+        positionMs = state.positionMs
+        durationMs = state.durationMs
+        // `mcwsMode` ("Off"/"On"/…) avoids depending on SKIE enum case names.
+        shuffleOn = state.shuffleMode.mcwsMode != "Off"
+        repeatLabel = state.repeatMode.mcwsMode
+    }
+
+    var progress: Double {
+        durationMs > 0 ? min(1.0, Double(positionMs) / Double(durationMs)) : 0
     }
 
     func playPause() { isPlaying ? viewModel.pause() : viewModel.play() }
     func next() { viewModel.next() }
     func previous() { viewModel.previous() }
+    func toggleShuffle() { viewModel.toggleShuffle() }
+    func toggleRepeat() { viewModel.toggleRepeat() }
+    func seek(toFraction f: Double) {
+        guard durationMs > 0 else { return }
+        viewModel.seekTo(positionMs: Int64(f * Double(durationMs)))
+    }
 }
 
 /// Bridges `ZonesViewModel.state` into observable Swift properties for the
