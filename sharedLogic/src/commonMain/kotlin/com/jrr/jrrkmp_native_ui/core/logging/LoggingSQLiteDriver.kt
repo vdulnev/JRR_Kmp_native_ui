@@ -40,6 +40,11 @@ private class LoggingSQLiteConnection(
         return delegate.prepare(sql)
     }
 
+    // androidx.sqlite 2.6+ added this to SQLiteConnection with a throwing
+    // default; a delegating wrapper must forward it or Room's transaction
+    // machinery hits NotImplementedError.
+    override fun inTransaction(): Boolean = delegate.inTransaction()
+
     override fun close() {
         log.d { "close" }
         delegate.close()

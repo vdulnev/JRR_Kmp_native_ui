@@ -28,6 +28,11 @@ kotlin {
         // iOS; consumed by the `macApp` Xcode target via the same
         // `embedAndSignAppleFrameworkForXcode` build phase.
         macosArm64(),
+        // tvOS — online-only Apple TV app. Inherits every `appleMain` actual
+        // (Room DB builder, Ktor Darwin client, AVPlayer engine). Room 2.8+ /
+        // androidx.sqlite 2.6+ ship tvOS klibs, so the shared DB works as-is.
+        tvosArm64(),
+        tvosSimulatorArm64(),
     ).forEach { appleTarget ->
         appleTarget.binaries.framework {
             baseName = "SharedLogic"
@@ -113,5 +118,7 @@ dependencies {
     add("kspIosSimulatorArm64", libs.androidx.room.compiler)
     add("kspIosArm64", libs.androidx.room.compiler)
     add("kspMacosArm64", libs.androidx.room.compiler)
+    add("kspTvosArm64", libs.androidx.room.compiler)
+    add("kspTvosSimulatorArm64", libs.androidx.room.compiler)
     add("kspJvm", libs.androidx.room.compiler)
 }
