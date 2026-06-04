@@ -1130,6 +1130,7 @@ struct LibraryView: View {
                     browseEmptyState()
                 }
             }
+            .hidesChromeOnScroll()
         }
     }
 
