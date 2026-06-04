@@ -41,8 +41,11 @@ struct TvRootView: View {
             phase = .disconnected
             return
         }
-        container.serverRepository.setActiveServer(
-            host: last.host, port: last.port, useSsl: last.useSsl, sslPort: last.sslPort, token: token,
+        // Route through the facade (not serverRepository directly): it sets the
+        // active server AND switches the active zone Offline → Local, taking the
+        // app out of offline mode so library and server zones load on restore.
+        container.facade.setServerConnection(
+            host: last.host, port: last.port, useSsl: last.useSsl, sslPort: last.sslPort, authToken: token,
         )
         phase = .connected
     }
