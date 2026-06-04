@@ -266,6 +266,11 @@ struct LibraryView: View {
     @State private var selectedAlbumGroupId: String? = nil
     @State private var infoTrack: Track? = nil
     @State private var infoAlbum: Album? = nil
+    /// Browse tab: when on, a flat track listing is reorganised into Album
+    /// Artist → Album sections. `@State` here survives switching tabs.
+    @State private var browseGrouped = false
+    /// Album groupIds the user has collapsed in the grouped browse view.
+    @State private var collapsedBrowseAlbums: Set<String> = []
     /// Persisted top-visible row id of the compilations contributing-artists
     /// list, so its scroll position survives drilling into a compilation and
     /// back (a plain ScrollView resets to top when occluded and reshown).
@@ -1034,8 +1039,47 @@ struct LibraryView: View {
     private func browseTab() -> some View {
         VStack(spacing: 0) {
             browseBreadcrumb()
+            browseGroupBar()
             browseContent()
         }
+    }
+
+    /// Shown only while a track listing is displayed: the grouping toggle plus
+    /// collapse-all / expand-all actions (mirrors the Compose browse header).
+    @ViewBuilder
+    private func browseGroupBar() -> some View {
+        let showingTracks = observable.browseChildren.isEmpty && !observable.browseTracks.isEmpty
+        if showingTracks {
+            HStack(spacing: 12) {
+                Spacer()
+                if browseGrouped {
+                    Button { collapseAllBrowseAlbums() } label: {
+                        Image(systemName: "rectangle.compress.vertical")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.textSecondary)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    Button { collapsedBrowseAlbums = [] } label: {
+                        Image(systemName: "rectangle.expand.vertical")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.textSecondary)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                Text("GROUP")
+                    .styleSectionLabel()
+                    .foregroundColor(.textSecondary)
+                Toggle("", isOn: $browseGrouped)
+                    .labelsHidden()
+                    .tint(.accentColor)
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func collapseAllBrowseAlbums() {
+        collapsedBrowseAlbums = Set(observable.browseTracks.map(\.albumGroupId))
     }
 
     @ViewBuilder
@@ -1071,7 +1115,11 @@ struct LibraryView: View {
                 if !observable.browseChildren.isEmpty {
                     browseChildrenList()
                 } else if !observable.browseTracks.isEmpty {
-                    browseTracksList()
+                    if browseGrouped {
+                        browseGroupedTracksList()
+                    } else {
+                        browseTracksList()
+                    }
                 } else {
                     browseEmptyState()
                 }
@@ -1161,6 +1209,113 @@ struct LibraryView: View {
         }
         .padding(.horizontal, AppSpacing.screenHorizontalMargin)
         .padding(.top, 12)
+    }
+
+    /// Album within an artist section. Keyed by `Track.albumGroupId`, which
+    /// already folds the separate disc folders of a multi-disc album into one
+    /// group; `tracks` are ordered by disc then track number.
+    private struct BrowseAlbumGroup {
+        let groupId: String
+        let name: String
+        let tracks: [Track]
+    }
+
+    private struct BrowseArtistGroup {
+        let artist: String
+        let albums: [BrowseAlbumGroup]
+    }
+
+    /// Mirrors the shared `groupByArtistAndAlbum()` (Album Artist → Album,
+    /// keyed on `albumGroupId`, ordered by disc/track, sorted case-insensitively).
+    private func groupedBrowseTracks(_ tracks: [Track]) -> [BrowseArtistGroup] {
+        let byArtist = Dictionary(grouping: tracks) {
+            $0.albumArtist.isEmpty ? "Unknown Artist" : $0.albumArtist
+        }
+        return byArtist.map { artist, artistTracks in
+            let byAlbum = Dictionary(grouping: artistTracks) { $0.albumGroupId }
+            let albums = byAlbum.map { groupId, albumTracks -> BrowseAlbumGroup in
+                let sorted = albumTracks.sorted { a, b in
+                    a.discNumber != b.discNumber
+                        ? a.discNumber < b.discNumber
+                        : a.trackNumber < b.trackNumber
+                }
+                let name = sorted.first.map { $0.album.isEmpty ? "Unknown Album" : $0.album } ?? "Unknown Album"
+                return BrowseAlbumGroup(groupId: groupId, name: name, tracks: sorted)
+            }
+            .sorted { $0.name.lowercased() < $1.name.lowercased() }
+            return BrowseArtistGroup(artist: artist, albums: albums)
+        }
+        .sorted { $0.artist.lowercased() < $1.artist.lowercased() }
+    }
+
+    @ViewBuilder
+    private func browseGroupedTracksList() -> some View {
+        let groups = groupedBrowseTracks(observable.browseTracks)
+        LazyVStack(alignment: .leading, spacing: 8) {
+            ForEach(groups, id: \.artist) { artistGroup in
+                Text(artistGroup.artist.uppercased())
+                    .styleSectionLabel()
+                    .foregroundColor(.accentColor)
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
+
+                ForEach(artistGroup.albums, id: \.groupId) { album in
+                    let isCollapsed = collapsedBrowseAlbums.contains(album.groupId)
+                    browseAlbumHeader(album: album, artist: artistGroup.artist, collapsed: isCollapsed)
+
+                    if !isCollapsed {
+                        let discNumbers = Array(Set(album.tracks.map(\.discNumber))).sorted()
+                        ForEach(discNumbers, id: \.self) { disc in
+                            if discNumbers.count > 1 {
+                                Text("DISC \(disc)")
+                                    .styleSectionLabel()
+                                    .foregroundColor(.textTertiary)
+                                    .padding(.leading, 4)
+                                    .padding(.top, 4)
+                                    .padding(.bottom, 2)
+                            }
+                            ForEach(album.tracks.filter { $0.discNumber == disc }, id: \.fileKey) { track in
+                                trackRowItem(track: track) {
+                                    observable.playTracks(album.tracks, startIndex: album.tracks.firstIndex(of: track) ?? 0)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+        .padding(.top, 12)
+    }
+
+    private func browseAlbumHeader(album: BrowseAlbumGroup, artist: String, collapsed: Bool) -> some View {
+        Button {
+            if collapsed {
+                collapsedBrowseAlbums.remove(album.groupId)
+            } else {
+                collapsedBrowseAlbums.insert(album.groupId)
+            }
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(album.name.isEmpty ? "Unknown Album" : album.name)
+                        .styleItemTitle()
+                        .fontWeight(.bold)
+                        .lineLimit(1)
+                    Text(artist.isEmpty ? "Unknown Artist" : artist)
+                        .styleItemSubtitle()
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 14))
+                    .foregroundColor(.textTertiary)
+            }
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
     private func browseEmptyState() -> some View {
