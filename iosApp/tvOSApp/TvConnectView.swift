@@ -51,8 +51,12 @@ struct TvConnectView: View {
                     passwordVal: password,
                 )
                 if let token {
-                    container.serverRepository.setActiveServer(
-                        host: host, port: p, useSsl: false, sslPort: 52200, token: token,
+                    // Route through the facade (not serverRepository directly):
+                    // it sets the active server AND switches the active zone
+                    // Offline → Local, which takes the app out of offline mode
+                    // so the library and server zones come online.
+                    container.facade.setServerConnection(
+                        host: host, port: p, useSsl: false, sslPort: 52200, authToken: token,
                     )
                     // Persist so the connection is restored on next launch.
                     let server = SavedServerEntity(
