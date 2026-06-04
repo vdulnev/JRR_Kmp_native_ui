@@ -387,11 +387,47 @@ gain a common/desktop path first: **Coil 2** (6 files), **`android.widget.Toast`
   a track from a live JRiver server on Windows — needs a server + credentials to
   exercise end-to-end (engine wiring, URL build, and libvlc load are confirmed).
 
-### Phase 5 — Packaging
+### Phase 5 — Packaging ✅ COMPLETE
 
-- Configure `compose.desktop.application { nativeDistributions { targetFormats(Msi, Exe) } }`,
-  app name/version, icon, JVM args.
-- **Exit criteria:** `./gradlew :desktopApp:packageMsi` produces an installer.
+- jpackage config ✓ — `nativeDistributions` sets `packageName`/`version`/
+  `description`/`vendor`/`copyright`, `targetFormats(Msi, Exe)`, and Windows
+  metadata (`menuGroup`, start-menu + desktop shortcut, `perUserInstall`, a fixed
+  `upgradeUuid` for in-place upgrades). `includeAllModules = true` so JNA/VLCJ
+  reflection + Room + Skiko all resolve without hand-enumerating JDK modules.
+  (Branded `.ico` is a TODO — the DSL line is stubbed in; jpackage uses a default
+  icon meanwhile.)
+- **libvlc natives bundled** ✓ (Decision: self-contained installer). The
+  `syncVlcNatives` Gradle task stages `libvlc.dll`, `libvlccore.dll`, and the
+  ~135MB `plugins/` tree from a VLC install (resolution: `-PvlcHome=…` >
+  `VLC_HOME` env > default `C:/Program Files/VideoLAN/VLC`) into the Compose
+  app-resources dir (`windows-x64/vlc/`); it's wired as a `dependsOn` of
+  `prepareAppResources`. At runtime `DesktopPlayerEngine.configureBundledNatives`
+  points JNA at `<resources>/vlc` (via `compose.application.resources.dir`), so
+  **no system VLC is required by the end user**; running unpackaged falls back to
+  system discovery. The task is skipped (with a warning) if no VLC is found, so
+  the build still works on machines without VLC (the app then needs a system VLC
+  at runtime).
+- **Verified:** `:desktopApp:createDistributable` produces a runnable app image
+  with the natives at `JRRDesktop/app/resources/vlc/` (libvlc.dll + 368 plugin
+  files); the packaged `JRRDesktop.exe` launches without crashing. Compose
+  auto-downloads WiX 3.11, so `:desktopApp:packageMsi` produces
+  **`JRRDesktop-1.0.0.msi` (~199 MB)** — the bundled JVM runtime + libvlc. No
+  separate WiX install needed.
+- **Exit criteria met:** `./gradlew :desktopApp:packageMsi` produces an installer.
+
+#### Building the installer
+
+```bash
+# Self-contained MSI (bundles a JRE + libvlc; no system VLC needed by users).
+# Point -PvlcHome at your VLC install if it isn't the default path.
+./gradlew :desktopApp:packageMsi            # -> build/compose/binaries/main/msi/
+./gradlew :desktopApp:packageExe            # NSIS-style .exe installer
+./gradlew :desktopApp:createDistributable   # unpacked app image (fast, for testing)
+```
+
+Remaining polish (non-blocking): add a branded `.ico`, trim `includeAllModules`
+to a `modules(...)` allowlist to shrink the image, and add macOS/Linux native
+sources to `syncVlcNatives` if those targets are packaged later.
 
 ---
 

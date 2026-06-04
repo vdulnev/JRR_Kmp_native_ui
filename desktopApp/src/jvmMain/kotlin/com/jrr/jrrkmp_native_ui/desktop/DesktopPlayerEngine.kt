@@ -8,11 +8,13 @@ import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.playback.LocalPlayerEngine
+import com.sun.jna.NativeLibrary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import uk.co.caprica.vlcj.player.component.AudioPlayerComponent
+import java.io.File
 import java.util.concurrent.Executors
 import kotlin.random.Random
 
@@ -104,16 +106,36 @@ class DesktopPlayerEngine(
     private val mediaPlayer: MediaPlayer? get() = component?.mediaPlayer()
 
     private fun tryCreateComponent(): AudioPlayerComponent? = try {
+        configureBundledNatives()
         AudioPlayerComponent().also {
             it.mediaPlayer().events().addMediaPlayerEventListener(eventListener)
             log.i { "VLCJ audio player initialised" }
         }
     } catch (t: Throwable) {
         log.e(t) {
-            "libvlc not found — local playback disabled. Install VLC (64-bit) and " +
-                "ensure it is on the system path. Remote zone control is unaffected."
+            "libvlc not found — local playback disabled. Install VLC (64-bit) or " +
+                "build with bundled natives (syncVlcNatives). Remote zone control is unaffected."
         }
         null
+    }
+
+    /**
+     * Point VLCJ/JNA at the libvlc natives bundled into the app image (staged by
+     * the `syncVlcNatives` Gradle task under `<resources>/vlc/`). When running
+     * unpackaged (no `compose.application.resources.dir`, or natives not staged),
+     * this is a no-op and VLCJ falls back to discovering a system VLC install.
+     * libvlc locates its `plugins/` relative to the DLL on Windows, so no plugin
+     * path needs to be set explicitly.
+     */
+    private fun configureBundledNatives() {
+        val resourcesDir = System.getProperty("compose.application.resources.dir") ?: return
+        val vlcDir = File(resourcesDir, "vlc")
+        if (File(vlcDir, "libvlc.dll").exists()) {
+            log.i { "using bundled libvlc at ${vlcDir.absolutePath}" }
+            NativeLibrary.addSearchPath("libvlc", vlcDir.absolutePath)
+            NativeLibrary.addSearchPath("libvlccore", vlcDir.absolutePath)
+            System.setProperty("jna.library.path", vlcDir.absolutePath)
+        }
     }
 
     // --- Stream URL ---------------------------------------------------------
