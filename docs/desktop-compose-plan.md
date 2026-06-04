@@ -306,23 +306,44 @@ gain a common/desktop path first: **Coil 2** (6 files), **`android.widget.Toast`
 - _Caveat:_ Android runtime not yet smoke-tested on a device; desktop renders the
   Phase-0 spike until the Phase 2 host wires the real screens.
 
-### Phase 2 — Desktop host wiring
+### Phase 2 — Desktop host wiring ✅ COMPLETE
 
-- `DesktopAppContainer`: build `database` (jvm `DatabaseBuilder` ✓), `McwsCore`,
-  `ServerRepository`, `LibraryRepository`, `AudioPlayerFacade` — mirroring
+- `DesktopAppContainer` ✓ — builds `database` (jvm `DatabaseBuilder`), `McwsCore`
+  (`.mcwsClient`/`.serverRepository`), `LibraryRepository`, `AudioPlayerFacade`,
+  and the `DesktopPlayerEngine` stub — mirroring
   [AppContainer.kt](../androidApp/src/main/kotlin/com/jrr/jrrkmp_native_ui/core/di/AppContainer.kt)
   minus Context/WorkManager.
-- `DesktopMainShellSettings` (java.util.prefs or file).
-- Real `AppDeps` factories (same lambdas as
-  [MainActivity.kt:93-109](../androidApp/src/main/kotlin/com/jrr/jrrkmp_native_ui/MainActivity.kt)).
-- Port the `MainShell` host composable to `composeUi/desktopMain` (or commonMain
-  with an `expect` for Toast): always-large layout via `BoxWithConstraints`,
-  `LargeScreenShell`, mini-player, auto-connect overlay.
-- Stub `LocalPlayerEngine` (Decision A) so the facade constructs.
-- `AppLogger.configure(isDebug = …)` in `main()` (parallel to
-  [JrrApplication.kt:24](../androidApp/src/main/kotlin/com/jrr/jrrkmp_native_ui/JrrApplication.kt)).
-- **Exit criteria:** desktop app connects to a JRiver server, browses library,
-  controls a zone (remote playback), navigates all tabs.
+- `DesktopSettings` ✓ — backed by `java.util.prefs.Preferences`; implements
+  `MainShellSettings` + adds the local-audio-quality key the facade persists.
+- `DesktopPlayerEngine` ✓ — `LocalPlayerEngine` stub (Decision A) holding
+  queue/index/mode `StateFlow`s so the UI binds; no audio output until Phase 4.
+- **`MainShell` promoted to shared** ✓ — moved from `MainActivity.kt` into
+  [composeUi/.../presentation/MainShell.kt](../composeUi/src/commonMain/kotlin/com/jrr/jrrkmp_native_ui/presentation/MainShell.kt),
+  decoupling the last two Android-isms: Toast → `LocalPlatformUi`, and
+  `LocalConfiguration.screenWidthDp` → a `windowWidthDp: Int` parameter (Android
+  passes `screenWidthDp`; desktop measures the window with `BoxWithConstraints`
+  and passes `maxWidth.value.toInt()`). Android `MainActivity` now just builds
+  DI + provides the four CompositionLocals and calls the shared shell.
+- Real `AppDeps` factories in `Main.kt` ✓ (same lambdas as the Android host).
+  The container + component tree are built inside `application { remember { … } }`
+  so Decompose sees the AWT EDT as its main thread.
+- **Gotcha fixed:** plain JVM has no `Dispatchers.Main` provider, so the facade's
+  `CoroutineScope(Dispatchers.Main + …)` threw at startup. Added
+  `kotlinx-coroutines-swing` to `:desktopApp` (backs `Dispatchers.Main` with the
+  EDT — the same thread Compose Desktop composes on).
+- **Gotcha fixed:** Room types leak through `DesktopAppContainer`'s API and the
+  ViewModels extend `androidx.lifecycle.ViewModel`; both are non-transitive
+  `implementation` deps of `:sharedLogic`, so `:desktopApp` declares
+  `room-runtime`, `sqlite-bundled`, and `lifecycle-viewmodel` directly.
+- **Verified:** `:androidApp:compileDebugKotlin` + `:desktopApp:compileKotlinJvm`
+  green; `:desktopApp:run` boots — container constructs, Room opens
+  `%LOCALAPPDATA%\jrr_database.db`, auto-connect restores the Offline zone, and
+  the real shared screens render through `MainShell` (Player tab, NowPlaying VM).
+- **Deferred:** `AppLogger.configure(isDebug = …)` is not yet called in `main()`
+  (logging already works via the default config); fold into Phase 5 polish.
+- **Exit criteria (remaining for full sign-off):** connect to a live JRiver
+  server, browse library, control a zone (remote playback) — needs a running
+  server to exercise; the offline path + navigation are confirmed working.
 
 ### Phase 3 — Images
 
