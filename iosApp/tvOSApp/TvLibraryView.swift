@@ -84,4 +84,3 @@ struct TvArtistAlbumsView: View {
         loading = false
     }
 }
-

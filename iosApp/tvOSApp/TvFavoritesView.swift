@@ -24,7 +24,7 @@ struct TvFavoritesView: View {
                             TvAlbumTracksView(album: album)
                         } label: {
                             Text(album.name.isEmpty ? "Unknown Album" : album.name)
-                            + Text("  ·  \(album.albumArtist)").foregroundColor(.secondary)
+                                + Text("  ·  \(album.albumArtist)").foregroundColor(.secondary)
                         }
                     }
                 }
@@ -47,7 +47,7 @@ struct TvFavoritesView: View {
                     date: "",
                     artworkFileKey: "",
                     totalDiscs: 1,
-                    discNumber: 1
+                    discNumber: 1,
                 )
             }
         } catch {

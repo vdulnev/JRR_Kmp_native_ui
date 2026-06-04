@@ -48,11 +48,11 @@ struct TvConnectView: View {
                     useSsl: false,
                     sslPort: 52200,
                     username: username,
-                    passwordVal: password
+                    passwordVal: password,
                 )
                 if let token {
                     container.serverRepository.setActiveServer(
-                        host: host, port: p, useSsl: false, sslPort: 52200, token: token
+                        host: host, port: p, useSsl: false, sslPort: 52200, token: token,
                     )
                     // Persist so the connection is restored on next launch.
                     let server = SavedServerEntity(
@@ -65,7 +65,7 @@ struct TvConnectView: View {
                         lastUsedAt: Int64(Date().timeIntervalSince1970 * 1000),
                         authToken: token,
                         useSsl: false,
-                        sslPort: 52200
+                        sslPort: 52200,
                     )
                     try? await container.serverRepository.saveServer(server: server)
                     onConnected()

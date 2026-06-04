@@ -50,11 +50,26 @@ final class NowPlayingObservable {
         durationMs > 0 ? min(1.0, Double(positionMs) / Double(durationMs)) : 0
     }
 
-    func playPause() { isPlaying ? viewModel.pause() : viewModel.play() }
-    func next() { viewModel.next() }
-    func previous() { viewModel.previous() }
-    func toggleShuffle() { viewModel.toggleShuffle() }
-    func toggleRepeat() { viewModel.toggleRepeat() }
+    func playPause() {
+        isPlaying ? viewModel.pause() : viewModel.play()
+    }
+
+    func next() {
+        viewModel.next()
+    }
+
+    func previous() {
+        viewModel.previous()
+    }
+
+    func toggleShuffle() {
+        viewModel.toggleShuffle()
+    }
+
+    func toggleRepeat() {
+        viewModel.toggleRepeat()
+    }
+
     func seek(toFraction f: Double) {
         guard durationMs > 0 else { return }
         viewModel.seekTo(positionMs: Int64(f * Double(durationMs)))
@@ -87,11 +102,16 @@ final class ZonesObservable {
     private func sync(_ state: ZonesViewState) {
         serverZones = state.serverZones
         // On-device playback only; drop the Offline pseudo-zone for this app.
-        deviceZones = state.deviceZones.filter { $0.isLocal }
+        deviceZones = state.deviceZones.filter(\.isLocal)
         activeZoneId = state.activeZoneId
         isLoading = state.isLoading
     }
 
-    func refresh() { viewModel.refreshZones() }
-    func select(_ zone: Zone) { viewModel.selectZone(zone: zone) }
+    func refresh() {
+        viewModel.refreshZones()
+    }
+
+    func select(_ zone: Zone) {
+        viewModel.selectZone(zone: zone)
+    }
 }

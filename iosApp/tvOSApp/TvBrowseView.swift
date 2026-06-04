@@ -53,7 +53,7 @@ struct TvBrowseNodeView: View {
         .task { await load() }
     }
 
-    @ViewBuilder private var trackList: some View {
+    private var trackList: some View {
         List {
             Section {
                 Button {

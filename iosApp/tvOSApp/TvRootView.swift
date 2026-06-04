@@ -34,7 +34,7 @@ struct TvRootView: View {
             useSsl: last.useSsl,
             sslPort: last.sslPort,
             username: last.username,
-            passwordVal: last.passwordKey
+            passwordVal: last.passwordKey,
         )
         let token = freshToken ?? last.authToken
         guard let token, !token.isEmpty else {
@@ -42,7 +42,7 @@ struct TvRootView: View {
             return
         }
         container.serverRepository.setActiveServer(
-            host: last.host, port: last.port, useSsl: last.useSsl, sslPort: last.sslPort, token: token
+            host: last.host, port: last.port, useSsl: last.useSsl, sslPort: last.sslPort, token: token,
         )
         phase = .connected
     }

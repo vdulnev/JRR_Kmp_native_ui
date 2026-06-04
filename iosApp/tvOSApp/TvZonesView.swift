@@ -10,7 +10,7 @@ struct TvZonesView: View {
         Group {
             if let zones {
                 List {
-                    if zones.isLoading && zones.serverZones.isEmpty {
+                    if zones.isLoading, zones.serverZones.isEmpty {
                         ProgressView()
                     }
                     Section("This Device") {

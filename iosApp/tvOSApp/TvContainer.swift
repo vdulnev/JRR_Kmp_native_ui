@@ -38,7 +38,7 @@ final class TvContainer {
             saveLastActiveZoneId: { UserDefaults.standard.set($0, forKey: "last_active_zone_id") },
             loadLastActiveZoneId: { UserDefaults.standard.string(forKey: "last_active_zone_id") },
             saveLocalAudioQuality: { UserDefaults.standard.set($0, forKey: "local_audio_quality") },
-            loadLocalAudioQuality: { UserDefaults.standard.string(forKey: "local_audio_quality") }
+            loadLocalAudioQuality: { UserDefaults.standard.string(forKey: "local_audio_quality") },
         )
 
         corePlayer = CorePlayer(engine: engine, database: db, facade: facade)
@@ -46,7 +46,7 @@ final class TvContainer {
         libraryRepository = LibraryRepository(
             database: db,
             mcwsClient: core.mcwsClient,
-            isOfflineProvider: AlwaysOnlineProvider()
+            isOfflineProvider: AlwaysOnlineProvider(),
         )
     }
 
@@ -63,7 +63,7 @@ final class TvContainer {
             facade: facade,
             database: database,
             clearPhysicalDownloads: {},
-            isDebugBuild: true
+            isDebugBuild: true,
         )
     }
 
@@ -71,7 +71,9 @@ final class TvContainer {
     /// won't reconnect — used by the Settings "Disconnect" action.
     func disconnect() async {
         if let servers = try? await serverRepository.getAllServers() {
-            for s in servers { try? await serverRepository.deleteServer(server: s) }
+            for s in servers {
+                try? await serverRepository.deleteServer(server: s)
+            }
         }
         serverRepository.setActiveServer(host: "", port: 52199, useSsl: false, sslPort: 52200, token: nil)
     }
@@ -79,5 +81,7 @@ final class TvContainer {
 
 /// tvOS is online-only, so the library always serves from MCWS.
 private final class AlwaysOnlineProvider: OfflineModeProvider {
-    func isOffline() -> Bool { false }
+    func isOffline() -> Bool {
+        false
+    }
 }
