@@ -8,7 +8,7 @@ struct TvRootView: View {
 
     var body: some View {
         if connected {
-            TvLibraryView()
+            TvMainView()
         } else {
             TvConnectView(connected: $connected)
         }
