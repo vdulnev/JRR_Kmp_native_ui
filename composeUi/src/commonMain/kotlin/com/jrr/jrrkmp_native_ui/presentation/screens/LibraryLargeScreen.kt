@@ -176,6 +176,10 @@ fun LibraryLargeScreen(
                     grouped = browseGrouped,
                     onGroupedChange = { browseGrouped = it },
                     collapsedAlbums = browseCollapsedAlbums,
+                    onPlayTracks = { viewModel.playTracks(it, 0) },
+                    onPlayTracksNext = { viewModel.playTracksNext(it) },
+                    onAddTracksToQueue = { viewModel.addTracksToQueue(it) },
+                    onDownloadTracks = { it.forEach(viewModel::downloadTrack) },
                     onBackClick = { viewModel.popBrowseNode() },
                     isLarge = true,
                 )

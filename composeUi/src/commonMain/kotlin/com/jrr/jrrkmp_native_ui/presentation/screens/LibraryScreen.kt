@@ -256,6 +256,10 @@ fun LibraryScreen(
                     grouped = browseGrouped,
                     onGroupedChange = { browseGrouped = it },
                     collapsedAlbums = browseCollapsedAlbums,
+                    onPlayTracks = { viewModel.playTracks(it, 0) },
+                    onPlayTracksNext = { viewModel.playTracksNext(it) },
+                    onAddTracksToQueue = { viewModel.addTracksToQueue(it) },
+                    onDownloadTracks = { it.forEach(viewModel::downloadTrack) },
                     onBackClick = {
                         viewModel.popBrowseNode()
                     }
@@ -830,6 +834,10 @@ fun BrowseTab(
     grouped: Boolean,
     onGroupedChange: (Boolean) -> Unit,
     collapsedAlbums: MutableMap<String, Boolean>,
+    onPlayTracks: (List<Track>) -> Unit,
+    onPlayTracksNext: (List<Track>) -> Unit,
+    onAddTracksToQueue: (List<Track>) -> Unit,
+    onDownloadTracks: (List<Track>) -> Unit,
     onBackClick: () -> Unit,
     isLarge: Boolean = false
 ) {
@@ -946,7 +954,11 @@ fun BrowseTab(
                     onPlayTrackNext = onPlayTrackNext,
                     onAddTrackToQueue = onAddTrackToQueue,
                     onDownloadTrack = onDownloadTrack,
-                    onTrackInfoClick = onTrackInfoClick
+                    onTrackInfoClick = onTrackInfoClick,
+                    onPlayTracks = onPlayTracks,
+                    onPlayTracksNext = onPlayTracksNext,
+                    onAddTracksToQueue = onAddTracksToQueue,
+                    onDownloadTracks = onDownloadTracks
                 )
             } else {
                 LazyVerticalGrid(
@@ -993,7 +1005,11 @@ private fun BrowseGroupedTracks(
     onPlayTrackNext: (Track) -> Unit,
     onAddTrackToQueue: (Track) -> Unit,
     onDownloadTrack: (Track) -> Unit,
-    onTrackInfoClick: (Track) -> Unit
+    onTrackInfoClick: (Track) -> Unit,
+    onPlayTracks: (List<Track>) -> Unit,
+    onPlayTracksNext: (List<Track>) -> Unit,
+    onAddTracksToQueue: (List<Track>) -> Unit,
+    onDownloadTracks: (List<Track>) -> Unit
 ) {
     val artistGroups = remember(tracks) { groupTracksByArtistAndAlbum(tracks) }
 
@@ -1004,12 +1020,29 @@ private fun BrowseGroupedTracks(
     ) {
         artistGroups.forEach { artistGroup ->
             item(key = "artist:${artistGroup.artist}") {
-                Text(
-                    text = artistGroup.artist.uppercase(),
-                    style = AppTypography.sectionLabel,
-                    color = AppColors.accent,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                )
+                val artistTracks = artistGroup.albums.flatMap { it.tracks }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = artistGroup.artist.uppercase(),
+                        style = AppTypography.sectionLabel,
+                        color = AppColors.accent,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    BrowseGroupActionMenu(
+                        isOffline = isOffline,
+                        onPlay = { onPlayTracks(artistTracks) },
+                        onPlayNext = { onPlayTracksNext(artistTracks) },
+                        onAddToQueue = { onAddTracksToQueue(artistTracks) },
+                        onDownload = { onDownloadTracks(artistTracks) }
+                    )
+                }
             }
             artistGroup.albums.forEach { album ->
                 val isCollapsed = collapsedAlbums[album.groupId] == true
@@ -1020,7 +1053,16 @@ private fun BrowseGroupedTracks(
                         artworkFileKey = album.artworkFileKey,
                         collapsed = isCollapsed,
                         showArtwork = false,
-                        onClick = { collapsedAlbums[album.groupId] = !isCollapsed }
+                        onClick = { collapsedAlbums[album.groupId] = !isCollapsed },
+                        trailing = {
+                            BrowseGroupActionMenu(
+                                isOffline = isOffline,
+                                onPlay = { onPlayTracks(album.tracks) },
+                                onPlayNext = { onPlayTracksNext(album.tracks) },
+                                onAddToQueue = { onAddTracksToQueue(album.tracks) },
+                                onDownload = { onDownloadTracks(album.tracks) }
+                            )
+                        }
                     )
                 }
                 if (!isCollapsed) {
@@ -1050,6 +1092,41 @@ private fun BrowseGroupedTracks(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Overflow menu (Play / Play Next / Add to Queue / Download) for a grouped
+ *  browse header — acts on all tracks of the artist or album. */
+@Composable
+private fun BrowseGroupActionMenu(
+    isOffline: Boolean,
+    onPlay: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddToQueue: () -> Unit,
+    onDownload: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "More options",
+                tint = AppColors.text3,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+            modifier = Modifier.background(AppColors.bg2)
+        ) {
+            DropdownMenuItem(text = { Text("Play", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onPlay() })
+            DropdownMenuItem(text = { Text("Play Next", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onPlayNext() })
+            DropdownMenuItem(text = { Text("Add to Queue", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onAddToQueue() })
+            if (!isOffline) {
+                DropdownMenuItem(text = { Text("Download", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onDownload() })
             }
         }
     }
@@ -1397,7 +1474,8 @@ fun AlbumHeaderItem(
     modifier: Modifier = Modifier,
     collapsed: Boolean? = null,
     showArtwork: Boolean = true,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = modifier
@@ -1440,6 +1518,7 @@ fun AlbumHeaderItem(
                 overflow = TextOverflow.Ellipsis
             )
         }
+        trailing?.invoke()
         if (collapsed != null) {
             Icon(
                 imageVector = if (collapsed) Icons.Default.KeyboardArrowRight else Icons.Default.KeyboardArrowDown,

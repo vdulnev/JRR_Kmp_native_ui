@@ -1219,11 +1219,16 @@ struct LibraryView: View {
         let groups = BrowseTrackGroupingKt.groupTracksByArtistAndAlbum(tracks: observable.browseTracks)
         LazyVStack(alignment: .leading, spacing: 8) {
             ForEach(groups, id: \.artist) { artistGroup in
-                Text(artistGroup.artist.uppercased())
-                    .styleSectionLabel()
-                    .foregroundColor(.accentColor)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
+                HStack {
+                    Text(artistGroup.artist.uppercased())
+                        .styleSectionLabel()
+                        .foregroundColor(.accentColor)
+                        .lineLimit(1)
+                    Spacer()
+                    browseGroupActionMenu(tracks: artistGroup.albums.flatMap(\.tracks))
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 4)
 
                 ForEach(artistGroup.albums, id: \.groupId) { album in
                     let isCollapsed = collapsedBrowseAlbums.contains(album.groupId)
@@ -1254,32 +1259,61 @@ struct LibraryView: View {
         .padding(.top, 12)
     }
 
+    /// The action Menu is a sibling control (it handles its own taps); the rest
+    /// of the row toggles collapse via onTapGesture — nesting a Menu inside a
+    /// Button would swallow the menu taps.
     private func browseAlbumHeader(album: AlbumTrackGroup, artist: String, collapsed: Bool) -> some View {
-        Button {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(album.name.isEmpty ? "Unknown Album" : album.name)
+                    .styleItemTitle()
+                    .fontWeight(.bold)
+                    .lineLimit(1)
+                Text(artist.isEmpty ? "Unknown Artist" : artist)
+                    .styleItemSubtitle()
+                    .lineLimit(1)
+            }
+            Spacer()
+            browseGroupActionMenu(tracks: album.tracks)
+            Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                .font(.system(size: 14))
+                .foregroundColor(.textTertiary)
+        }
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
             if collapsed {
                 collapsedBrowseAlbums.remove(album.groupId)
             } else {
                 collapsedBrowseAlbums.insert(album.groupId)
             }
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(album.name.isEmpty ? "Unknown Album" : album.name)
-                        .styleItemTitle()
-                        .fontWeight(.bold)
-                        .lineLimit(1)
-                    Text(artist.isEmpty ? "Unknown Artist" : artist)
-                        .styleItemSubtitle()
-                        .lineLimit(1)
-                }
-                Spacer()
-                Image(systemName: collapsed ? "chevron.right" : "chevron.down")
-                    .font(.system(size: 14))
-                    .foregroundColor(.textTertiary)
+        }
+    }
+
+    /// Overflow menu (Play / Play Next / Add to Queue / Download) for a grouped
+    /// browse header — acts on all tracks of the artist or album.
+    private func browseGroupActionMenu(tracks: [Track]) -> some View {
+        Menu {
+            Button(action: { observable.playTracks(tracks, startIndex: 0) }) {
+                Label("Play", systemImage: "play.fill")
             }
-            .padding(.top, 12)
-            .padding(.bottom, 4)
-            .contentShape(Rectangle())
+            Button(action: { observable.playTracksNext(tracks) }) {
+                Label("Play Next", systemImage: "arrow.right.to.line")
+            }
+            Button(action: { observable.addTracksToQueue(tracks) }) {
+                Label("Add to Queue", systemImage: "plus")
+            }
+            if !observable.isOffline {
+                Button(action: { tracks.forEach { observable.downloadTrack($0) } }) {
+                    Label("Download", systemImage: "arrow.down.circle")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.textSecondary)
+                .frame(width: 32, height: 32)
         }
         .buttonStyle(PlainButtonStyle())
     }
