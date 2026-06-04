@@ -8,43 +8,27 @@
 
 /* Begin PBXBuildFile section */
 		03C8C04E5B1055ECCF3FB4D3 /* TvMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01D0CD7754799793E8FF7A4C /* TvMainView.swift */; };
-		1738DE4830270441FEDF3542 /* TvLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151F103480F4D6C69C9357B6 /* TvLibraryView.swift */; };
 		1938B51F4CA12C62C386C5B1 /* TvOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBEA991F4C468E01CD4457F9 /* TvOSApp.swift */; };
-		2B4F19ED82EE293ED45FFAD1 /* TvMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43DD54A8447C259D77DDF2C2 /* TvMainView.swift */; };
-		2BC6C81E6FADFFC6CED1D0E9 /* SwiftLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5CCCA517D1B81492849F935 /* SwiftLog.swift */; };
-		2E5285D296A012AB588DCA86 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 17298E880B918CE6F938E271 /* Assets.xcassets */; };
 		3297C85CCCE11FBFF58BCEDE /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E91E1CF3DAC22FE488FCF765 /* Foundation.framework */; };
-		34E7412BF10BF0E2B0DDE8E0 /* CorePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9471346A0EFCBD9921A10563 /* CorePlayer.swift */; };
 		414181FE62184A41742654D0 /* TvSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCAD9BE209BF9CD4516C8BBE /* TvSettingsView.swift */; };
 		425EAB7498F8D5FCE012FCBD /* TvNowPlayingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D49DBBA01D4BA55FEB70C6 /* TvNowPlayingDetailView.swift */; };
-		4D11135BC1819CE443ACCD3E /* TvSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6080911B77ECD9AC02C2CD64 /* TvSearchView.swift */; };
-		54194D3C1EEAEE1BA275F020 /* TvObservables.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E4CD504CC8DC8311A75E0A /* TvObservables.swift */; };
-		56707A0B1C5731EF1145E3DE /* TvContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD548603C17F727232E2B348 /* TvContainer.swift */; };
-		63C627031E0598F1D0354655 /* TvZonesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7690BAC59695921EA34C1015 /* TvZonesView.swift */; };
 		644B6C1540B84E8D2876E94F /* TvRandomAlbumsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00382713A61FF752CCCD8131 /* TvRandomAlbumsView.swift */; };
 		70BC8BF67AB3406EB9BBF3D2 /* TvLibraryRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB66D3ADBA959273605840E5 /* TvLibraryRootView.swift */; };
-		7B2573299F97E972CD489FF8 /* TvOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AA55D3DED2C74A3A80F70DB /* TvOSApp.swift */; };
-		7D81194C81E302A0C5B840F7 /* TvConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5319E20D31988CE5B8AABEB /* TvConnectView.swift */; };
 		7FD9E7442AEB40D25FC814A3 /* TvBrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA322CE5B21CD0B2AFD943E /* TvBrowseView.swift */; };
-		7FDEA9602D09D10551260761 /* TvArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF98E64A9443F72DEE24C38 /* TvArtwork.swift */; };
 		82225FA99194FAADF133CA99 /* TvLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2623E73D555C918F3DE1FAE3 /* TvLibraryView.swift */; };
 		893A8404CD10069F12E2E3B6 /* SwiftLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C8CB6CB4F4E352E1DE20A1 /* SwiftLog.swift */; };
 		89F754EFB7684EED7B6B4011 /* TvConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A24B6061B73DE6DE34577670 /* TvConnectView.swift */; };
 		8BBAC8259BF85482FC9FF8EF /* TvZonesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90C1A56401C248741DF9211F /* TvZonesView.swift */; };
 		9C33592E09CEDC77C7751264 /* TvFavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12093F2941498045B49F9F6F /* TvFavoritesView.swift */; };
-		9D5861632559293FE0ECCEF8 /* TvAlbumTracksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D1029DBC97EA8A016E4C75 /* TvAlbumTracksView.swift */; };
 		A0C9B16AAE201C837CEF74E9 /* TvRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A99703DD954973A8B45FA40 /* TvRootView.swift */; };
-		ABA44DA54C8117912E50DA31 /* TvNowPlayingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8012F800528145A5B68A9A8C /* TvNowPlayingDetailView.swift */; };
 		BD7CD7D027194E413CFC3EA5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AD82A821F2CA34941740DF06 /* Assets.xcassets */; };
 		C0CCB825E14CE1DD488E8F5D /* TvAlbumTracksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9AD77D30802FEAB6C92A00B /* TvAlbumTracksView.swift */; };
 		C9090125D64C64B8159994B2 /* TvContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15AC4D0C8ADD09926377161F /* TvContainer.swift */; };
 		CBD7211C1E1AF115B597B6DB /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DC42241BFADD111D594F3215 /* Cocoa.framework */; };
 		CE4E31CE1A22EAE333C54B14 /* TvSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F1CB0748828234410300FF /* TvSearchView.swift */; };
 		CFE62C77F0CA76BA45E7AF00 /* TvArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C4341014DACE624355ADA8A /* TvArtwork.swift */; };
-		D485DE296EE140AFF134EBF1 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E91E1CF3DAC22FE488FCF765 /* Foundation.framework */; };
 		E28A213268182194C1D15A7F /* CorePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD10299B56644C1B5709DC74 /* CorePlayer.swift */; };
 		F0530D6068AC1FE00944DB83 /* TvObservables.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB9D51EAF0D289CBDF8382D /* TvObservables.swift */; };
-		F612EF8341A3A401C5C327D0 /* TvRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 360058AA45D81031BE2BFC56 /* TvRootView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,28 +37,19 @@
 		01D0CD7754799793E8FF7A4C /* TvMainView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvMainView.swift; sourceTree = "<group>"; };
 		02538AEE1C4847A5E78584CE /* tvOSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tvOSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		12093F2941498045B49F9F6F /* TvFavoritesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvFavoritesView.swift; sourceTree = "<group>"; };
-		151F103480F4D6C69C9357B6 /* TvLibraryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvLibraryView.swift; sourceTree = "<group>"; };
 		15AC4D0C8ADD09926377161F /* TvContainer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvContainer.swift; sourceTree = "<group>"; };
 		164E337EA9EF9F37CDBEB7BB /* tvOSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tvOSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		17298E880B918CE6F938E271 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A99703DD954973A8B45FA40 /* TvRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvRootView.swift; sourceTree = "<group>"; };
 		2623E73D555C918F3DE1FAE3 /* TvLibraryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvLibraryView.swift; sourceTree = "<group>"; };
 		26B90563BCBBEDC8AC87C55A /* tvOSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tvOSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		2AA55D3DED2C74A3A80F70DB /* TvOSApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvOSApp.swift; sourceTree = "<group>"; };
 		2C86266D1ADFF4FB02711698 /* SwiftLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftLog.swift; path = iosApp/Core/SwiftLog.swift; sourceTree = "<group>"; };
-		360058AA45D81031BE2BFC56 /* TvRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvRootView.swift; sourceTree = "<group>"; };
 		41F1CB0748828234410300FF /* TvSearchView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvSearchView.swift; sourceTree = "<group>"; };
-		43DD54A8447C259D77DDF2C2 /* TvMainView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvMainView.swift; sourceTree = "<group>"; };
 		4C4341014DACE624355ADA8A /* TvArtwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvArtwork.swift; sourceTree = "<group>"; };
 		53F53C8372392F1A4E9E8EF8 /* tvOSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tvOSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		6080911B77ECD9AC02C2CD64 /* TvSearchView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvSearchView.swift; sourceTree = "<group>"; };
 		6306F27D95A0983544F68351 /* CorePlayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CorePlayer.swift; path = iosApp/Playback/CorePlayer.swift; sourceTree = "<group>"; };
 		69B564F792581FC22E59533F /* SwiftLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftLog.swift; path = iosApp/Core/SwiftLog.swift; sourceTree = "<group>"; };
 		6A6AD7237AA4F80F238D69B6 /* tvOSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tvOSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		72D1029DBC97EA8A016E4C75 /* TvAlbumTracksView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvAlbumTracksView.swift; sourceTree = "<group>"; };
-		737CB8E3A7E954F57FEB6906 /* macApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = macApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		7690BAC59695921EA34C1015 /* TvZonesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvZonesView.swift; sourceTree = "<group>"; };
-		8012F800528145A5B68A9A8C /* TvNowPlayingDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvNowPlayingDetailView.swift; sourceTree = "<group>"; };
+		737CB8E3A7E954F57FEB6906 /* JRRKmpnativeui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JRRKmpnativeui.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		90C1A56401C248741DF9211F /* TvZonesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvZonesView.swift; sourceTree = "<group>"; };
 		9471346A0EFCBD9921A10563 /* CorePlayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CorePlayer.swift; path = iosApp/Playback/CorePlayer.swift; sourceTree = "<group>"; };
 		99FE4D50472CE57BFDAB6197 /* CorePlayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CorePlayer.swift; path = iosApp/Playback/CorePlayer.swift; sourceTree = "<group>"; };
@@ -84,12 +59,9 @@
 		AD82A821F2CA34941740DF06 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B5586AF6758C25A7F2BB42D8 /* tvOSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tvOSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BAA322CE5B21CD0B2AFD943E /* TvBrowseView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvBrowseView.swift; sourceTree = "<group>"; };
-		C4E4CD504CC8DC8311A75E0A /* TvObservables.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvObservables.swift; sourceTree = "<group>"; };
-		C5319E20D31988CE5B8AABEB /* TvConnectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvConnectView.swift; sourceTree = "<group>"; };
 		C5CCCA517D1B81492849F935 /* SwiftLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftLog.swift; path = iosApp/Core/SwiftLog.swift; sourceTree = "<group>"; };
 		C6B2E1DB47F9F5B4234FFA71 /* tvOSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tvOSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C93BF9D70AF8DCD7F45B9ABE /* JRRKmpnativeui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JRRKmpnativeui.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		CCF98E64A9443F72DEE24C38 /* TvArtwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvArtwork.swift; sourceTree = "<group>"; };
 		D5C8CB6CB4F4E352E1DE20A1 /* SwiftLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftLog.swift; path = iosApp/Core/SwiftLog.swift; sourceTree = "<group>"; };
 		DC42241BFADD111D594F3215 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		E4D49DBBA01D4BA55FEB70C6 /* TvNowPlayingDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvNowPlayingDetailView.swift; sourceTree = "<group>"; };
@@ -100,18 +72,17 @@
 		FBEA991F4C468E01CD4457F9 /* TvOSApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvOSApp.swift; sourceTree = "<group>"; };
 		FCAD9BE209BF9CD4516C8BBE /* TvSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvSettingsView.swift; sourceTree = "<group>"; };
 		FD10299B56644C1B5709DC74 /* CorePlayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CorePlayer.swift; path = iosApp/Playback/CorePlayer.swift; sourceTree = "<group>"; };
-		FD548603C17F727232E2B348 /* TvContainer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TvContainer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		7AD87C50700F2D5CB159BC12 /* Exceptions for "iosApp" folder in "macApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				main.swift,
+				CarPlaySceneDelegate.swift,
 				Core/AppDelegate.swift,
 				Core/SceneDelegate.swift,
-				CarPlaySceneDelegate.swift,
 				Info.plist,
+				main.swift,
 			);
 			target = A4EC9562620460972B125505 /* macApp */;
 		};
@@ -137,8 +108,6 @@
 		};
 		B68DBB3960B894C453FB07AD /* Configuration */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = Configuration;
 			sourceTree = "<group>";
 		};
@@ -175,7 +144,7 @@
 			isa = PBXGroup;
 			children = (
 				C93BF9D70AF8DCD7F45B9ABE /* JRRKmpnativeui.app */,
-				737CB8E3A7E954F57FEB6906 /* macApp.app */,
+				737CB8E3A7E954F57FEB6906 /* JRRKmpnativeui.app */,
 				164E337EA9EF9F37CDBEB7BB /* tvOSApp.app */,
 				02538AEE1C4847A5E78584CE /* tvOSApp.app */,
 				9B730450400BC50C629A3688 /* tvOSApp.app */,
@@ -231,7 +200,6 @@
 				E4D49DBBA01D4BA55FEB70C6 /* TvNowPlayingDetailView.swift */,
 				AD82A821F2CA34941740DF06 /* Assets.xcassets */,
 			);
-			name = tvOSApp;
 			path = tvOSApp;
 			sourceTree = "<group>";
 		};
@@ -302,7 +270,7 @@
 			);
 			name = macApp;
 			productName = macApp;
-			productReference = 737CB8E3A7E954F57FEB6906 /* macApp.app */;
+			productReference = 737CB8E3A7E954F57FEB6906 /* JRRKmpnativeui.app */;
 			productType = "com.apple.product-type.application";
 		};
 		C13D068777907A6B61F159EA /* tvOSApp */ = {
@@ -486,30 +454,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		06478FD348205FFA5689DF76 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
-				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				GENERATE_INFOPLIST_FILE = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.jrr.jrrkmp-native-ui.tvos";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = appletvos;
-				SUPPORTED_PLATFORMS = "appletvos appletvsimulator";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 3;
-				TVOS_DEPLOYMENT_TARGET = 17.0;
-			};
-			name = Debug;
-		};
 		3DD6735F7614FA74E7DC3B98 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -659,31 +603,6 @@
 			};
 			name = Release;
 		};
-		90E65F2CA9E85C8CDF01030E /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
-				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				GENERATE_INFOPLIST_FILE = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.jrr.jrrkmp-native-ui.tvos";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = appletvos;
-				SUPPORTED_PLATFORMS = "appletvos appletvsimulator";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 3;
-				TVOS_DEPLOYMENT_TARGET = 17.0;
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
 		9FC821FF6005AE8296C86A40 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -691,6 +610,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6742UG6L9C;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -810,6 +730,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6742UG6L9C;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
