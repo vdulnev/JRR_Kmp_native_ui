@@ -58,6 +58,10 @@ final class TvContainer {
         NowPlayingViewModel(facade: facade, mcwsClient: mcwsClient)
     }
 
+    func makeQueueViewModel() -> QueueViewModel {
+        QueueViewModel(facade: facade, libraryRepository: libraryRepository)
+    }
+
     func makeSettingsViewModel() -> SettingsViewModel {
         SettingsViewModel(
             facade: facade,
