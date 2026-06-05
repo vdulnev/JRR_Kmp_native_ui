@@ -1,20 +1,38 @@
 import SharedLogic
 import SwiftUI
 
-/// Full-screen now-playing detail: large artwork, progress, and full transport
-/// (shuffle / prev / play-pause / next / repeat). Bound to the shared
-/// `NowPlayingViewModel` via [NowPlayingObservable].
+/// Full-screen now-playing detail: artwork, progress, and full transport
+/// (shuffle / prev / play-pause / next / repeat) on the left, with the live
+/// playing queue on the right. Bound to the shared `NowPlayingViewModel` /
+/// `QueueViewModel` via their observables.
 struct TvNowPlayingDetailView: View {
     @Bindable var model: NowPlayingObservable
+    @Bindable var queue: QueueObservable
 
     var body: some View {
-        HStack(spacing: 80) {
-            TvArtwork(urlString: model.imageUrl, size: 420)
+        HStack(alignment: .top, spacing: 60) {
+            nowPlayingPanel
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            queuePanel
+                .frame(width: 620)
+        }
+        .padding(80)
+        .navigationTitle("Now Playing")
+        .task { await model.observe() }
+        .task { await queue.observe() }
+    }
+
+    // MARK: - Left: now playing + transport
+
+    private var nowPlayingPanel: some View {
+        HStack(alignment: .top, spacing: 60) {
+            TvArtwork(urlString: model.imageUrl, size: 360)
 
             VStack(alignment: .leading, spacing: 24) {
-                Text(model.trackTitle).font(.largeTitle.bold()).lineLimit(2)
-                Text(model.artistName).font(.title2).foregroundStyle(.secondary)
-                Text(model.albumTitle).font(.title3).foregroundStyle(.secondary)
+                Text(model.trackTitle).font(.title.bold()).lineLimit(2)
+                Text(model.artistName).font(.title3).foregroundStyle(.secondary)
+                Text(model.albumTitle).font(.body).foregroundStyle(.secondary)
 
                 ProgressView(value: model.progress)
                     .tint(.yellow)
@@ -26,7 +44,7 @@ struct TvNowPlayingDetailView: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
 
-                HStack(spacing: 50) {
+                HStack(spacing: 40) {
                     Button { model.toggleShuffle() } label: {
                         Image(systemName: "shuffle")
                             .foregroundStyle(model.shuffleOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
@@ -46,9 +64,53 @@ struct TvNowPlayingDetailView: View {
             }
             .frame(maxWidth: 700, alignment: .leading)
         }
-        .padding(80)
-        .navigationTitle("Now Playing")
-        .task { await model.observe() }
+    }
+
+    // MARK: - Right: playing queue
+
+    private var queuePanel: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Queue").font(.title2.bold())
+
+            if queue.queueTracks.isEmpty {
+                Text("Queue is empty")
+                    .foregroundStyle(.secondary)
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(Array(queue.queueTracks.enumerated()), id: \.element.fileKey) { index, track in
+                            queueRow(index: index, track: track)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func queueRow(index: Int, track: Track) -> some View {
+        let isActive = index == queue.activeIndex
+        return Button {
+            queue.playByIndex(index)
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: isActive ? "speaker.wave.2.fill" : "music.note")
+                    .foregroundStyle(isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(track.name)
+                        .lineLimit(1)
+                        .foregroundStyle(isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+                    Text(track.artist)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.borderless)
     }
 
     private func timeString(_ ms: Int64) -> String {

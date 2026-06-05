@@ -8,12 +8,13 @@ struct TvMainView: View {
     @Environment(TvContainer.self) private var container
     let onDisconnect: () -> Void
     @State private var nowPlaying: NowPlayingObservable?
+    @State private var queue: QueueObservable?
 
     var body: some View {
         TabView {
             Group {
-                if let nowPlaying {
-                    NavigationStack { TvNowPlayingDetailView(model: nowPlaying) }
+                if let nowPlaying, let queue {
+                    NavigationStack { TvNowPlayingDetailView(model: nowPlaying, queue: queue) }
                 } else {
                     ProgressView()
                 }
@@ -32,6 +33,9 @@ struct TvMainView: View {
         .onAppear {
             if nowPlaying == nil {
                 nowPlaying = NowPlayingObservable(viewModel: container.makeNowPlayingViewModel())
+            }
+            if queue == nil {
+                queue = QueueObservable(viewModel: container.makeQueueViewModel())
             }
         }
     }

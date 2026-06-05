@@ -76,6 +76,37 @@ final class NowPlayingObservable {
     }
 }
 
+/// Bridges `QueueViewModel.state` into observable Swift properties for the
+/// playing-now queue list.
+@Observable
+@MainActor
+final class QueueObservable {
+    let viewModel: QueueViewModel
+
+    var queueTracks: [Track] = []
+    var activeIndex: Int = -1
+
+    init(viewModel: QueueViewModel) {
+        self.viewModel = viewModel
+        sync(viewModel.state.value)
+    }
+
+    func observe() async {
+        for await state in viewModel.state {
+            sync(state)
+        }
+    }
+
+    private func sync(_ state: QueueViewState) {
+        queueTracks = state.queueTracks
+        activeIndex = Int(state.activeIndex)
+    }
+
+    func playByIndex(_ index: Int) {
+        viewModel.playByIndex(index: Int32(index))
+    }
+}
+
 /// Bridges `ZonesViewModel.state` into observable Swift properties for the
 /// zone picker.
 @Observable
