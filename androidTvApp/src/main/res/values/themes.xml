@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose-driven TV app: a bare no-action-bar device-default theme with a
+         black window background (10-foot dark UI). -->
+    <style name="Theme.JrrTv" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>

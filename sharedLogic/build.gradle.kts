@@ -58,7 +58,9 @@ kotlin {
     androidLibrary {
        namespace = "com.jrr.jrrkmp_native_ui.sharedLogic"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
-       minSdk = libs.versions.android.minSdk.get().toInt()
+       // Lower floor so :androidTvApp can target older TV boxes; the phone app
+       // keeps minSdk 33 (a consumer may exceed a library's minimum).
+       minSdk = libs.versions.android.minSdkTv.get().toInt()
     
        compilerOptions {
            jvmTarget = JvmTarget.JVM_11

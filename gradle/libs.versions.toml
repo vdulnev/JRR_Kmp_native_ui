@@ -2,6 +2,10 @@
 agp = "9.2.1"
 android-compileSdk = "36"
 android-minSdk = "33"
+# Lower floor for the Android TV path (:androidTvApp + the libraries it consumes,
+# :sharedLogic and :androidCore). Older Android TV boxes (e.g. Mi Box 3 = API 28)
+# run below the phone app's 33; nothing in the TV stack requires 33.
+android-minSdkTv = "23"
 android-targetSdk = "36"
 androidx-activity = "1.13.0"
 androidx-appcompat = "1.7.1"
@@ -28,6 +32,7 @@ atomicfu = "0.27.0"
 decompose = "3.5.0"
 essenty = "2.5.0"
 vlcj = "4.8.3"
+androidx-tv = "1.0.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -68,6 +73,8 @@ coil3-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref
 coil3-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil3" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version = "1.7.0" }
+# Jetpack Compose for TV (D-pad focus components) — used only by :androidTvApp.
+androidx-tv-material = { module = "androidx.tv:tv-material", version.ref = "androidx-tv" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 # Decompose: UI-agnostic component tree + ChildStack routing (pure Kotlin, commonMain).
