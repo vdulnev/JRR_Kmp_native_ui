@@ -17,6 +17,15 @@ import kotlinx.coroutines.withContext
 
 private val log = Logger.withTag("repo:Library")
 
+/**
+ * One resolved level of the browse tree: either child nodes to drill into, or
+ * (for a leaf) the files at that node. See [LibraryRepository.getBrowseNode].
+ */
+sealed interface BrowseContent {
+    data class Nodes(val items: List<BrowseItem>) : BrowseContent
+    data class Files(val tracks: List<Track>) : BrowseContent
+}
+
 // ---- album-name normalisation -----------------------------------------------
 //
 // Most multi-disc rips in real libraries carry the disc marker IN THE ALBUM
@@ -662,6 +671,22 @@ class LibraryRepository(
 
     suspend fun getBrowseFiles(nodeId: String): List<Track> = withContext(Dispatchers.IO) {
         mcwsClient.getBrowseFiles(nodeId)
+    }
+
+    /**
+     * Resolve one node of the JRiver browse tree. A node either has child nodes
+     * (an inner category) or, when it has none, is a leaf whose files we fetch.
+     * Fetching files on an inner node returns nothing, so the leaf check (zero
+     * children) must gate it — this logic lives here, not in the UI.
+     */
+    suspend fun getBrowseNode(parentId: String): BrowseContent = withContext(Dispatchers.IO) {
+        log.d { "getBrowseNode(parentId=$parentId)" }
+        val children = mcwsClient.getBrowseChildren(parentId)
+        if (children.isNotEmpty()) {
+            BrowseContent.Nodes(children)
+        } else {
+            BrowseContent.Files(mcwsClient.getBrowseFiles(parentId))
+        }
     }
 
     suspend fun getRemoteQueue(): List<Track> = withContext(Dispatchers.IO) {

@@ -38,6 +38,8 @@ dependencyResolutionManagement {
 }
 
 include(":androidApp")
+include(":androidTvApp")
+include(":androidCore")
 include(":sharedLogic")
 include(":composeUi")
 include(":desktopApp")
