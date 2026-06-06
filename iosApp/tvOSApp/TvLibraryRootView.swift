@@ -1,40 +1,48 @@
 import SwiftUI
 
+/// Library sections enum representing the sidebar items.
+enum LibrarySection: String, CaseIterable, Identifiable {
+    case artists = "Artists"
+    case randomAlbums = "Random Albums"
+    case browse = "Browse"
+    case favorites = "Favorites"
+
+    var id: String {
+        rawValue
+    }
+}
+
 /// The Library section, mirroring the other platforms' library tabs:
 /// Artists, Random albums, Browse, Favorites. (Downloads is omitted — tvOS is
 /// online-only.)
 ///
-/// tvOS does not support a `TabView` nested inside another `TabView` (the inner
-/// tab bar never appears), so the sub-sections are switched with a focusable
-/// selector row at the top — the same shape as the other platforms' secondary
-/// tab row.
+/// tvOS now uses a `NavigationSplitView` to display a sidebar list on the left
+/// and the selected section's content (artists list, random albums grid, etc.) on the right.
 struct TvLibraryRootView: View {
-    @State private var section = 0
-    private let titles = ["Artists", "Random Albums", "Browse", "Favorites"]
+    @State private var selectedSection: LibrarySection? = .artists
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 24) {
-                ForEach(Array(titles.enumerated()), id: \.offset) { index, title in
-                    Button {
-                        section = index
-                    } label: {
-                        Text(title)
-                            .fontWeight(section == index ? .bold : .regular)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(section == index ? .yellow : .gray)
+        NavigationSplitView {
+            List(LibrarySection.allCases, selection: $selectedSection) { section in
+                NavigationLink(value: section) {
+                    Text(section.rawValue)
                 }
             }
-            .padding(.vertical, 16)
-
-            Group {
-                switch section {
-                case 0: TvArtistsView()
-                case 1: TvRandomAlbumsView()
-                case 2: TvBrowseView()
-                default: TvFavoritesView()
+            .navigationTitle("Library")
+        } detail: {
+            if let selectedSection {
+                switch selectedSection {
+                case .artists:
+                    TvArtistsView()
+                case .randomAlbums:
+                    TvRandomAlbumsView()
+                case .browse:
+                    TvBrowseView()
+                case .favorites:
+                    TvFavoritesView()
                 }
+            } else {
+                Text("Select a section")
             }
         }
     }
