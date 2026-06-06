@@ -62,6 +62,8 @@ extension View {
     func insetGroupedListStyle() -> some View {
         #if os(iOS)
             listStyle(.insetGrouped)
+        #elseif os(tvOS)
+            listStyle(.grouped)
         #else
             listStyle(.inset)
         #endif
@@ -71,9 +73,9 @@ extension View {
 /// Cross-platform clipboard write (`UIPasteboard` on iOS, `NSPasteboard` on macOS).
 enum Clipboard {
     static func copy(_ string: String) {
-        #if canImport(UIKit)
+        #if os(iOS)
             UIPasteboard.general.string = string
-        #elseif canImport(AppKit)
+        #elseif os(macOS)
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(string, forType: .string)
         #endif

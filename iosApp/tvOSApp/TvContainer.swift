@@ -18,6 +18,9 @@ final class TvContainer {
     /// itself as the engine's controller; retained for the app's lifetime.
     let corePlayer: CorePlayer
 
+    let nowPlayingCoordinator: NowPlayingCoordinator
+    let playbackStateObserver: PlaybackStateObserver
+
     init() {
         let builder = DatabaseBuilder().createBuilder()
         let db = DatabaseBuilderKt.createDatabase(builder: builder)
@@ -42,6 +45,23 @@ final class TvContainer {
         )
 
         corePlayer = CorePlayer(engine: engine, database: db, facade: facade)
+
+        nowPlayingCoordinator = NowPlayingCoordinator()
+        playbackStateObserver = PlaybackStateObserver(
+            facade: facade,
+            database: db,
+            nowPlayingCoordinator: nowPlayingCoordinator,
+            mcwsClient: core.mcwsClient,
+        )
+
+        // Configure the remote command handlers
+        nowPlayingCoordinator.configure(
+            playHandler: { [facade] in facade.play() },
+            pauseHandler: { [facade] in facade.pause() },
+            nextHandler: { [facade] in facade.next() },
+            prevHandler: { [facade] in facade.previous() },
+            seekHandler: { [facade] in facade.seekTo(positionMs: $0) },
+        )
 
         libraryRepository = LibraryRepository(
             database: db,
