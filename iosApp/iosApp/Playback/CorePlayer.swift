@@ -2,6 +2,9 @@ import AVFoundation
 import Combine
 import Foundation
 import SharedLogic
+#if os(tvOS)
+    import UIKit
+#endif
 
 private let log = SwiftLog("playback:CorePlayer")
 
@@ -73,6 +76,9 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
 
     private func setupPlayer() {
         let player = AVQueuePlayer()
+        #if os(tvOS)
+            player.preventsDisplaySleepDuringVideoPlayback = false
+        #endif
         queuePlayer = player
 
         player.publisher(for: \.timeControlStatus)
@@ -116,7 +122,21 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
             .stopped
         }
         engine.updatePlaybackState(state: state)
+        #if os(tvOS)
+            // Keep the Apple TV awake while audio is playing out of the device,
+            // otherwise the system idle timer can sleep it and cut local
+            // playback. Released on pause/stop so the device can sleep normally.
+            setIdleTimerDisabled(state == .playing)
+        #endif
     }
+
+    #if os(tvOS)
+        private func setIdleTimerDisabled(_ disabled: Bool) {
+            Task { @MainActor in
+                UIApplication.shared.isIdleTimerDisabled = disabled
+            }
+        }
+    #endif
 
     private func handleCurrentItemChanged(item: AVPlayerItem?) {
         guard let item else {
