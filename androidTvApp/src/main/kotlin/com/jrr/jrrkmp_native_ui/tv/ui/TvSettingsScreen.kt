@@ -65,6 +65,29 @@ fun TvSettingsScreen(
 
         if (s.isDebugBuild) {
             Spacer(Modifier.height(20.dp))
+            SectionLabel("Logging")
+            
+            val context = androidx.compose.ui.platform.LocalContext.current
+            Button(
+                onClick = {
+                    val logText = vm.exportLogText()
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, logText)
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, "JRR debug log")
+                    }
+                    try {
+                        context.startActivity(android.content.Intent.createChooser(intent, "Share debug log"))
+                    } catch (e: Exception) {
+                        android.widget.Toast.makeText(context, "No app available to share logs.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+                colors = jrrButtonColors(),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Text("Share log")
+            }
+
             SectionLabel("Log level")
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 listOf(Severity.Verbose, Severity.Debug, Severity.Info, Severity.Warn, Severity.Error)
