@@ -22,28 +22,53 @@ struct TvLibraryRootView: View {
     @State private var selectedSection: LibrarySection? = .artists
 
     var body: some View {
-        NavigationSplitView {
-            List(LibrarySection.allCases, selection: $selectedSection) { section in
-                NavigationLink(value: section) {
-                    Text(section.rawValue)
+        HStack(spacing: 0) {
+            // Left Panel (Sidebar)
+            VStack {
+                Text("Library")
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .padding(.top, 40)
+                    .padding(.bottom, 20)
+
+                List(LibrarySection.allCases, selection: $selectedSection) { section in
+                    Button(action: {
+                        selectedSection = section
+                    }) {
+                        HStack {
+                            Text(section.rawValue)
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    // Highlight the selected row visually
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .background(selectedSection == section ? Color.gray.opacity(0.3) : Color.clear)
+                    .cornerRadius(8)
                 }
             }
-            .navigationTitle("Library")
-        } detail: {
-            if let selectedSection {
-                switch selectedSection {
-                case .artists:
-                    TvArtistsView()
-                case .randomAlbums:
-                    TvRandomAlbumsView()
-                case .browse:
-                    TvBrowseView()
-                case .favorites:
-                    TvFavoritesView()
+            .frame(width: 350)
+            .background(Color.black.opacity(0.1))
+
+            // Right Panel (Content)
+            Group {
+                if let selectedSection {
+                    switch selectedSection {
+                    case .artists:
+                        TvArtistsView()
+                    case .randomAlbums:
+                        TvRandomAlbumsView()
+                    case .browse:
+                        TvBrowseView()
+                    case .favorites:
+                        TvFavoritesView()
+                    }
+                } else {
+                    Text("Select a section")
                 }
-            } else {
-                Text("Select a section")
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
