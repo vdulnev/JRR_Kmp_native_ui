@@ -278,7 +278,8 @@ internal fun groupAlbumsByGroupId(albums: List<Album>): List<Album> =
             // tells us this is a multi-disc set whose siblings live under the
             // shared parent.
             val foldsByFolder = isDiscSubfolder(rep.folderPath)
-            if (discs.size > 1 || foldsByFolder) {
+            val hasDiscMarker = normalizeAlbumName(rep.name) != rep.name
+            if (discs.size > 1 || foldsByFolder || hasDiscMarker || rep.totalDiscs > 1) {
                 rep.copy(
                     name = normalizeAlbumName(rep.name),
                     folderPath = rep.parentFolderPath,
@@ -657,7 +658,8 @@ class LibraryRepository(
     suspend fun getRandomAlbums(limit: Int = 10): List<Album> = withContext(Dispatchers.IO) {
         log.d { "getRandomAlbums(limit=$limit)" }
         val mcwsQuery = "[Media Type]=Audio ~limit=$limit,-1,[Album],[Filename (path)] ~n=$limit"
-        mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
+        val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
+        groupAlbumsByGroupId(raw)
     }
 
     suspend fun getZones(): List<Zone> = withContext(Dispatchers.IO) {
