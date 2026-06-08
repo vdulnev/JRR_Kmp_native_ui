@@ -216,7 +216,9 @@ fun LibraryScreen(
                     onDownloadAlbum = { viewModel.downloadAlbum(it) },
                     isOffline = state.isOffline,
                     onAlbumInfoClick = { infoAlbum = it },
-                    onBackClick = { viewModel.selectArtist(null) }
+                    onBackClick = { viewModel.selectArtist(null) },
+                    favorites = state.favorites,
+                    onToggleFavoriteAlbum = { viewModel.toggleFavoriteAlbum(it) }
                 )
                 "random" -> RandomTab(
                     albums = state.randomAlbums,
@@ -231,7 +233,9 @@ fun LibraryScreen(
                     onAlbumInfoClick = { infoAlbum = it },
                     onRefresh = {
                         viewModel.retry()
-                    }
+                    },
+                    favorites = state.favorites,
+                    onToggleFavoriteAlbum = { viewModel.toggleFavoriteAlbum(it) }
                 )
                 "browse" -> BrowseTab(
                     stack = state.browseStack,
@@ -310,7 +314,8 @@ fun LibraryScreen(
                     onAddTrackToQueue = { viewModel.addTrackToQueue(it) },
                     onDownloadTrack = { viewModel.downloadTrack(it) },
                     onToggleFavoriteTrack = { viewModel.toggleFavoriteTrack(it) },
-                    onTrackInfoClick = { infoTrack = it }
+                    onTrackInfoClick = { infoTrack = it },
+                    onToggleFavoriteAlbum = { viewModel.toggleFavoriteAlbum(it) }
                 )
             }
         }
@@ -358,7 +363,9 @@ fun ArtistsTab(
     onDownloadAlbum: (Album) -> Unit,
     isOffline: Boolean,
     onAlbumInfoClick: (Album) -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>,
+    onToggleFavoriteAlbum: (Album) -> Unit
 ) {
     if (selectedArtist != null) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -405,8 +412,11 @@ fun ArtistsTab(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(filteredAlbums) { album ->
+                            val isFavorite = favorites.any { it.type == "album" && it.identifier == "${album.name}|${album.albumArtist}" }
                             AlbumRowItem(
                                 album = album,
+                                isFavorite = isFavorite,
+                                onToggleFavorite = { onToggleFavoriteAlbum(album) },
                                 onPlay = { onPlayAlbum(album) },
                                 onPlayNext = { onPlayAlbumNext(album) },
                                 onAddToQueue = { onAddAlbumToQueue(album) },
@@ -701,7 +711,9 @@ fun RandomTab(
     isOffline: Boolean,
     onAlbumInfoClick: (Album) -> Unit,
     onRefresh: () -> Unit,
-    isLarge: Boolean = false
+    isLarge: Boolean = false,
+    favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>,
+    onToggleFavoriteAlbum: (Album) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -740,6 +752,7 @@ fun RandomTab(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(albums) { album ->
+                    val isFavorite = favorites.any { it.type == "album" && it.identifier == "${album.name}|${album.albumArtist}" }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -773,6 +786,16 @@ fun RandomTab(
                                 Text(album.albumArtist, style = AppTypography.itemSubtitle, maxLines = 1)
                             }
 
+                            if (isFavorite) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = "Favorited",
+                                    tint = AppColors.accent,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+
                             var showMenu by remember { mutableStateOf(false) }
                             Box {
                                 IconButton(
@@ -796,6 +819,13 @@ fun RandomTab(
                                         onClick = {
                                             showMenu = false
                                             onAlbumInfoClick(album)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (isFavorite) "Remove from Favorites" else "Add to Favorites", style = AppTypography.itemTitle) },
+                                        onClick = {
+                                            showMenu = false
+                                            onToggleFavoriteAlbum(album)
                                         }
                                     )
                                     DropdownMenuItem(
@@ -1788,7 +1818,8 @@ fun FavoritesTab(
     onAddTrackToQueue: (Track) -> Unit,
     onDownloadTrack: (Track) -> Unit,
     onToggleFavoriteTrack: (Track) -> Unit,
-    onTrackInfoClick: (Track) -> Unit
+    onTrackInfoClick: (Track) -> Unit,
+    onToggleFavoriteAlbum: (Album) -> Unit
 ) {
     val favoritedAlbums = favorites.filter { it.type == "album" }
     val favoritedPlaylists = favorites.filter { it.type == "playlist" }
@@ -1832,6 +1863,8 @@ fun FavoritesTab(
                     )
                     AlbumRowItem(
                         album = album,
+                        isFavorite = true,
+                        onToggleFavorite = { onToggleFavoriteAlbum(album) },
                         onPlay = { onPlayAlbum(album) },
                         onPlayNext = { onPlayAlbumNext(album) },
                         onAddToQueue = { onAddAlbumToQueue(album) },
@@ -2061,6 +2094,8 @@ fun TrackRowItem(
 @Composable
 fun AlbumRowItem(
     album: Album,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
     onPlay: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
@@ -2125,6 +2160,16 @@ fun AlbumRowItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
+        if (isFavorite) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = "Favorited",
+                tint = AppColors.accent,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
         var showMenu by remember { mutableStateOf(false) }
         Box {
             IconButton(
@@ -2164,6 +2209,15 @@ fun AlbumRowItem(
                         onAddToQueue()
                     }
                 )
+                onToggleFavorite?.let {
+                    DropdownMenuItem(
+                        text = { Text(if (isFavorite) "Remove from Favorites" else "Add to Favorites", style = AppTypography.itemTitle) },
+                        onClick = {
+                            showMenu = false
+                            it()
+                        }
+                    )
+                }
                 if (!isOffline) {
                     DropdownMenuItem(
                         text = { Text("Download", style = AppTypography.itemTitle) },

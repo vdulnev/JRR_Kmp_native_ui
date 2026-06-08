@@ -52,6 +52,12 @@ struct TvFavoritesView: View {
                                                 }
                                             }
                                         } label: { Label("Add to Queue", systemImage: "text.append") }
+                                        Button {
+                                            Task {
+                                                _ = try? await observable.toggleAlbumFavorite(album: album)
+                                                await load()
+                                            }
+                                        } label: { Label("Remove from Favorites", systemImage: "star.slash") }
                                     }
                                 }
                             }

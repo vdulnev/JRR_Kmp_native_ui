@@ -226,4 +226,30 @@ class TvLibraryViewModel(
             true
         }
     }
+
+    suspend fun isAlbumFavorite(name: String, artist: String): Boolean = withContext(Dispatchers.IO) {
+        log.d { "isAlbumFavorite(name=$name, artist=$artist)" }
+        val identifier = "$name|$artist"
+        database.favoriteDao().getFavorite("album", identifier) != null
+    }
+
+    suspend fun toggleAlbumFavorite(album: Album): Boolean = withContext(Dispatchers.IO) {
+        log.d { "toggleAlbumFavorite(name=${album.name}, artist=${album.albumArtist})" }
+        val dao = database.favoriteDao()
+        val identifier = "${album.name}|${album.albumArtist}"
+        val existing = dao.getFavorite("album", identifier)
+        if (existing != null) {
+            dao.delete(existing)
+            false
+        } else {
+            val newFav = FavoriteEntity(
+                type = "album",
+                identifier = identifier,
+                displayName = album.name,
+                addedAt = getTimeMillis()
+            )
+            dao.insert(newFav)
+            true
+        }
+    }
 }

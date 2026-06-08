@@ -265,13 +265,17 @@ internal fun computeGroupKey(album: Album): String {
  * Exposed as `internal` so unit tests in the same module can drive it without
  * standing up a full repository instance.
  */
-internal fun groupAlbumsByGroupId(albums: List<Album>): List<Album> =
-    albums
+internal fun groupAlbumsByGroupId(albums: List<Album>): List<Album> {
+    log.d { "groupAlbumsByGroupId: grouping ${albums.size} albums" }
+    val grouped = albums
         .groupBy { computeGroupKey(it) }
-        .map { (_, discs) ->
+        .map { (groupKey, discs) ->
             val rep = discs.minByOrNull { d ->
                 if (d.discNumber > 0) d.discNumber else Int.MAX_VALUE
             } ?: discs.first()
+            if (discs.size > 1) {
+                log.d { "groupAlbumsByGroupId: Group '$groupKey' has ${discs.size} discs. Rep is '${rep.name}' (discNumber=${rep.discNumber}, folder='${rep.folderPath}'). Discs: ${discs.map { "${it.name} (disc ${it.discNumber})" }}" }
+            }
             // Fold when we saw multiple discs, OR when the rep's own folder is
             // a disc bucket (`…/CD 1`) — the latter covers the case where the
             // server collapsed the discs to a single row but the layout still
@@ -280,7 +284,7 @@ internal fun groupAlbumsByGroupId(albums: List<Album>): List<Album> =
             val foldsByFolder = isDiscSubfolder(rep.folderPath)
             val hasDiscMarker = normalizeAlbumName(rep.name) != rep.name
             if (discs.size > 1 || foldsByFolder || hasDiscMarker || rep.totalDiscs > 1) {
-                rep.copy(
+                val copied = rep.copy(
                     name = normalizeAlbumName(rep.name),
                     folderPath = rep.parentFolderPath,
                     // ≥2 so getAlbumTracks treats it as grouped and prefix-
@@ -291,10 +295,15 @@ internal fun groupAlbumsByGroupId(albums: List<Album>): List<Album> =
                         if (foldsByFolder) 2 else 1,
                     ),
                 )
+                log.d { "groupAlbumsByGroupId: modified rep for '$groupKey': originalName='${rep.name}' -> name='${copied.name}', originalPath='${rep.folderPath}' -> path='${copied.folderPath}', originalTotalDiscs=${rep.totalDiscs} -> totalDiscs=${copied.totalDiscs}" }
+                copied
             } else {
                 rep
             }
         }
+    log.d { "groupAlbumsByGroupId: grouped down to ${grouped.size} albums" }
+    return grouped
+}
 
 /**
  * JRiver's auto album-artist sentinel for an album whose tracks span more than

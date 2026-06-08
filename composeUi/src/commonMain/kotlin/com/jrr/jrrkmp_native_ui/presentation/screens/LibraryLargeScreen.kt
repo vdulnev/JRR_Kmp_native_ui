@@ -155,6 +155,8 @@ fun LibraryLargeScreen(
                     onAlbumInfoClick = { infoAlbum = it },
                     onRefresh = { viewModel.retry() },
                     isLarge = true,
+                    favorites = state.favorites,
+                    onToggleFavoriteAlbum = { viewModel.toggleFavoriteAlbum(it) }
                 )
                 "browse" -> BrowseTab(
                     stack = state.browseStack,
@@ -224,7 +226,8 @@ fun LibraryLargeScreen(
                     onAddTrackToQueue = { viewModel.addTrackToQueue(it) },
                     onDownloadTrack = { viewModel.downloadTrack(it) },
                     onToggleFavoriteTrack = { viewModel.toggleFavoriteTrack(it) },
-                    onTrackInfoClick = { infoTrack = it }
+                    onTrackInfoClick = { infoTrack = it },
+                    onToggleFavoriteAlbum = { viewModel.toggleFavoriteAlbum(it) }
                 )
             }
         }
@@ -413,8 +416,11 @@ private fun ArtistsSplit(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(albums) { album ->
+                            val isFavorite = state.favorites.any { it.type == "album" && it.identifier == "${album.name}|${album.albumArtist}" }
                             AlbumRowItem(
                                 album = album,
+                                isFavorite = isFavorite,
+                                onToggleFavorite = { viewModel.toggleFavoriteAlbum(album) },
                                 onPlay = { viewModel.playAlbum(album) },
                                 onPlayNext = { viewModel.playAlbumNext(album) },
                                 onAddToQueue = { viewModel.addAlbumToQueue(album) },

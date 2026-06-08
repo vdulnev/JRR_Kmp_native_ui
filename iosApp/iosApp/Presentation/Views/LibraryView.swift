@@ -105,6 +105,10 @@ class LibraryObservable {
         viewModel.toggleFavoriteTrack(track: track)
     }
 
+    func toggleFavoriteAlbum(_ album: Album) {
+        viewModel.toggleFavoriteAlbum(album: album)
+    }
+
     func playTrack(_ track: Track) {
         viewModel.playTrack(track: track)
     }
@@ -976,6 +980,7 @@ struct LibraryView: View {
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(observable.randomAlbums, id: \.name) { album in
                             let imageUrl = container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
+                            let isFav = observable.favorites.contains { $0.type == "album" && $0.identifier == "\(album.name)|\(album.albumArtist)" }
                             Button(action: { onAlbumClick(album) }) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     ZStack {
@@ -998,7 +1003,7 @@ struct LibraryView: View {
                                                     path,
                                                     with: .color(Color.accentColor.opacity(0.5)),
                                                     style: StrokeStyle(lineWidth: 4),
-                                                )
+                                                 )
                                             }
                                         }
                                     }
@@ -1011,10 +1016,17 @@ struct LibraryView: View {
                                             .stroke(Color.line2, lineWidth: 1),
                                     )
 
-                                    Text(album.name)
-                                        .font(AppFont.inter(size: 13, weight: .medium))
-                                        .foregroundColor(.textPrimary)
-                                        .lineLimit(1)
+                                    HStack(spacing: 4) {
+                                        Text(album.name)
+                                            .font(AppFont.inter(size: 13, weight: .medium))
+                                            .foregroundColor(.textPrimary)
+                                            .lineLimit(1)
+                                        if isFav {
+                                            Image(systemName: "star.fill")
+                                                .font(.system(size: 11))
+                                                .foregroundColor(.accentColor)
+                                        }
+                                    }
 
                                     Text(album.albumArtist)
                                         .font(AppFont.inter(size: 11.5, weight: .regular))
@@ -1032,6 +1044,9 @@ struct LibraryView: View {
                                 }
                                 Button(action: { observable.addAlbumToQueue(album) }) {
                                     Label("Add to Queue", systemImage: "plus")
+                                }
+                                Button(action: { observable.toggleFavoriteAlbum(album) }) {
+                                    Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
                                 }
                                 if !observable.isOffline {
                                     Button(action: { observable.downloadAlbum(album) }) {
@@ -1443,6 +1458,9 @@ struct LibraryView: View {
                                     }
                                     Button(action: { observable.addAlbumToQueue(album) }) {
                                         Label("Add to Queue", systemImage: "plus")
+                                    }
+                                    Button(action: { observable.toggleFavoriteAlbum(album) }) {
+                                        Label("Remove from Favorites", systemImage: "star.slash")
                                     }
                                     if !observable.isOffline {
                                         Button(action: { observable.downloadAlbum(album) }) {
@@ -2061,6 +2079,7 @@ struct LibraryView: View {
 
     private func albumRowItem(album: Album, action: @escaping () -> Void) -> some View {
         let imageUrl = container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
+        let isFav = observable.favorites.contains { $0.type == "album" && $0.identifier == "\(album.name)|\(album.albumArtist)" }
         return HStack {
             ZStack {
                 if !imageUrl.isEmpty, let url = URL(string: imageUrl) {
@@ -2114,6 +2133,13 @@ struct LibraryView: View {
 
             Spacer()
 
+            if isFav {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.accentColor)
+                    .padding(.trailing, 4)
+            }
+
             Menu {
                 Button(action: { infoAlbum = album }) {
                     Label("Info", systemImage: "info.circle")
@@ -2126,6 +2152,9 @@ struct LibraryView: View {
                 }
                 Button(action: { observable.addAlbumToQueue(album) }) {
                     Label("Add to Queue", systemImage: "plus")
+                }
+                Button(action: { observable.toggleFavoriteAlbum(album) }) {
+                    Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
                 }
                 if !observable.isOffline {
                     Button(action: { observable.downloadAlbum(album) }) {

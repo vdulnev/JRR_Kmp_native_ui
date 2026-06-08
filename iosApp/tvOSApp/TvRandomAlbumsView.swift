@@ -6,6 +6,7 @@ struct TvRandomAlbumsView: View {
     @Environment(TvLibraryObservable.self) private var observable
     @State private var albums: [Album] = []
     @State private var loading = true
+    @State private var favoriteAlbumKeys: Set<String> = []
 
     private let columns = [GridItem(.adaptive(minimum: 260), spacing: 40)]
 
@@ -23,8 +24,15 @@ struct TvRandomAlbumsView: View {
                                 } label: {
                                     VStack(alignment: .leading) {
                                         TvArtwork(urlString: observable.artworkUrl(fileKey: album.artworkFileKey) ?? "", size: 260)
-                                        Text(album.name.isEmpty ? "Unknown Album" : album.name)
-                                            .font(.headline).lineLimit(1)
+                                        HStack(spacing: 8) {
+                                            Text(album.name.isEmpty ? "Unknown Album" : album.name)
+                                                .font(.headline).lineLimit(1)
+                                            if favoriteAlbumKeys.contains("\(album.name)|\(album.albumArtist)") {
+                                                Image(systemName: "star.fill")
+                                                    .foregroundColor(.accentColor)
+                                                    .font(.system(size: 14))
+                                            }
+                                        }
                                         Text(album.albumArtist).font(.subheadline)
                                             .foregroundStyle(.secondary).lineLimit(1)
                                     }
@@ -52,6 +60,20 @@ struct TvRandomAlbumsView: View {
                                             }
                                         }
                                     } label: { Label("Add to Queue", systemImage: "text.append") }
+                                    Button {
+                                        Task {
+                                            if let nowFav = try? await observable.toggleAlbumFavorite(album: album) {
+                                                if nowFav {
+                                                    favoriteAlbumKeys.insert("\(album.name)|\(album.albumArtist)")
+                                                } else {
+                                                    favoriteAlbumKeys.remove("\(album.name)|\(album.albumArtist)")
+                                                }
+                                            }
+                                        }
+                                    } label: {
+                                        let isFav = favoriteAlbumKeys.contains("\(album.name)|\(album.albumArtist)")
+                                        Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
+                                    }
                                 }
                             }
                         }
@@ -75,8 +97,12 @@ struct TvRandomAlbumsView: View {
         loading = true
         do {
             albums = try await observable.randomAlbums(limit: 24)
+            if let favs = try? await observable.favoriteAlbums() {
+                favoriteAlbumKeys = Set(favs.map { "\($0.name)|\($0.albumArtist)" })
+            }
         } catch {
             albums = []
+            favoriteAlbumKeys = []
         }
         loading = false
     }

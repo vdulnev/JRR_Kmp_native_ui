@@ -90,6 +90,7 @@ struct TvArtistAlbumsView: View {
 
     @State private var albums: [Album] = []
     @State private var loading = true
+    @State private var favoriteAlbumKeys: Set<String> = []
 
     var body: some View {
         Group {
@@ -103,8 +104,15 @@ struct TvArtistAlbumsView: View {
                         HStack(spacing: 16) {
                             TvArtwork(urlString: observable.artworkUrl(fileKey: album.artworkFileKey) ?? "", size: 80)
                             VStack(alignment: .leading) {
-                                Text(album.name.isEmpty ? "Unknown Album" : album.name)
-                                    .font(.headline)
+                                HStack(spacing: 8) {
+                                    Text(album.name.isEmpty ? "Unknown Album" : album.name)
+                                        .font(.headline)
+                                    if favoriteAlbumKeys.contains("\(album.name)|\(album.albumArtist)") {
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(.accentColor)
+                                            .font(.system(size: 14))
+                                    }
+                                }
                                 if !album.date.isEmpty {
                                     Text(album.date).font(.subheadline).foregroundStyle(.secondary)
                                 }
@@ -133,6 +141,20 @@ struct TvArtistAlbumsView: View {
                                 }
                             }
                         } label: { Label("Add to Queue", systemImage: "text.append") }
+                        Button {
+                            Task {
+                                if let nowFav = try? await observable.toggleAlbumFavorite(album: album) {
+                                    if nowFav {
+                                        favoriteAlbumKeys.insert("\(album.name)|\(album.albumArtist)")
+                                    } else {
+                                        favoriteAlbumKeys.remove("\(album.name)|\(album.albumArtist)")
+                                    }
+                                }
+                            }
+                        } label: {
+                            let isFav = favoriteAlbumKeys.contains("\(album.name)|\(album.albumArtist)")
+                            Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
+                        }
                     }
                 }
             }
@@ -144,8 +166,12 @@ struct TvArtistAlbumsView: View {
     private func load() async {
         do {
             albums = try await observable.albums(artist: artist)
+            if let favs = try? await observable.favoriteAlbums() {
+                favoriteAlbumKeys = Set(favs.map { "\($0.name)|\($0.albumArtist)" })
+            }
         } catch {
             albums = []
+            favoriteAlbumKeys = []
         }
         loading = false
     }

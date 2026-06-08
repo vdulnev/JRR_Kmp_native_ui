@@ -619,6 +619,35 @@ class LibraryViewModel(
         }
     }
 
+    fun toggleFavoriteAlbum(album: Album) {
+        log.d { "toggleFavoriteAlbum(name=${album.name}, artist=${album.albumArtist})" }
+        viewModelScope.launch {
+            try {
+                val db = database ?: return@launch
+                val dao = db.favoriteDao()
+                val identifier = "${album.name}|${album.albumArtist}"
+                val existing = dao.getFavorite("album", identifier)
+                if (existing != null) {
+                    dao.delete(existing)
+                    log.d { "favorite album removed identifier=$identifier" }
+                } else {
+                    val newFav = FavoriteEntity(
+                        type = "album",
+                        identifier = identifier,
+                        displayName = album.name,
+                        addedAt = getTimeMillis()
+                    )
+                    dao.insert(newFav)
+                    log.d { "favorite album added identifier=$identifier" }
+                }
+                refreshFavorites()
+            } catch (e: Exception) {
+                log.e(e) { "toggleFavoriteAlbum failed name=${album.name}" }
+                _state.update { it.copy(transientError = "Failed to toggle favorite: ${e.message}") }
+            }
+        }
+    }
+
     private suspend fun refreshFavorites() {
         val db = database ?: return
         val favs = db.favoriteDao().getAllFavorites()
