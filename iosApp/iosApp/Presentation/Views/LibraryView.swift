@@ -1202,11 +1202,6 @@ struct LibraryView: View {
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(PlainButtonStyle())
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14))
-                .foregroundColor(.textTertiary)
-                .padding(.trailing, 4)
         }
         .padding(16)
         .background(Color.bg2)
