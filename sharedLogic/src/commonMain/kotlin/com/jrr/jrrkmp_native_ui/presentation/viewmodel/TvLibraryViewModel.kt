@@ -167,4 +167,63 @@ class TvLibraryViewModel(
             true
         }
     }
+
+    suspend fun favoriteTracks(): List<Track> = withContext(Dispatchers.IO) {
+        log.d { "favoriteTracks()" }
+        database.favoriteDao().getAllFavorites()
+            .filter { it.type == "track" }
+            .map { fav ->
+                val parts = fav.displayName.split("|")
+                val name = parts.getOrNull(0) ?: ""
+                val artist = parts.getOrNull(1) ?: ""
+                val album = parts.getOrNull(2) ?: ""
+                val durationMs = parts.getOrNull(3)?.toLongOrNull() ?: 0L
+                Track(
+                    fileKey = fav.identifier,
+                    name = name,
+                    artist = artist,
+                    album = album,
+                    albumArtist = "",
+                    date = "",
+                    genre = "",
+                    durationMs = durationMs,
+                    trackNumber = 0,
+                    discNumber = 0,
+                    totalDiscs = 0,
+                    totalTracks = 0,
+                    bitrate = 0,
+                    bitDepth = 0,
+                    sampleRate = 0,
+                    channels = 0,
+                    fileType = "",
+                    filePath = "",
+                    folderPath = ""
+                )
+            }
+    }
+
+    suspend fun isTrackFavorite(fileKey: String): Boolean = withContext(Dispatchers.IO) {
+        log.d { "isTrackFavorite(fileKey=$fileKey)" }
+        database.favoriteDao().getFavorite("track", fileKey) != null
+    }
+
+    suspend fun toggleTrackFavorite(track: Track): Boolean = withContext(Dispatchers.IO) {
+        log.d { "toggleTrackFavorite(fileKey=${track.fileKey})" }
+        val dao = database.favoriteDao()
+        val existing = dao.getFavorite("track", track.fileKey)
+        if (existing != null) {
+            dao.delete(existing)
+            false
+        } else {
+            val displayName = "${track.name}|${track.artist}|${track.album}|${track.durationMs}"
+            val newFav = FavoriteEntity(
+                type = "track",
+                identifier = track.fileKey,
+                displayName = displayName,
+                addedAt = getTimeMillis()
+            )
+            dao.insert(newFav)
+            true
+        }
+    }
 }

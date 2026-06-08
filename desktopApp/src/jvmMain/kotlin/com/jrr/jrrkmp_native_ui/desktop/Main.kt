@@ -56,7 +56,7 @@ fun main() = application {
                 AlbumDetailViewModel(album, libraryRepository, facade, database)
             },
             nowPlayingViewModel = { NowPlayingViewModel(facade, mcwsClient) },
-            queueViewModel = { QueueViewModel(facade, libraryRepository) },
+            queueViewModel = { QueueViewModel(facade, libraryRepository, database) },
             zonesViewModel = { ZonesViewModel(facade, libraryRepository) },
             settingsViewModel = {
                 SettingsViewModel(

@@ -90,6 +90,7 @@ struct TvNowPlayingDetailView: View {
 
     private func queueRow(index: Int, track: Track) -> some View {
         let isActive = index == queue.activeIndex
+        let isFav = queue.favoritedTrackKeys.contains(track.fileKey)
         return Button {
             queue.playByIndex(index)
         } label: {
@@ -98,9 +99,16 @@ struct TvNowPlayingDetailView: View {
                     .foregroundStyle(isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                     .frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(track.name)
-                        .lineLimit(1)
-                        .foregroundStyle(isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+                    HStack {
+                        Text(track.name)
+                            .lineLimit(1)
+                            .foregroundStyle(isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+                        if isFav {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.accentColor)
+                                .font(.system(size: 14))
+                        }
+                    }
                     Text(track.artist)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -111,6 +119,18 @@ struct TvNowPlayingDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.borderless)
+        .contextMenu {
+            Button {
+                queue.toggleFavoriteTrack(track)
+            } label: {
+                Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
+            }
+            Button {
+                queue.removeQueueTrack(index)
+            } label: {
+                Label("Remove from Queue", systemImage: "trash")
+            }
+        }
     }
 
     private func timeString(_ ms: Int64) -> String {

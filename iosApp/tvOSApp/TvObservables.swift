@@ -85,6 +85,7 @@ final class QueueObservable {
 
     var queueTracks: [Track] = []
     var activeIndex: Int = -1
+    var favoritedTrackKeys: Set<String> = []
 
     init(viewModel: QueueViewModel) {
         self.viewModel = viewModel
@@ -100,10 +101,19 @@ final class QueueObservable {
     private func sync(_ state: QueueViewState) {
         queueTracks = state.queueTracks
         activeIndex = Int(state.activeIndex)
+        favoritedTrackKeys = state.favoritedTrackKeys
     }
 
     func playByIndex(_ index: Int) {
         viewModel.playByIndex(index: Int32(index))
+    }
+
+    func toggleFavoriteTrack(_ track: Track) {
+        viewModel.toggleFavoriteTrack(track: track)
+    }
+
+    func removeQueueTrack(_ index: Int) {
+        viewModel.removeQueueTrack(index: Int32(index))
     }
 }
 
@@ -213,6 +223,18 @@ final class TvLibraryObservable {
 
     func togglePlaylistFavorite(key: String, name: String) async throws -> Bool {
         try await viewModel.togglePlaylistFavorite(key: key, name: name) as! Bool
+    }
+
+    func favoriteTracks() async throws -> [Track] {
+        try await viewModel.favoriteTracks()
+    }
+
+    func isTrackFavorite(fileKey: String) async throws -> Bool {
+        try await viewModel.isTrackFavorite(fileKey: fileKey) as! Bool
+    }
+
+    func toggleTrackFavorite(track: Track) async throws -> Bool {
+        try await viewModel.toggleTrackFavorite(track: track) as! Bool
     }
 
     func group(tracks: [Track]) -> [ArtistTrackGroup] {

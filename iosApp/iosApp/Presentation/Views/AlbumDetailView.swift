@@ -15,6 +15,7 @@ class AlbumDetailObservable {
     // UI reactive values — mirrored from AlbumDetailViewState (flat shape, no sealed casts)
     var tracks: [Track] = []
     var downloadedTrackKeys: Set<String> = []
+    var favoritedTrackKeys: Set<String> = []
     var activeDownloadJobs: [String: String] = [:]
     var isFavorite: Bool = false
     var isLoading: Bool = true
@@ -52,6 +53,7 @@ class AlbumDetailObservable {
         case .loading:
             tracks = []
             downloadedTrackKeys = []
+            favoritedTrackKeys = []
             activeDownloadJobs = [:]
             isFavorite = false
             isLoading = true
@@ -59,6 +61,7 @@ class AlbumDetailObservable {
         case let .success(success):
             tracks = success.tracks
             downloadedTrackKeys = success.downloadedTrackKeys
+            favoritedTrackKeys = success.favoritedTrackKeys
             activeDownloadJobs = success.activeDownloadJobs
             isFavorite = success.isFavorite
             isLoading = false
@@ -66,6 +69,7 @@ class AlbumDetailObservable {
         case let .error(error):
             tracks = []
             downloadedTrackKeys = []
+            favoritedTrackKeys = []
             activeDownloadJobs = [:]
             isFavorite = false
             isLoading = false
@@ -87,6 +91,10 @@ class AlbumDetailObservable {
 
     func toggleFavorite() {
         viewModel.toggleFavorite()
+    }
+
+    func toggleFavoriteTrack(_ track: Track) {
+        viewModel.toggleFavoriteTrack(track: track)
     }
 
     func startDownload(track: Track) {
@@ -412,6 +420,13 @@ private struct AlbumDetailContentView: View {
 
             Spacer()
 
+            if observable.favoritedTrackKeys.contains(track.fileKey) {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.accentColor)
+                    .padding(.trailing, 4)
+            }
+
             if track.numberPlays > 0 {
                 Image(systemName: "headphones")
                     .font(.system(size: 12))
@@ -436,6 +451,7 @@ private struct AlbumDetailContentView: View {
                 }
             }
 
+            let isFav = observable.favoritedTrackKeys.contains(track.fileKey)
             Menu {
                 Button(action: { infoTrack = track }) {
                     Label("Info", systemImage: "info.circle")
@@ -448,6 +464,9 @@ private struct AlbumDetailContentView: View {
                 }
                 Button(action: { observable.addTrackToQueue(track: track) }) {
                     Label("Add to Queue", systemImage: "plus")
+                }
+                Button(action: { observable.toggleFavoriteTrack(track) }) {
+                    Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
                 }
                 if !observable.isOffline {
                     Button(action: { observable.startDownload(track: track) }) {

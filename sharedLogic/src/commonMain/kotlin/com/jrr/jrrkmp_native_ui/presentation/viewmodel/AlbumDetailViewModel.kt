@@ -37,6 +37,7 @@ sealed interface AlbumDetailContentState {
         val downloadedTrackKeys: Set<String> = emptySet(),
         val activeDownloadJobs: Map<String, String> = emptyMap(),
         val isFavorite: Boolean = false,
+        val favoritedTrackKeys: Set<String> = emptySet(),
     ) : AlbumDetailContentState
 
     data class Error(val message: String) : AlbumDetailContentState
@@ -67,16 +68,24 @@ class AlbumDetailViewModel(
     init {
         log.d { "init album=${album.name} artist=${album.albumArtist}" }
         state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
-        // Observe database updates for downloads, jobs, and favorites
-        combine(
-            tracksFlow,
+        val dbStateFlow = combine(
             database.downloadedTrackDao().getAllTracksFlow(),
             database.downloadJobDao().getAllJobsFlow(),
+            database.favoriteDao().getAllFavoritesFlow()
+        ) { downloaded, jobs, favorites ->
+            Triple(downloaded, jobs, favorites)
+        }
+
+        combine(
+            tracksFlow,
+            dbStateFlow,
             favoriteFlow,
             facade.activeZone
-        ) { tracks, downloaded, jobs, favorite, activeZone ->
+        ) { tracks, dbState, favorite, activeZone ->
+            val (downloaded, jobs, favorites) = dbState
             val downloadedKeys = downloaded.map { it.fileKey }.toSet()
             val activeJobs = jobs.associate { it.fileKey to it.state }
+            val favoritedTrackKeys = favorites.filter { it.type == "track" }.map { it.identifier }.toSet()
             val isOffline = activeZone.isOffline || facade.currentServerHost.isNullOrEmpty()
 
             _state.update { currentState ->
@@ -91,6 +100,7 @@ class AlbumDetailViewModel(
                             downloadedTrackKeys = downloadedKeys,
                             activeDownloadJobs = activeJobs,
                             isFavorite = favorite,
+                            favoritedTrackKeys = favoritedTrackKeys
                         ),
                         isOfflineMode = isOffline,
                     )
@@ -184,7 +194,32 @@ class AlbumDetailViewModel(
             }
         }
     }
-
+    fun toggleFavoriteTrack(track: Track) {
+        log.d { "toggleFavoriteTrack(fileKey=${track.fileKey})" }
+        viewModelScope.launch {
+            try {
+                val dao = database.favoriteDao()
+                val existing = dao.getFavorite("track", track.fileKey)
+                if (existing != null) {
+                    dao.delete(existing)
+                    log.d { "favorite track removed fileKey=${track.fileKey}" }
+                } else {
+                    val displayName = "${track.name}|${track.artist}|${track.album}|${track.durationMs}"
+                    val newFav = FavoriteEntity(
+                        type = "track",
+                        identifier = track.fileKey,
+                        displayName = displayName,
+                        addedAt = getTimeMillis()
+                    )
+                    dao.insert(newFav)
+                    log.d { "favorite track added fileKey=${track.fileKey}" }
+                }
+            } catch (e: Exception) {
+                log.e(e) { "toggleFavoriteTrack failed" }
+                _state.update { it.copy(transientError = "Failed to toggle track favorite: ${e.message ?: "unknown error"}") }
+            }
+        }
+    }
     fun startDownload(track: Track) {
         log.d { "startDownload(${track.fileKey} / ${track.name})" }
         viewModelScope.launch {

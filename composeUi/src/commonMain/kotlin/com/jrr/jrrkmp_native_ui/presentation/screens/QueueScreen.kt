@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -249,6 +251,18 @@ fun QueueScreen(
                                 }
 
                                 val isDownloaded = state.downloadedTrackKeys.contains(track.fileKey)
+                                val isFav = state.favoritedTrackKeys.contains(track.fileKey)
+
+                                if (isFav) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = "Favorited",
+                                        tint = AppColors.accent,
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .padding(horizontal = 2.dp)
+                                    )
+                                }
 
                                 if (track.numberPlays > 0) {
                                     Icon(
@@ -281,6 +295,50 @@ fun QueueScreen(
                                     color = AppColors.text3,
                                     modifier = Modifier.padding(start = 8.dp)
                                 )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                var showMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    IconButton(
+                                        onClick = { showMenu = true },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "More options",
+                                            tint = AppColors.text3,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showMenu,
+                                        onDismissRequest = { showMenu = false },
+                                        modifier = Modifier.background(AppColors.bg2)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Play", style = AppTypography.itemTitle) },
+                                            onClick = {
+                                                showMenu = false
+                                                viewModel.playByIndex(index)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(if (isFav) "Remove from Favorites" else "Add to Favorites", style = AppTypography.itemTitle) },
+                                            onClick = {
+                                                showMenu = false
+                                                viewModel.toggleFavoriteTrack(track)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Remove from Queue", style = AppTypography.itemTitle) },
+                                            onClick = {
+                                                showMenu = false
+                                                viewModel.removeQueueTrack(index)
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                     )

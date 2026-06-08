@@ -172,6 +172,7 @@ fun AlbumDetailScreen(
             is AlbumDetailContentState.Success -> {
                 val tracks = content.tracks
                 val downloadedTrackKeys = content.downloadedTrackKeys
+                val favoritedTrackKeys = content.favoritedTrackKeys
                 val activeJobs = content.activeDownloadJobs
                 val artworkUrl = tracks.firstOrNull()?.let { LocalMcwsClient.current.buildImageUrl(it.fileKey) }
 
@@ -201,7 +202,7 @@ fun AlbumDetailScreen(
                             contentPadding = PaddingValues(horizontal = 32.dp, vertical = 24.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            albumTrackItems(tracks, downloadedTrackKeys, activeJobs, state.isOfflineMode, viewModel) { infoTrack = it }
+                            albumTrackItems(tracks, downloadedTrackKeys, favoritedTrackKeys, activeJobs, state.isOfflineMode, viewModel) { infoTrack = it }
                         }
                     }
                 } else {
@@ -226,7 +227,7 @@ fun AlbumDetailScreen(
                                 Spacer(modifier = Modifier.height(24.dp))
                             }
                         }
-                        albumTrackItems(tracks, downloadedTrackKeys, activeJobs, state.isOfflineMode, viewModel) { infoTrack = it }
+                        albumTrackItems(tracks, downloadedTrackKeys, favoritedTrackKeys, activeJobs, state.isOfflineMode, viewModel) { infoTrack = it }
                     }
                 }
             }
@@ -349,6 +350,7 @@ private fun AlbumArtBlock(
 private fun LazyListScope.albumTrackItems(
     tracks: List<Track>,
     downloadedTrackKeys: Set<String>,
+    favoritedTrackKeys: Set<String>,
     activeJobs: Map<String, String>,
     isOfflineMode: Boolean,
     viewModel: AlbumDetailViewModel,
@@ -391,6 +393,15 @@ private fun LazyListScope.albumTrackItems(
                         timeStr
                     }
                     Text(subtitleText, style = AppTypography.itemSubtitle, maxLines = 1)
+                }
+
+                if (favoritedTrackKeys.contains(track.fileKey)) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Favorited",
+                        tint = AppColors.accent,
+                        modifier = Modifier.size(16.dp).padding(horizontal = 2.dp)
+                    )
                 }
 
                 if (track.numberPlays > 0) {
@@ -468,6 +479,14 @@ private fun LazyListScope.albumTrackItems(
                             onClick = {
                                 showMenu = false
                                 viewModel.addTrackToQueue(track)
+                            }
+                        )
+                        val isFav = favoritedTrackKeys.contains(track.fileKey)
+                        DropdownMenuItem(
+                            text = { Text(if (isFav) "Remove from Favorites" else "Add to Favorites", style = AppTypography.itemTitle) },
+                            onClick = {
+                                showMenu = false
+                                viewModel.toggleFavoriteTrack(track)
                             }
                         )
                         if (!isOfflineMode) {

@@ -15,6 +15,7 @@ class QueueObservable {
     var isLocal: Bool = true
     var transientError: String?
     var downloadedTrackKeys: Set<String> = []
+    var favoritedTrackKeys: Set<String> = []
 
     init(viewModel: QueueViewModel) {
         self.viewModel = viewModel
@@ -45,6 +46,7 @@ class QueueObservable {
         isLocal = state.isLocal
         transientError = state.transientError
         downloadedTrackKeys = state.downloadedTrackKeys
+        favoritedTrackKeys = state.favoritedTrackKeys
     }
 
     func playByIndex(index: Int) {
@@ -61,6 +63,10 @@ class QueueObservable {
 
     func clearQueue() {
         viewModel.clearQueue()
+    }
+
+    func toggleFavoriteTrack(_ track: Track) {
+        viewModel.toggleFavoriteTrack(track: track)
     }
 
     func clearTransientError() {
@@ -159,6 +165,8 @@ struct QueueView: View {
                 List {
                     ForEach(Array(observable.queueTracks.enumerated()), id: \.element.fileKey) { index, track in
                         let isActive = index == observable.activeIndex
+                        let isDownloaded = observable.downloadedTrackKeys.contains(track.fileKey)
+                        let isFav = observable.favoritedTrackKeys.contains(track.fileKey)
 
                         HStack(spacing: 12) {
                             // Index / VuMeter
@@ -188,7 +196,11 @@ struct QueueView: View {
 
                             Spacer()
 
-                            let isDownloaded = observable.downloadedTrackKeys.contains(track.fileKey)
+                            if isFav {
+                                Image(systemName: "star.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.accentColor)
+                            }
 
                             if track.numberPlays > 0 {
                                 Image(systemName: "headphones")
@@ -210,6 +222,18 @@ struct QueueView: View {
                         .onTapGesture {
                             if !isEditing {
                                 observable.playByIndex(index: index)
+                            }
+                        }
+                        .contextMenu {
+                            Button(action: {
+                                observable.toggleFavoriteTrack(track)
+                            }) {
+                                Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
+                            }
+                            Button(action: {
+                                observable.removeQueueTrack(index: index)
+                            }) {
+                                Label("Remove from Queue", systemImage: "trash")
                             }
                         }
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))

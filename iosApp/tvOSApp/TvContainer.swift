@@ -79,7 +79,7 @@ final class TvContainer {
     }
 
     func makeQueueViewModel() -> QueueViewModel {
-        QueueViewModel(facade: facade, libraryRepository: libraryRepository)
+        QueueViewModel(facade: facade, libraryRepository: libraryRepository, database: database)
     }
 
     func makeTvLibraryViewModel() -> TvLibraryViewModel {

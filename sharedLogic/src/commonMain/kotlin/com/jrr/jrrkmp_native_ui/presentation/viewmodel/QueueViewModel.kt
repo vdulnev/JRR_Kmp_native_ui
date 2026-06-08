@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
+import com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity
+import io.ktor.util.date.getTimeMillis
 
 private val log = Logger.withTag("vm:Queue")
 
@@ -28,6 +30,7 @@ private fun QueueViewState.summary(): String = buildString {
 data class QueueViewState(
     val queueTracks: List<Track> = emptyList(),
     val downloadedTrackKeys: Set<String> = emptySet(),
+    val favoritedTrackKeys: Set<String> = emptySet(),
     val activeIndex: Int = -1,
     val isPlaying: Boolean = false,
     val isLoading: Boolean = false,
@@ -77,11 +80,22 @@ class QueueViewModel(
             )
         }
 
+        val dbFlow = combine(
+            database?.downloadedTrackDao()?.getAllTracksFlow() ?: flowOf(emptyList()),
+            database?.favoriteDao()?.getAllFavoritesFlow() ?: flowOf(emptyList())
+        ) { downloaded, favorites ->
+            Pair(downloaded, favorites)
+        }
+
         combine(
             baseStateFlow,
-            database?.downloadedTrackDao()?.getAllTracksFlow() ?: flowOf(emptyList())
-        ) { state, downloadedTracks ->
-            state.copy(downloadedTrackKeys = downloadedTracks.map { it.fileKey }.toSet())
+            dbFlow
+        ) { state, dbState ->
+            val (downloaded, favorites) = dbState
+            state.copy(
+                downloadedTrackKeys = downloaded.map { it.fileKey }.toSet(),
+                favoritedTrackKeys = favorites.filter { it.type == "track" }.map { it.identifier }.toSet()
+            )
         }.onEach { newState ->
             _state.value = newState
         }.launchIn(viewModelScope)
@@ -175,6 +189,34 @@ class QueueViewModel(
         } catch (e: Exception) {
             log.e(e) { "clearQueue failed" }
             _state.update { it.copy(transientError = "Failed to clear queue: ${e.message ?: "unknown error"}") }
+        }
+    }
+
+    fun toggleFavoriteTrack(track: Track) {
+        log.d { "toggleFavoriteTrack(fileKey=${track.fileKey})" }
+        val db = database ?: return
+        viewModelScope.launch {
+            try {
+                val dao = db.favoriteDao()
+                val existing = dao.getFavorite("track", track.fileKey)
+                if (existing != null) {
+                    dao.delete(existing)
+                    log.d { "favorite track removed fileKey=${track.fileKey}" }
+                } else {
+                    val displayName = "${track.name}|${track.artist}|${track.album}|${track.durationMs}"
+                    val newFav = FavoriteEntity(
+                        type = "track",
+                        identifier = track.fileKey,
+                        displayName = displayName,
+                        addedAt = getTimeMillis()
+                    )
+                    dao.insert(newFav)
+                    log.d { "favorite track added fileKey=${track.fileKey}" }
+                }
+            } catch (e: Exception) {
+                log.e(e) { "toggleFavoriteTrack failed" }
+                _state.update { it.copy(transientError = "Failed to toggle track favorite: ${e.message ?: "unknown error"}") }
+            }
         }
     }
 

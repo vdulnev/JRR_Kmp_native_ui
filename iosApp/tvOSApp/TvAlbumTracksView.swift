@@ -9,6 +9,7 @@ struct TvAlbumTracksView: View {
 
     @State private var tracks: [Track] = []
     @State private var loading = true
+    @State private var favoritedTrackKeys: Set<String> = []
 
     var body: some View {
         Group {
@@ -33,6 +34,12 @@ struct TvAlbumTracksView: View {
                                         .foregroundStyle(.secondary)
                                         .frame(width: 60, alignment: .trailing)
                                     Text(track.name)
+                                    if favoritedTrackKeys.contains(track.fileKey) {
+                                        Spacer().frame(width: 8)
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(.accentColor)
+                                            .font(.system(size: 14))
+                                    }
                                     Spacer()
                                 }
                             }
@@ -46,6 +53,20 @@ struct TvAlbumTracksView: View {
                                 Button {
                                     observable.addTracksToQueue(tracks: [track])
                                 } label: { Label("Add to Queue", systemImage: "text.append") }
+                                Button {
+                                    Task {
+                                        if let nowFav = try? await observable.toggleTrackFavorite(track: track) {
+                                            if nowFav {
+                                                favoritedTrackKeys.insert(track.fileKey)
+                                            } else {
+                                                favoritedTrackKeys.remove(track.fileKey)
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    let isFav = favoritedTrackKeys.contains(track.fileKey)
+                                    Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
+                                }
                             }
                         }
                     }
@@ -59,6 +80,9 @@ struct TvAlbumTracksView: View {
     private func load() async {
         do {
             tracks = try await observable.albumTracks(album: album)
+            if let favs = try? await observable.favoriteTracks() {
+                favoritedTrackKeys = Set(favs.map(\.fileKey))
+            }
         } catch {
             tracks = []
         }

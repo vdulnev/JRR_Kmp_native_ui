@@ -105,7 +105,7 @@ class TvAppContainer(context: Context) {
 
     fun makeNowPlayingViewModel(): NowPlayingViewModel = NowPlayingViewModel(facade, mcwsClient)
 
-    fun makeQueueViewModel(): QueueViewModel = QueueViewModel(facade, libraryRepository)
+    fun makeQueueViewModel(): QueueViewModel = QueueViewModel(facade, libraryRepository, database)
 
     fun makeZonesViewModel(): ZonesViewModel = ZonesViewModel(facade, libraryRepository)
 

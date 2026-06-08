@@ -590,6 +590,35 @@ class LibraryViewModel(
         }
     }
 
+    fun toggleFavoriteTrack(track: Track) {
+        log.d { "toggleFavoriteTrack(fileKey=${track.fileKey}, name=${track.name})" }
+        viewModelScope.launch {
+            try {
+                val db = database ?: return@launch
+                val dao = db.favoriteDao()
+                val existing = dao.getFavorite("track", track.fileKey)
+                if (existing != null) {
+                    dao.delete(existing)
+                    log.d { "favorite track removed key=${track.fileKey}" }
+                } else {
+                    val displayName = "${track.name}|${track.artist}|${track.album}|${track.durationMs}"
+                    val newFav = FavoriteEntity(
+                        type = "track",
+                        identifier = track.fileKey,
+                        displayName = displayName,
+                        addedAt = getTimeMillis()
+                    )
+                    dao.insert(newFav)
+                    log.d { "favorite track added key=${track.fileKey}" }
+                }
+                refreshFavorites()
+            } catch (e: Exception) {
+                log.e(e) { "toggleFavoriteTrack failed key=${track.fileKey}" }
+                _state.update { it.copy(transientError = "Failed to toggle favorite: ${e.message}") }
+            }
+        }
+    }
+
     private suspend fun refreshFavorites() {
         val db = database ?: return
         val favs = db.favoriteDao().getAllFavorites()

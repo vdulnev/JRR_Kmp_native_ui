@@ -101,6 +101,10 @@ class LibraryObservable {
         viewModel.toggleFavoritePlaylist(key: item.key, name: item.name)
     }
 
+    func toggleFavoriteTrack(_ track: Track) {
+        viewModel.toggleFavoriteTrack(track: track)
+    }
+
     func playTrack(_ track: Track) {
         viewModel.playTrack(track: track)
     }
@@ -1358,8 +1362,9 @@ struct LibraryView: View {
     private func favoritesTab() -> some View {
         let favoritedAlbums = observable.favorites.filter { $0.type == "album" }
         let favoritedPlaylists = observable.favorites.filter { $0.type == "playlist" }
+        let favoritedTracks = observable.favorites.filter { $0.type == "track" }
 
-        if favoritedAlbums.isEmpty, favoritedPlaylists.isEmpty {
+        if favoritedAlbums.isEmpty, favoritedPlaylists.isEmpty, favoritedTracks.isEmpty {
             VStack {
                 Image(systemName: "star.fill")
                     .font(.system(size: 48))
@@ -1368,7 +1373,7 @@ struct LibraryView: View {
                 Text("Your Favorites")
                     .font(AppFont.inter(size: 16, weight: .bold))
                     .foregroundColor(.textPrimary)
-                Text("Pinned albums and playlists will appear here.")
+                Text("Pinned albums, playlists and tracks will appear here.")
                     .font(AppFont.inter(size: 13, weight: .regular))
                     .foregroundColor(.textTertiary)
             }
@@ -1479,6 +1484,51 @@ struct LibraryView: View {
                         ForEach(favoritedPlaylists, id: \.identifier) { fav in
                             let browseItem = BrowseItem(key: fav.identifier, name: fav.displayName)
                             browseChildRow(browseItem: browseItem)
+                        }
+                    }
+
+                    if !favoritedTracks.isEmpty {
+                        HStack {
+                            Text("Tracks")
+                                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                                .tracking(1.4)
+                                .foregroundColor(.textSecondary)
+                            Spacer()
+                        }
+                        .padding(.top, 16)
+                        .padding(.bottom, 4)
+
+                        ForEach(favoritedTracks, id: \.identifier) { fav in
+                            let parts = fav.displayName.split(separator: "|")
+                            let name = parts.count > 0 ? String(parts[0]) : fav.displayName
+                            let artist = parts.count > 1 ? String(parts[1]) : "Unknown Artist"
+                            let albumName = parts.count > 2 ? String(parts[2]) : "Unknown Album"
+                            let durationMs = parts.count > 3 ? (Int64(parts[3]) ?? 0) : 0
+                            let track = Track(
+                                fileKey: fav.identifier,
+                                name: name,
+                                artist: artist,
+                                album: albumName,
+                                albumArtist: "",
+                                date: "",
+                                genre: "",
+                                durationMs: durationMs,
+                                trackNumber: 0,
+                                discNumber: 0,
+                                totalDiscs: 0,
+                                totalTracks: 0,
+                                bitrate: 0,
+                                bitDepth: 0,
+                                sampleRate: 0,
+                                channels: 0,
+                                fileType: "",
+                                filePath: "",
+                                folderPath: "",
+                                numberPlays: 0,
+                            )
+                            trackRowItem(track: track) {
+                                observable.playTrack(track)
+                            }
                         }
                     }
                 }
@@ -1908,6 +1958,7 @@ struct LibraryView: View {
 
     private func trackRowItem(track: Track, action: @escaping () -> Void) -> some View {
         let trackImageUrl = container.mcwsClient.buildImageUrl(fileKey: track.fileKey)
+        let isFav = observable.favorites.contains { $0.type == "track" && $0.identifier == track.fileKey }
         return HStack {
             ZStack {
                 if !trackImageUrl.isEmpty, let url = URL(string: trackImageUrl) {
@@ -1954,6 +2005,13 @@ struct LibraryView: View {
 
             Spacer()
 
+            if isFav {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.accentColor)
+                    .padding(.trailing, 4)
+            }
+
             if track.numberPlays > 0 {
                 Image(systemName: "headphones")
                     .font(.system(size: 12))
@@ -1974,6 +2032,9 @@ struct LibraryView: View {
                 Button(action: { observable.addTrackToQueue(track) }) {
                     Label("Add to Queue", systemImage: "plus")
                 }
+                Button(action: { observable.toggleFavoriteTrack(track) }) {
+                    Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
+                }
                 if !observable.isOffline {
                     Button(action: { observable.downloadTrack(track) }) {
                         Label("Download", systemImage: "arrow.down.circle")
@@ -1983,7 +2044,8 @@ struct LibraryView: View {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.textSecondary)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
         }

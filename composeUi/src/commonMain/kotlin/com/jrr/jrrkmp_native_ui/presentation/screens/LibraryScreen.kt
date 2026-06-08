@@ -267,7 +267,8 @@ fun LibraryScreen(
                         viewModel.popBrowseNode()
                     },
                     favorites = state.favorites,
-                    onToggleFavorite = { viewModel.toggleFavoritePlaylist(it.key, it.name) }
+                    onToggleFavorite = { viewModel.toggleFavoritePlaylist(it.key, it.name) },
+                    onToggleFavoriteTrack = { viewModel.toggleFavoriteTrack(it) }
                 )
                 "downloads" -> DownloadsTab(
                     tracks = state.downloadedTracks,
@@ -281,7 +282,9 @@ fun LibraryScreen(
                     onPlayTracksNext = { viewModel.playTracksNext(it) },
                     onAddTracksToQueue = { viewModel.addTracksToQueue(it) },
                     onTrackInfoClick = { infoTrack = it },
-                    onAlbumInfoClick = { infoAlbum = it }
+                    onAlbumInfoClick = { infoAlbum = it },
+                    favorites = state.favorites,
+                    onToggleFavoriteTrack = { viewModel.toggleFavoriteTrack(it) }
                 )
                 "favorites" -> FavoritesTab(
                     favorites = state.favorites,
@@ -300,7 +303,14 @@ fun LibraryScreen(
                     onPlayPlaylistNext = { viewModel.playBrowseItemNext(it) },
                     onAddPlaylistToQueue = { viewModel.addBrowseItemToQueue(it) },
                     onDownloadPlaylist = { viewModel.downloadBrowseItem(it) },
-                    onToggleFavorite = { viewModel.toggleFavoritePlaylist(it.key, it.name) }
+                    onToggleFavorite = { viewModel.toggleFavoritePlaylist(it.key, it.name) },
+                    onTrackClick = { viewModel.playTrack(it) },
+                    onPlayTrack = { viewModel.playTrack(it) },
+                    onPlayTrackNext = { viewModel.playTrackNext(it) },
+                    onAddTrackToQueue = { viewModel.addTrackToQueue(it) },
+                    onDownloadTrack = { viewModel.downloadTrack(it) },
+                    onToggleFavoriteTrack = { viewModel.toggleFavoriteTrack(it) },
+                    onTrackInfoClick = { infoTrack = it }
                 )
             }
         }
@@ -857,6 +867,7 @@ fun BrowseTab(
     onBackClick: () -> Unit,
     favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>,
     onToggleFavorite: (BrowseItem) -> Unit,
+    onToggleFavoriteTrack: (Track) -> Unit,
     isLarge: Boolean = false
 ) {
     // `grouped`: when on, a flat track listing is reorganised into Album Artist
@@ -982,7 +993,9 @@ fun BrowseTab(
                     onPlayTracks = onPlayTracks,
                     onPlayTracksNext = onPlayTracksNext,
                     onAddTracksToQueue = onAddTracksToQueue,
-                    onDownloadTracks = onDownloadTracks
+                    onDownloadTracks = onDownloadTracks,
+                    favorites = favorites,
+                    onToggleFavoriteTrack = onToggleFavoriteTrack
                 )
             } else {
                 LazyVerticalGrid(
@@ -993,8 +1006,11 @@ fun BrowseTab(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(tracks) { track ->
+                        val isFav = favorites.any { it.type == "track" && it.identifier == track.fileKey }
                         TrackRowItem(
                             track = track,
+                            isFavorite = isFav,
+                            onToggleFavorite = { onToggleFavoriteTrack(track) },
                             onPlay = { onPlayTrack(track) },
                             onPlayNext = { onPlayTrackNext(track) },
                             onAddToQueue = { onAddTrackToQueue(track) },
@@ -1033,7 +1049,9 @@ private fun BrowseGroupedTracks(
     onPlayTracks: (List<Track>) -> Unit,
     onPlayTracksNext: (List<Track>) -> Unit,
     onAddTracksToQueue: (List<Track>) -> Unit,
-    onDownloadTracks: (List<Track>) -> Unit
+    onDownloadTracks: (List<Track>) -> Unit,
+    favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>,
+    onToggleFavoriteTrack: (Track) -> Unit
 ) {
     val artistGroups = remember(tracks) { groupTracksByArtistAndAlbum(tracks) }
 
@@ -1103,8 +1121,11 @@ private fun BrowseGroupedTracks(
                             }
                         }
                         items(discTracks, key = { it.fileKey }) { track ->
+                            val isFav = favorites.any { it.type == "track" && it.identifier == track.fileKey }
                             TrackRowItem(
                                 track = track,
+                                isFavorite = isFav,
+                                onToggleFavorite = { onToggleFavoriteTrack(track) },
                                 onPlay = { onPlayTrack(track) },
                                 onPlayNext = { onPlayTrackNext(track) },
                                 onAddToQueue = { onAddTrackToQueue(track) },
@@ -1238,7 +1259,9 @@ fun DownloadsTab(
     onPlayTracksNext: (List<Track>) -> Unit,
     onAddTracksToQueue: (List<Track>) -> Unit,
     onTrackInfoClick: (Track) -> Unit,
-    onAlbumInfoClick: (Album) -> Unit
+    onAlbumInfoClick: (Album) -> Unit,
+    favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity> = emptyList(),
+    onToggleFavoriteTrack: (Track) -> Unit = {}
 ) {
     var selectedArtist by remember { mutableStateOf<String?>(null) }
     var selectedAlbumGroupId by remember { mutableStateOf<String?>(null) }
@@ -1308,9 +1331,12 @@ fun DownloadsTab(
                                 items = albumTracks,
                                 key = { _, track -> track.fileKey }
                             ) { idx, track ->
+                                val isFav = favorites.any { it.type == "track" && it.identifier == track.fileKey }
                                 GroupedTrackRowItem(
                                     track = track,
                                     indexInAlbum = idx,
+                                    isFavorite = isFav,
+                                    onToggleFavorite = { onToggleFavoriteTrack(track) },
                                     onClick = { onTrackClick(track, albumTracks) },
                                     onPlayTracks = onPlayTracks,
                                     onPlayTracksShuffled = onPlayTracksShuffled,
@@ -1576,6 +1602,8 @@ fun AlbumHeaderItem(
 fun GroupedTrackRowItem(
     track: Track,
     indexInAlbum: Int,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
     onClick: () -> Unit,
     onPlayTracks: (List<Track>) -> Unit,
     onPlayTracksShuffled: (List<Track>) -> Unit,
@@ -1626,6 +1654,16 @@ fun GroupedTrackRowItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
+        if (isFavorite) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = "Favorited",
+                tint = AppColors.accent,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
         if (track.numberPlays > 0) {
             Icon(
                 imageVector = Icons.Default.Headphones,
@@ -1637,6 +1675,8 @@ fun GroupedTrackRowItem(
         }
 
         TrackActionMenu(
+            isFavorite = isFavorite,
+            onToggleFavorite = onToggleFavorite,
             onPlay = { onPlayTracks(listOf(track)) },
             onPlayShuffle = { onPlayTracksShuffled(listOf(track)) },
             onPlayNext = { onPlayTracksNext(listOf(track)) },
@@ -1652,6 +1692,8 @@ fun TrackActionMenu(
     onPlayShuffle: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
     onInfoClick: (() -> Unit)? = null,
     icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.MoreVert,
     modifier: Modifier = Modifier
@@ -1702,6 +1744,15 @@ fun TrackActionMenu(
                     onAddToQueue()
                 }
             )
+            if (onToggleFavorite != null) {
+                DropdownMenuItem(
+                    text = { Text(if (isFavorite) "Remove from Favorites" else "Add to Favorites", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        onToggleFavorite()
+                    }
+                )
+            }
             onInfoClick?.let {
                 DropdownMenuItem(
                     text = { Text("Info", style = AppTypography.itemTitle) },
@@ -1730,12 +1781,20 @@ fun FavoritesTab(
     onPlayPlaylistNext: (BrowseItem) -> Unit,
     onAddPlaylistToQueue: (BrowseItem) -> Unit,
     onDownloadPlaylist: (BrowseItem) -> Unit,
-    onToggleFavorite: (BrowseItem) -> Unit
+    onToggleFavorite: (BrowseItem) -> Unit,
+    onTrackClick: (Track) -> Unit,
+    onPlayTrack: (Track) -> Unit,
+    onPlayTrackNext: (Track) -> Unit,
+    onAddTrackToQueue: (Track) -> Unit,
+    onDownloadTrack: (Track) -> Unit,
+    onToggleFavoriteTrack: (Track) -> Unit,
+    onTrackInfoClick: (Track) -> Unit
 ) {
     val favoritedAlbums = favorites.filter { it.type == "album" }
     val favoritedPlaylists = favorites.filter { it.type == "playlist" }
+    val favoritedTracks = favorites.filter { it.type == "track" }
 
-    if (favoritedAlbums.isEmpty() && favoritedPlaylists.isEmpty()) {
+    if (favoritedAlbums.isEmpty() && favoritedPlaylists.isEmpty() && favoritedTracks.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -1744,7 +1803,7 @@ fun FavoritesTab(
                 Icon(Icons.Default.Star, contentDescription = "Favorites", tint = AppColors.accent, modifier = Modifier.size(48.dp))
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Your Favorites", style = AppTypography.itemTitle)
-                Text("Pinned albums and playlists will appear here", style = AppTypography.itemSubtitle, color = AppColors.text3)
+                Text("Pinned albums, playlists and tracks will appear here", style = AppTypography.itemSubtitle, color = AppColors.text3)
             }
         }
     } else {
@@ -1803,6 +1862,52 @@ fun FavoritesTab(
                     )
                 }
             }
+
+            if (favoritedTracks.isNotEmpty()) {
+                item {
+                    Text("Tracks", style = AppTypography.sectionLabel, modifier = Modifier.padding(vertical = 8.dp))
+                }
+                items(favoritedTracks) { fav ->
+                    val parts = fav.displayName.split("|")
+                    val name = parts.getOrNull(0) ?: fav.displayName
+                    val artist = parts.getOrNull(1) ?: "Unknown Artist"
+                    val album = parts.getOrNull(2) ?: "Unknown Album"
+                    val durationMs = parts.getOrNull(3)?.toLongOrNull() ?: 0L
+                    val track = Track(
+                        fileKey = fav.identifier,
+                        name = name,
+                        artist = artist,
+                        album = album,
+                        albumArtist = "",
+                        date = "",
+                        genre = "",
+                        durationMs = durationMs,
+                        trackNumber = 0,
+                        discNumber = 0,
+                        totalDiscs = 0,
+                        totalTracks = 0,
+                        bitrate = 0,
+                        bitDepth = 0,
+                        sampleRate = 0,
+                        channels = 0,
+                        fileType = "",
+                        filePath = "",
+                        folderPath = ""
+                    )
+                    TrackRowItem(
+                        track = track,
+                        isFavorite = true,
+                        onToggleFavorite = { onToggleFavoriteTrack(track) },
+                        onPlay = { onPlayTrack(track) },
+                        onPlayNext = { onPlayTrackNext(track) },
+                        onAddToQueue = { onAddTrackToQueue(track) },
+                        onDownload = { onDownloadTrack(track) },
+                        isOffline = isOffline,
+                        onInfoClick = { onTrackInfoClick(track) },
+                        onClick = { onTrackClick(track) }
+                    )
+                }
+            }
         }
     }
 }
@@ -1810,6 +1915,8 @@ fun FavoritesTab(
 @Composable
 fun TrackRowItem(
     track: Track,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
     onPlay: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
@@ -1862,6 +1969,16 @@ fun TrackRowItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
+        if (isFavorite) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = "Favorited",
+                tint = AppColors.accent,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
         if (track.numberPlays > 0) {
             Icon(
                 imageVector = Icons.Default.Headphones,
@@ -1909,6 +2026,13 @@ fun TrackRowItem(
                     onClick = {
                         showMenu = false
                         onAddToQueue()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(if (isFavorite) "Remove from Favorites" else "Add to Favorites", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        onToggleFavorite()
                     }
                 )
                 if (!isOffline) {
