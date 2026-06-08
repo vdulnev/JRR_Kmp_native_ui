@@ -22,6 +22,7 @@ struct TvBrowseNodeView: View {
     @State private var artistGroups: [ArtistTrackGroup] = []
     @State private var grouped = true
     @State private var loading = true
+    @State private var favoritedKeys: Set<String> = []
 
     var body: some View {
         Group {
@@ -29,10 +30,17 @@ struct TvBrowseNodeView: View {
                 ProgressView()
             } else if !children.isEmpty {
                 List(children, id: \.key) { item in
+                    let isFav = favoritedKeys.contains(item.key)
                     NavigationLink {
                         TvBrowseNodeView(nodeId: item.key, title: item.name)
                     } label: {
-                        Text(item.name)
+                        HStack {
+                            Text(item.name)
+                            if isFav {
+                                Spacer()
+                                Image(systemName: "star.fill").foregroundColor(.accentColor)
+                            }
+                        }
                     }
                     .contextMenu {
                         Button {
@@ -56,6 +64,17 @@ struct TvBrowseNodeView: View {
                                 }
                             }
                         } label: { Label("Add to Queue", systemImage: "text.append") }
+                        Button {
+                            Task {
+                                if let nowFav = try? await observable.togglePlaylistFavorite(key: item.key, name: item.name) {
+                                    if nowFav {
+                                        favoritedKeys.insert(item.key)
+                                    } else {
+                                        favoritedKeys.remove(item.key)
+                                    }
+                                }
+                            }
+                        } label: { Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star") }
                     }
                 }
             } else if !tracks.isEmpty {
@@ -161,6 +180,13 @@ struct TvBrowseNodeView: View {
                 artistGroups = observable.group(tracks: files)
             } else {
                 children = kids
+                var favs = Set<String>()
+                for kid in kids {
+                    if let isFav = try? await observable.isPlaylistFavorite(key: kid.key), isFav {
+                        favs.insert(kid.key)
+                    }
+                }
+                favoritedKeys = favs
             }
         } catch {
             children = []

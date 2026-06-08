@@ -265,7 +265,9 @@ fun LibraryScreen(
                     onRefresh = { viewModel.refreshBrowse() },
                     onBackClick = {
                         viewModel.popBrowseNode()
-                    }
+                    },
+                    favorites = state.favorites,
+                    onToggleFavorite = { viewModel.toggleFavoritePlaylist(it.key, it.name) }
                 )
                 "downloads" -> DownloadsTab(
                     tracks = state.downloadedTracks,
@@ -282,13 +284,23 @@ fun LibraryScreen(
                     onAlbumInfoClick = { infoAlbum = it }
                 )
                 "favorites" -> FavoritesTab(
+                    favorites = state.favorites,
                     onAlbumClick = onAlbumClick,
                     onPlayAlbum = { viewModel.playAlbum(it) },
                     onPlayAlbumNext = { viewModel.playAlbumNext(it) },
                     onAddAlbumToQueue = { viewModel.addAlbumToQueue(it) },
                     onDownloadAlbum = { viewModel.downloadAlbum(it) },
                     isOffline = state.isOffline,
-                    onAlbumInfoClick = { infoAlbum = it }
+                    onAlbumInfoClick = { infoAlbum = it },
+                    onPlaylistClick = { key, name ->
+                        viewModel.switchTab("browse")
+                        viewModel.pushBrowseNode(name, key)
+                    },
+                    onPlayPlaylist = { viewModel.playBrowseItem(it) },
+                    onPlayPlaylistNext = { viewModel.playBrowseItemNext(it) },
+                    onAddPlaylistToQueue = { viewModel.addBrowseItemToQueue(it) },
+                    onDownloadPlaylist = { viewModel.downloadBrowseItem(it) },
+                    onToggleFavorite = { viewModel.toggleFavoritePlaylist(it.key, it.name) }
                 )
             }
         }
@@ -843,6 +855,8 @@ fun BrowseTab(
     onDownloadTracks: (List<Track>) -> Unit,
     onRefresh: () -> Unit,
     onBackClick: () -> Unit,
+    favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>,
+    onToggleFavorite: (BrowseItem) -> Unit,
     isLarge: Boolean = false
 ) {
     // `grouped`: when on, a flat track listing is reorganised into Album Artist
@@ -939,14 +953,17 @@ fun BrowseTab(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(children) { item ->
+                        val isFav = favorites.any { it.type == "playlist" && it.identifier == item.key }
                         BrowseChildRow(
                             browseItem = BrowseItem(item.key, item.name),
                             isOffline = isOffline,
+                            isFavorite = isFav,
                             onNodeClick = { onNodeClick(item.name, item.key) },
                             onPlay = onPlayBrowseItem,
                             onPlayNext = onPlayBrowseItemNext,
                             onAddToQueue = onAddBrowseItemToQueue,
-                            onDownload = onDownloadBrowseItem
+                            onDownload = onDownloadBrowseItem,
+                            onToggleFavorite = onToggleFavorite
                         )
                     }
                 }
@@ -1143,11 +1160,13 @@ private fun BrowseGroupActionMenu(
 private fun BrowseChildRow(
     browseItem: BrowseItem,
     isOffline: Boolean,
+    isFavorite: Boolean,
     onNodeClick: () -> Unit,
     onPlay: (BrowseItem) -> Unit,
     onPlayNext: (BrowseItem) -> Unit,
     onAddToQueue: (BrowseItem) -> Unit,
-    onDownload: (BrowseItem) -> Unit
+    onDownload: (BrowseItem) -> Unit,
+    onToggleFavorite: (BrowseItem) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -1159,6 +1178,18 @@ private fun BrowseChildRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(browseItem.name, style = AppTypography.itemTitle, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+
+        if (isFavorite) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = "Favorited",
+                tint = AppColors.accent,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
 
         var showMenu by remember { mutableStateOf(false) }
         Box {
@@ -1178,6 +1209,10 @@ private fun BrowseChildRow(
                 DropdownMenuItem(text = { Text("Play", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onPlay(browseItem) })
                 DropdownMenuItem(text = { Text("Play Next", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onPlayNext(browseItem) })
                 DropdownMenuItem(text = { Text("Add to Queue", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onAddToQueue(browseItem) })
+                DropdownMenuItem(
+                    text = { Text(if (isFavorite) "Remove from Favorites" else "Add to Favorites", style = AppTypography.itemTitle) },
+                    onClick = { showMenu = false; onToggleFavorite(browseItem) }
+                )
                 if (!isOffline) {
                     DropdownMenuItem(text = { Text("Download", style = AppTypography.itemTitle) }, onClick = { showMenu = false; onDownload(browseItem) })
                 }
@@ -1682,24 +1717,25 @@ fun TrackActionMenu(
 
 @Composable
 fun FavoritesTab(
+    favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>,
     onAlbumClick: (Album) -> Unit,
     onPlayAlbum: (Album) -> Unit,
     onPlayAlbumNext: (Album) -> Unit,
     onAddAlbumToQueue: (Album) -> Unit,
     onDownloadAlbum: (Album) -> Unit,
     isOffline: Boolean,
-    onAlbumInfoClick: (Album) -> Unit
+    onAlbumInfoClick: (Album) -> Unit,
+    onPlaylistClick: (String, String) -> Unit,
+    onPlayPlaylist: (BrowseItem) -> Unit,
+    onPlayPlaylistNext: (BrowseItem) -> Unit,
+    onAddPlaylistToQueue: (BrowseItem) -> Unit,
+    onDownloadPlaylist: (BrowseItem) -> Unit,
+    onToggleFavorite: (BrowseItem) -> Unit
 ) {
-    val database = com.jrr.jrrkmp_native_ui.presentation.LocalDatabase.current
-    var favorites by remember { mutableStateOf<List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>>(emptyList()) }
-
-    LaunchedEffect(Unit) {
-        favorites = database.favoriteDao().getAllFavorites()
-    }
-
     val favoritedAlbums = favorites.filter { it.type == "album" }
+    val favoritedPlaylists = favorites.filter { it.type == "playlist" }
 
-    if (favoritedAlbums.isEmpty()) {
+    if (favoritedAlbums.isEmpty() && favoritedPlaylists.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -1708,7 +1744,7 @@ fun FavoritesTab(
                 Icon(Icons.Default.Star, contentDescription = "Favorites", tint = AppColors.accent, modifier = Modifier.size(48.dp))
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Your Favorites", style = AppTypography.itemTitle)
-                Text("Pinned albums will appear here", style = AppTypography.itemSubtitle, color = AppColors.text3)
+                Text("Pinned albums and playlists will appear here", style = AppTypography.itemSubtitle, color = AppColors.text3)
             }
         }
     } else {
@@ -1717,30 +1753,55 @@ fun FavoritesTab(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(favoritedAlbums) { fav ->
-                val parts = fav.identifier.split("|")
-                val albumName = parts.getOrNull(0) ?: fav.displayName
-                val artist = parts.getOrNull(1) ?: "Unknown Artist"
-                val album = Album(
-                    name = albumName,
-                    albumArtist = artist,
-                    folderPath = "",
-                    parentFolderPath = "",
-                    date = "",
-                    artworkFileKey = "",
-                    totalDiscs = 1,
-                    discNumber = 1
-                )
-                AlbumRowItem(
-                    album = album,
-                    onPlay = { onPlayAlbum(album) },
-                    onPlayNext = { onPlayAlbumNext(album) },
-                    onAddToQueue = { onAddAlbumToQueue(album) },
-                    onDownload = { onDownloadAlbum(album) },
-                    isOffline = isOffline,
-                    onInfoClick = { onAlbumInfoClick(album) },
-                    onClick = { onAlbumClick(album) }
-                )
+            if (favoritedAlbums.isNotEmpty()) {
+                item {
+                    Text("Albums", style = AppTypography.sectionLabel, modifier = Modifier.padding(vertical = 8.dp))
+                }
+                items(favoritedAlbums) { fav ->
+                    val parts = fav.identifier.split("|")
+                    val albumName = parts.getOrNull(0) ?: fav.displayName
+                    val artist = parts.getOrNull(1) ?: "Unknown Artist"
+                    val album = Album(
+                        name = albumName,
+                        albumArtist = artist,
+                        folderPath = "",
+                        parentFolderPath = "",
+                        date = "",
+                        artworkFileKey = "",
+                        totalDiscs = 1,
+                        discNumber = 1
+                    )
+                    AlbumRowItem(
+                        album = album,
+                        onPlay = { onPlayAlbum(album) },
+                        onPlayNext = { onPlayAlbumNext(album) },
+                        onAddToQueue = { onAddAlbumToQueue(album) },
+                        onDownload = { onDownloadAlbum(album) },
+                        isOffline = isOffline,
+                        onInfoClick = { onAlbumInfoClick(album) },
+                        onClick = { onAlbumClick(album) }
+                    )
+                }
+            }
+
+            if (favoritedPlaylists.isNotEmpty()) {
+                item {
+                    Text("Playlists", style = AppTypography.sectionLabel, modifier = Modifier.padding(vertical = 8.dp))
+                }
+                items(favoritedPlaylists) { fav ->
+                    val browseItem = BrowseItem(fav.identifier, fav.displayName)
+                    BrowseChildRow(
+                        browseItem = browseItem,
+                        isOffline = isOffline,
+                        isFavorite = true,
+                        onNodeClick = { onPlaylistClick(fav.identifier, fav.displayName) },
+                        onPlay = onPlayPlaylist,
+                        onPlayNext = onPlayPlaylistNext,
+                        onAddToQueue = onAddPlaylistToQueue,
+                        onDownload = onDownloadPlaylist,
+                        onToggleFavorite = onToggleFavorite
+                    )
+                }
             }
         }
     }

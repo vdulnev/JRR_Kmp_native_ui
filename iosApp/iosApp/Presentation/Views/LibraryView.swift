@@ -20,6 +20,7 @@ class LibraryObservable {
     var browseChildren: [BrowseItem] = []
     var browseTracks: [Track] = []
     var downloadedTracks: [Track] = []
+    var favorites: [FavoriteEntity] = []
     var isOffline: Bool = false
     var isLoading: Bool = false
     var isTabLoading: Bool = false
@@ -59,6 +60,7 @@ class LibraryObservable {
         browseChildren = state.browseChildren
         browseTracks = state.browseTracks
         downloadedTracks = state.downloadedTracks
+        favorites = state.favorites
         isOffline = state.isOffline
         isLoading = state.isLoading
         isTabLoading = state.isTabLoading
@@ -93,6 +95,10 @@ class LibraryObservable {
 
     func refreshBrowse() {
         viewModel.refreshBrowse()
+    }
+
+    func toggleFavoritePlaylist(_ item: BrowseItem) {
+        viewModel.toggleFavoritePlaylist(key: item.key, name: item.name)
     }
 
     func playTrack(_ track: Track) {
@@ -1156,10 +1162,19 @@ struct LibraryView: View {
     }
 
     private func browseChildRow(browseItem: BrowseItem) -> some View {
-        HStack {
+        let isFav = observable.favorites.contains { $0.type == "playlist" && $0.identifier == browseItem.key }
+        return HStack {
             Text(browseItem.name)
                 .font(AppFont.inter(size: 16, weight: .medium))
                 .foregroundColor(.textPrimary)
+
+            if isFav {
+                Spacer().frame(width: 6)
+                Image(systemName: "star.fill")
+                    .foregroundColor(.accentColor)
+                    .font(.system(size: 14))
+            }
+
             Spacer()
 
             Menu {
@@ -1171,6 +1186,9 @@ struct LibraryView: View {
                 }
                 Button(action: { observable.addBrowseItemToQueue(browseItem) }) {
                     Label("Add to Queue", systemImage: "plus")
+                }
+                Button(action: { observable.toggleFavoritePlaylist(browseItem) }) {
+                    Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
                 }
                 if !observable.isOffline {
                     Button(action: { observable.downloadBrowseItem(browseItem) }) {
@@ -1198,6 +1216,9 @@ struct LibraryView: View {
                 .stroke(Color.line, lineWidth: 1),
         )
         .onTapGesture {
+            if observable.currentTab == "favorites" {
+                observable.switchTab("browse")
+            }
             observable.pushBrowseNode(browseItem: browseItem)
         }
     }
@@ -1338,9 +1359,10 @@ struct LibraryView: View {
 
     @ViewBuilder
     private func favoritesTab() -> some View {
-        let favoritedAlbums = stateObserver.favorites.filter { $0.type == "album" }
+        let favoritedAlbums = observable.favorites.filter { $0.type == "album" }
+        let favoritedPlaylists = observable.favorites.filter { $0.type == "playlist" }
 
-        if favoritedAlbums.isEmpty {
+        if favoritedAlbums.isEmpty, favoritedPlaylists.isEmpty {
             VStack {
                 Image(systemName: "star.fill")
                     .font(.system(size: 48))
@@ -1349,7 +1371,7 @@ struct LibraryView: View {
                 Text("Your Favorites")
                     .font(AppFont.inter(size: 16, weight: .bold))
                     .foregroundColor(.textPrimary)
-                Text("Pinned albums will appear here.")
+                Text("Pinned albums and playlists will appear here.")
                     .font(AppFont.inter(size: 13, weight: .regular))
                     .foregroundColor(.textTertiary)
             }
@@ -1357,80 +1379,109 @@ struct LibraryView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    ForEach(favoritedAlbums, id: \.identifier) { fav in
-                        let parts = fav.identifier.split(separator: "|")
-                        let artist = parts.count > 1 ? String(parts[1]) : "Unknown Artist"
-                        let albumName = String(parts[0])
-                        let album = Album(name: albumName, albumArtist: artist, folderPath: "", parentFolderPath: "", date: "", artworkFileKey: "", totalDiscs: 1, discNumber: 1)
-
+                    if !favoritedAlbums.isEmpty {
                         HStack {
-                            ZStack {
-                                Canvas { context, size in
-                                    context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: 0x1E293B)))
-                                    var path = Path()
-                                    path.move(to: .zero)
-                                    path.addLine(to: CGPoint(x: size.width, y: size.height))
-                                    context.stroke(
-                                        path,
-                                        with: .color(Color.accentColor.opacity(0.5)),
-                                        style: StrokeStyle(lineWidth: 4),
+                            Text("Albums")
+                                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                                .tracking(1.4)
+                                .foregroundColor(.textSecondary)
+                            Spacer()
+                        }
+                        .padding(.top, 12)
+                        .padding(.bottom, 4)
+
+                        ForEach(favoritedAlbums, id: \.identifier) { fav in
+                            let parts = fav.identifier.split(separator: "|")
+                            let artist = parts.count > 1 ? String(parts[1]) : "Unknown Artist"
+                            let albumName = String(parts[0])
+                            let album = Album(name: albumName, albumArtist: artist, folderPath: "", parentFolderPath: "", date: "", artworkFileKey: "", totalDiscs: 1, discNumber: 1)
+
+                            HStack {
+                                ZStack {
+                                    Canvas { context, size in
+                                        context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: 0x1E293B)))
+                                        var path = Path()
+                                        path.move(to: .zero)
+                                        path.addLine(to: CGPoint(x: size.width, y: size.height))
+                                        context.stroke(
+                                            path,
+                                            with: .color(Color.accentColor.opacity(0.5)),
+                                            style: StrokeStyle(lineWidth: 4),
+                                        )
+                                    }
+                                    .frame(width: 48, height: 48)
+                                    .cornerRadius(4)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .stroke(Color.line2, lineWidth: 1),
                                     )
                                 }
-                                .frame(width: 48, height: 48)
-                                .cornerRadius(4)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .stroke(Color.line2, lineWidth: 1),
-                                )
-                            }
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(albumName)
-                                    .styleItemTitle()
-                                    .lineLimit(2)
-                                Text(artist)
-                                    .styleItemSubtitle()
-                                    .lineLimit(1)
-                            }
-                            .padding(.leading, 8)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(albumName)
+                                        .styleItemTitle()
+                                        .lineLimit(2)
+                                    Text(artist)
+                                        .styleItemSubtitle()
+                                        .lineLimit(1)
+                                }
+                                .padding(.leading, 8)
 
-                            Spacer()
+                                Spacer()
 
-                            Menu {
-                                Button(action: { infoAlbum = album }) {
-                                    Label("Info", systemImage: "info.circle")
-                                }
-                                Button(action: { observable.playAlbum(album) }) {
-                                    Label("Play", systemImage: "play.fill")
-                                }
-                                Button(action: { observable.playAlbumNext(album) }) {
-                                    Label("Play Next", systemImage: "arrow.right.to.line")
-                                }
-                                Button(action: { observable.addAlbumToQueue(album) }) {
-                                    Label("Add to Queue", systemImage: "plus")
-                                }
-                                if !observable.isOffline {
-                                    Button(action: { observable.downloadAlbum(album) }) {
-                                        Label("Download", systemImage: "arrow.down.circle")
+                                Menu {
+                                    Button(action: { infoAlbum = album }) {
+                                        Label("Info", systemImage: "info.circle")
                                     }
+                                    Button(action: { observable.playAlbum(album) }) {
+                                        Label("Play", systemImage: "play.fill")
+                                    }
+                                    Button(action: { observable.playAlbumNext(album) }) {
+                                        Label("Play Next", systemImage: "arrow.right.to.line")
+                                    }
+                                    Button(action: { observable.addAlbumToQueue(album) }) {
+                                        Label("Add to Queue", systemImage: "plus")
+                                    }
+                                    if !observable.isOffline {
+                                        Button(action: { observable.downloadAlbum(album) }) {
+                                            Label("Download", systemImage: "arrow.down.circle")
+                                        }
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundColor(.textSecondary)
+                                        .frame(width: 32, height: 32)
                                 }
-                            } label: {
-                                Image(systemName: "ellipsis")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundColor(.textSecondary)
-                                    .frame(width: 32, height: 32)
+                                .buttonStyle(PlainButtonStyle())
                             }
-                            .buttonStyle(PlainButtonStyle())
+                            .padding(8)
+                            .background(Color.bg2)
+                            .cornerRadius(10)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.line, lineWidth: 1),
+                            )
+                            .onTapGesture {
+                                onAlbumClick(album)
+                            }
                         }
-                        .padding(8)
-                        .background(Color.bg2)
-                        .cornerRadius(10)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.line, lineWidth: 1),
-                        )
-                        .onTapGesture {
-                            onAlbumClick(album)
+                    }
+
+                    if !favoritedPlaylists.isEmpty {
+                        HStack {
+                            Text("Playlists")
+                                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                                .tracking(1.4)
+                                .foregroundColor(.textSecondary)
+                            Spacer()
+                        }
+                        .padding(.top, 16)
+                        .padding(.bottom, 4)
+
+                        ForEach(favoritedPlaylists, id: \.identifier) { fav in
+                            let browseItem = BrowseItem(key: fav.identifier, name: fav.displayName)
+                            browseChildRow(browseItem: browseItem)
                         }
                     }
                 }

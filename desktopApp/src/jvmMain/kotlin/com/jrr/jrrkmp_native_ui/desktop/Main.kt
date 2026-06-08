@@ -51,7 +51,7 @@ fun main() = application {
         val libraryRepository = container.libraryRepository
 
         val deps = AppDeps(
-            libraryViewModel = { LibraryViewModel(libraryRepository, facade) },
+            libraryViewModel = { LibraryViewModel(libraryRepository, facade, database) },
             albumDetailViewModel = { album ->
                 AlbumDetailViewModel(album, libraryRepository, facade, database)
             },

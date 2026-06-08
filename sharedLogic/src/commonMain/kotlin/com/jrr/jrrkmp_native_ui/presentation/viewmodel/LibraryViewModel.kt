@@ -11,6 +11,9 @@ import com.jrr.jrrkmp_native_ui.data.repository.MULTIPLE_ARTISTS_SENTINEL
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
+import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
+import com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity
+import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,6 +59,7 @@ data class LibraryViewState(
     val browseChildren: List<BrowseItem> = emptyList(),
     val browseTracks: List<Track> = emptyList(),
     val downloadedTracks: List<Track> = emptyList(),
+    val favorites: List<FavoriteEntity> = emptyList(),
     val isOffline: Boolean = false,
     val isLoading: Boolean = false,
     val isTabLoading: Boolean = false,
@@ -64,7 +68,8 @@ data class LibraryViewState(
 
 class LibraryViewModel(
     private val libraryRepository: LibraryRepository,
-    private val facade: AudioPlayerFacade
+    private val facade: AudioPlayerFacade,
+    private val database: JrrDatabase? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LibraryViewState())
@@ -114,6 +119,14 @@ class LibraryViewModel(
 
         // Mirror state to Verbose for change tracing.
         state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
+
+        viewModelScope.launch {
+            try {
+                refreshFavorites()
+            } catch (e: Exception) {
+                log.e(e) { "Failed to load initial favorites" }
+            }
+        }
     }
 
     fun switchTab(tab: String) {
@@ -525,6 +538,17 @@ class LibraryViewModel(
                             )
                         }
                     }
+
+                    "favorites" -> {
+                        val favs = database?.favoriteDao()?.getAllFavorites() ?: emptyList()
+                        log.d { "loaded ${favs.size} favorites" }
+                        _state.update {
+                            it.copy(
+                                favorites = favs,
+                                isLoading = false
+                            )
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 log.e(e) { "loadTabContent failed tab=${currentState.currentTab}" }
@@ -535,6 +559,42 @@ class LibraryViewModel(
                     )
                 }
             }
+        }
+    }
+
+    fun toggleFavoritePlaylist(key: String, name: String) {
+        log.d { "toggleFavoritePlaylist(key=$key, name=$name)" }
+        viewModelScope.launch {
+            try {
+                val db = database ?: return@launch
+                val dao = db.favoriteDao()
+                val existing = dao.getFavorite("playlist", key)
+                if (existing != null) {
+                    dao.delete(existing)
+                    log.d { "favorite playlist removed key=$key" }
+                } else {
+                    val newFav = FavoriteEntity(
+                        type = "playlist",
+                        identifier = key,
+                        displayName = name,
+                        addedAt = getTimeMillis()
+                    )
+                    dao.insert(newFav)
+                    log.d { "favorite playlist added key=$key" }
+                }
+                refreshFavorites()
+            } catch (e: Exception) {
+                log.e(e) { "toggleFavoritePlaylist failed key=$key" }
+                _state.update { it.copy(transientError = "Failed to toggle favorite: ${e.message}") }
+            }
+        }
+    }
+
+    private suspend fun refreshFavorites() {
+        val db = database ?: return
+        val favs = db.favoriteDao().getAllFavorites()
+        _state.update {
+            it.copy(favorites = favs)
         }
     }
 }

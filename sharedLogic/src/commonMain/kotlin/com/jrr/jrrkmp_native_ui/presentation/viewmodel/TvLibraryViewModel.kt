@@ -15,6 +15,8 @@ import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
+import com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity
+import io.ktor.util.date.getTimeMillis
 
 private val log = Logger.withTag("vm:TvLibrary")
 
@@ -130,5 +132,39 @@ class TvLibraryViewModel(
     suspend fun browseChildren(parentId: String): List<BrowseItem> {
         log.d { "browseChildren(parentId=$parentId)" }
         return libraryRepository.getBrowseChildren(parentId)
+    }
+
+    /** Favorited playlists/browse nodes. */
+    suspend fun favoritePlaylists(): List<BrowseItem> = withContext(Dispatchers.IO) {
+        log.d { "favoritePlaylists()" }
+        database.favoriteDao().getAllFavorites()
+            .filter { it.type == "playlist" }
+            .map { fav ->
+                BrowseItem(key = fav.identifier, name = fav.displayName)
+            }
+    }
+
+    suspend fun isPlaylistFavorite(key: String): Boolean = withContext(Dispatchers.IO) {
+        log.d { "isPlaylistFavorite(key=$key)" }
+        database.favoriteDao().getFavorite("playlist", key) != null
+    }
+
+    suspend fun togglePlaylistFavorite(key: String, name: String): Boolean = withContext(Dispatchers.IO) {
+        log.d { "togglePlaylistFavorite(key=$key, name=$name)" }
+        val dao = database.favoriteDao()
+        val existing = dao.getFavorite("playlist", key)
+        if (existing != null) {
+            dao.delete(existing)
+            false
+        } else {
+            val newFav = FavoriteEntity(
+                type = "playlist",
+                identifier = key,
+                displayName = name,
+                addedAt = getTimeMillis()
+            )
+            dao.insert(newFav)
+            true
+        }
     }
 }

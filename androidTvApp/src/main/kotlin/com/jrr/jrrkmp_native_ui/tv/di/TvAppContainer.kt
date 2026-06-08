@@ -93,7 +93,7 @@ class TvAppContainer(context: Context) {
 
     // --- ViewModel factories (constructed per-screen, reused across phases) ---
 
-    fun makeLibraryViewModel(): LibraryViewModel = LibraryViewModel(libraryRepository, facade)
+    fun makeLibraryViewModel(): LibraryViewModel = LibraryViewModel(libraryRepository, facade, database)
 
     /** Backs the TV Library sections; keeps repo/DB/Mcws/facade out of the UI. */
     fun makeTvLibraryViewModel(): TvLibraryViewModel =

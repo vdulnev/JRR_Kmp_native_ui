@@ -134,7 +134,7 @@ final class AppContainer {
         let mcwsClient = mcwsCore.mcwsClient
         let deps = AppDeps(
             libraryViewModel: {
-                LibraryViewModel(libraryRepository: libraryRepository, facade: facade)
+                LibraryViewModel(libraryRepository: libraryRepository, facade: facade, database: database)
             },
             albumDetailViewModel: { album in
                 AlbumDetailViewModel(

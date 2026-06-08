@@ -203,6 +203,18 @@ final class TvLibraryObservable {
         try await viewModel.favoriteAlbums()
     }
 
+    func favoritePlaylists() async throws -> [BrowseItem] {
+        try await viewModel.favoritePlaylists()
+    }
+
+    func isPlaylistFavorite(key: String) async throws -> Bool {
+        try await viewModel.isPlaylistFavorite(key: key) as! Bool
+    }
+
+    func togglePlaylistFavorite(key: String, name: String) async throws -> Bool {
+        try await viewModel.togglePlaylistFavorite(key: key, name: name) as! Bool
+    }
+
     func group(tracks: [Track]) -> [ArtistTrackGroup] {
         viewModel.group(tracks: tracks)
     }

@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
         // retained in Essenty's InstanceKeeper (survives rotation, deterministic
         // onCleared). The host only supplies the factory lambdas.
         val deps = AppDeps(
-            libraryViewModel = { LibraryViewModel(libraryRepository, facade) },
+            libraryViewModel = { LibraryViewModel(libraryRepository, facade, database) },
             albumDetailViewModel = { album ->
                 AlbumDetailViewModel(album, libraryRepository, facade, database)
             },

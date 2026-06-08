@@ -182,6 +182,8 @@ fun LibraryLargeScreen(
                     onDownloadTracks = { it.forEach(viewModel::downloadTrack) },
                     onRefresh = { viewModel.refreshBrowse() },
                     onBackClick = { viewModel.popBrowseNode() },
+                    favorites = state.favorites,
+                    onToggleFavorite = { viewModel.toggleFavoritePlaylist(it.key, it.name) },
                     isLarge = true,
                 )
                 "downloads" -> DownloadsTab(
@@ -196,6 +198,7 @@ fun LibraryLargeScreen(
                     onAlbumInfoClick = { infoAlbum = it },
                 )
                 "favorites" -> FavoritesTab(
+                    favorites = state.favorites,
                     onAlbumClick = onAlbumClick,
                     onPlayAlbum = { viewModel.playAlbum(it) },
                     onPlayAlbumNext = { viewModel.playAlbumNext(it) },
@@ -203,6 +206,15 @@ fun LibraryLargeScreen(
                     onDownloadAlbum = { viewModel.downloadAlbum(it) },
                     isOffline = state.isOffline,
                     onAlbumInfoClick = { infoAlbum = it },
+                    onPlaylistClick = { key, name ->
+                        viewModel.switchTab("browse")
+                        viewModel.pushBrowseNode(name, key)
+                    },
+                    onPlayPlaylist = { viewModel.playBrowseItem(it) },
+                    onPlayPlaylistNext = { viewModel.playBrowseItemNext(it) },
+                    onAddPlaylistToQueue = { viewModel.addBrowseItemToQueue(it) },
+                    onDownloadPlaylist = { viewModel.downloadBrowseItem(it) },
+                    onToggleFavorite = { viewModel.toggleFavoritePlaylist(it.key, it.name) }
                 )
             }
         }
