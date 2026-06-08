@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Random albums grid → album tracks.
 struct TvRandomAlbumsView: View {
-    @Environment(TvContainer.self) private var container
+    @Environment(TvLibraryObservable.self) private var observable
     @State private var albums: [Album] = []
     @State private var loading = true
 
@@ -22,7 +22,7 @@ struct TvRandomAlbumsView: View {
                                     TvAlbumTracksView(album: album)
                                 } label: {
                                     VStack(alignment: .leading) {
-                                        TvArtwork(urlString: container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey), size: 260)
+                                        TvArtwork(urlString: observable.artworkUrl(fileKey: album.artworkFileKey) ?? "", size: 260)
                                         Text(album.name.isEmpty ? "Unknown Album" : album.name)
                                             .font(.headline).lineLimit(1)
                                         Text(album.albumArtist).font(.subheadline)
@@ -30,6 +30,29 @@ struct TvRandomAlbumsView: View {
                                     }
                                 }
                                 .buttonStyle(.card)
+                                .contextMenu {
+                                    Button {
+                                        Task {
+                                            if let tracks = try? await observable.albumTracks(album: album) {
+                                                observable.play(tracks: tracks, startIndex: 0)
+                                            }
+                                        }
+                                    } label: { Label("Play", systemImage: "play") }
+                                    Button {
+                                        Task {
+                                            if let tracks = try? await observable.albumTracks(album: album) {
+                                                observable.playNext(tracks: tracks)
+                                            }
+                                        }
+                                    } label: { Label("Play Next", systemImage: "text.insert") }
+                                    Button {
+                                        Task {
+                                            if let tracks = try? await observable.albumTracks(album: album) {
+                                                observable.addTracksToQueue(tracks: tracks)
+                                            }
+                                        }
+                                    } label: { Label("Add to Queue", systemImage: "text.append") }
+                                }
                             }
                         }
                         .padding(40)
@@ -51,7 +74,7 @@ struct TvRandomAlbumsView: View {
     private func load() async {
         loading = true
         do {
-            albums = try await container.libraryRepository.getRandomAlbums(limit: 24)
+            albums = try await observable.randomAlbums(limit: 24)
         } catch {
             albums = []
         }

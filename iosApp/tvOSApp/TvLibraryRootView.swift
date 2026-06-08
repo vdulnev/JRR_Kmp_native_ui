@@ -19,6 +19,7 @@ enum LibrarySection: String, CaseIterable, Identifiable {
 /// tvOS now uses a `NavigationSplitView` to display a sidebar list on the left
 /// and the selected section's content (artists list, random albums grid, etc.) on the right.
 struct TvLibraryRootView: View {
+    let observable: TvLibraryObservable
     @State private var selectedSection: LibrarySection? = .artists
 
     var body: some View {
@@ -70,5 +71,6 @@ struct TvLibraryRootView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .environment(observable)
     }
 }

@@ -4,7 +4,7 @@ import SwiftUI
 /// Favorited albums (reconstructed from the stored "name|albumArtist"
 /// identifier, matching AlbumDetailViewModel) → album tracks.
 struct TvFavoritesView: View {
-    @Environment(TvContainer.self) private var container
+    @Environment(TvLibraryObservable.self) private var observable
     @State private var albums: [Album] = []
     @State private var loading = true
 
@@ -26,6 +26,29 @@ struct TvFavoritesView: View {
                             Text(album.name.isEmpty ? "Unknown Album" : album.name)
                                 + Text("  ·  \(album.albumArtist)").foregroundColor(.secondary)
                         }
+                        .contextMenu {
+                            Button {
+                                Task {
+                                    if let tracks = try? await observable.albumTracks(album: album) {
+                                        observable.play(tracks: tracks, startIndex: 0)
+                                    }
+                                }
+                            } label: { Label("Play", systemImage: "play") }
+                            Button {
+                                Task {
+                                    if let tracks = try? await observable.albumTracks(album: album) {
+                                        observable.playNext(tracks: tracks)
+                                    }
+                                }
+                            } label: { Label("Play Next", systemImage: "text.insert") }
+                            Button {
+                                Task {
+                                    if let tracks = try? await observable.albumTracks(album: album) {
+                                        observable.addTracksToQueue(tracks: tracks)
+                                    }
+                                }
+                            } label: { Label("Add to Queue", systemImage: "text.append") }
+                        }
                     }
                 }
             }
@@ -36,20 +59,7 @@ struct TvFavoritesView: View {
 
     private func load() async {
         do {
-            let favs = try await container.database.favoriteDao().getAllFavorites()
-            albums = favs.filter { $0.type == "album" }.map { fav in
-                let parts = fav.identifier.split(separator: "|", maxSplits: 1).map(String.init)
-                return Album(
-                    name: parts.first ?? fav.displayName,
-                    albumArtist: parts.count > 1 ? parts[1] : "Unknown Artist",
-                    folderPath: "",
-                    parentFolderPath: "",
-                    date: "",
-                    artworkFileKey: "",
-                    totalDiscs: 1,
-                    discNumber: 1,
-                )
-            }
+            albums = try await observable.favoriteAlbums()
         } catch {
             albums = []
         }

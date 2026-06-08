@@ -3,39 +3,28 @@ import SwiftUI
 
 /// Picks the JRiver output zone that playback commands target.
 struct TvZonesView: View {
-    @Environment(TvContainer.self) private var container
-    @State private var zones: ZonesObservable?
+    let zones: ZonesObservable
 
     var body: some View {
-        Group {
-            if let zones {
-                List {
-                    if zones.isLoading, zones.serverZones.isEmpty {
-                        ProgressView()
-                    }
-                    Section("This Device") {
-                        ForEach(zones.deviceZones, id: \.id) { zone in
-                            zoneRow(zone, model: zones)
-                        }
-                    }
-                    Section("Server Zones") {
-                        ForEach(zones.serverZones, id: \.id) { zone in
-                            zoneRow(zone, model: zones)
-                        }
-                    }
-                }
-                .task { await zones.observe() }
-            } else {
+        List {
+            if zones.isLoading, zones.serverZones.isEmpty {
                 ProgressView()
+            }
+            Section("This Device") {
+                ForEach(zones.deviceZones, id: \.id) { zone in
+                    zoneRow(zone, model: zones)
+                }
+            }
+            Section("Server Zones") {
+                ForEach(zones.serverZones, id: \.id) { zone in
+                    zoneRow(zone, model: zones)
+                }
             }
         }
         .navigationTitle("Output Zone")
+        .task { await zones.observe() }
         .onAppear {
-            if zones == nil {
-                let vm = ZonesObservable(viewModel: container.makeZonesViewModel())
-                zones = vm
-                vm.refresh()
-            }
+            zones.refresh()
         }
     }
 

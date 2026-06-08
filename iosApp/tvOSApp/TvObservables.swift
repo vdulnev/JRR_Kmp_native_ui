@@ -146,3 +146,68 @@ final class ZonesObservable {
         viewModel.selectZone(zone: zone)
     }
 }
+
+/// Bridges `TvLibraryViewModel` for SwiftUI consumption, encapsulating all
+/// data-fetching and playback-routing so the UI doesn't talk to the
+/// LibraryRepository or AudioPlayerFacade directly.
+@Observable
+@MainActor
+final class TvLibraryObservable {
+    let viewModel: TvLibraryViewModel
+
+    init(viewModel: TvLibraryViewModel) {
+        self.viewModel = viewModel
+    }
+
+    func play(tracks: [Track], startIndex: Int) {
+        viewModel.play(tracks: tracks, startIndex: Int32(startIndex))
+    }
+
+    func playNext(tracks: [Track]) {
+        viewModel.playNext(tracks: tracks)
+    }
+
+    func addTracksToQueue(tracks: [Track]) {
+        viewModel.addTracksToQueue(tracks: tracks)
+    }
+
+    func albumTracks(album: Album) async throws -> [Track] {
+        try await viewModel.albumTracks(album: album)
+    }
+
+    func browseFiles(nodeId: String) async throws -> [Track] {
+        try await viewModel.browseFiles(nodeId: nodeId)
+    }
+
+    func browseChildren(parentId: String) async throws -> [BrowseItem] {
+        try await viewModel.browseChildren(parentId: parentId)
+    }
+
+    func browseNode(nodeId: String) async throws -> BrowseContent {
+        try await viewModel.browseNode(nodeId: nodeId)
+    }
+
+    func artists() async throws -> [String] {
+        try await viewModel.artists()
+    }
+
+    func albums(artist: String) async throws -> [Album] {
+        try await viewModel.albums(artist: artist)
+    }
+
+    func randomAlbums(limit: Int = 24) async throws -> [Album] {
+        try await viewModel.randomAlbums(limit: Int32(limit))
+    }
+
+    func favoriteAlbums() async throws -> [Album] {
+        try await viewModel.favoriteAlbums()
+    }
+
+    func group(tracks: [Track]) -> [ArtistTrackGroup] {
+        viewModel.group(tracks: tracks)
+    }
+
+    func artworkUrl(fileKey: String) -> String? {
+        viewModel.artworkUrl(fileKey: fileKey)
+    }
+}

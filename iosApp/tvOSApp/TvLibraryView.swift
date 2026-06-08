@@ -4,7 +4,7 @@ import SwiftUI
 /// Artists library sub-tab: album artists → albums → tracks. Reads the library
 /// via `LibraryRepository` directly (suspend → async).
 struct TvArtistsView: View {
-    @Environment(TvContainer.self) private var container
+    @Environment(TvLibraryObservable.self) private var observable
     @State private var artists: [String] = []
     @State private var loading = true
     @State private var error = ""
@@ -23,8 +23,51 @@ struct TvArtistsView: View {
             Text(error).foregroundStyle(.red).frame(maxHeight: .infinity)
         } else {
             List(artists, id: \.self) { artist in
-                NavigationLink(artist.isEmpty ? "Unknown Artist" : artist) {
+                NavigationLink {
                     TvArtistAlbumsView(artist: artist)
+                } label: {
+                    Text(artist.isEmpty ? "Unknown Artist" : artist)
+                }
+                .contextMenu {
+                    Button {
+                        Task {
+                            if let albums = try? await observable.albums(artist: artist) {
+                                var allTracks: [Track] = []
+                                for album in albums {
+                                    if let tracks = try? await observable.albumTracks(album: album) {
+                                        allTracks.append(contentsOf: tracks)
+                                    }
+                                }
+                                observable.play(tracks: allTracks, startIndex: 0)
+                            }
+                        }
+                    } label: { Label("Play", systemImage: "play") }
+                    Button {
+                        Task {
+                            if let albums = try? await observable.albums(artist: artist) {
+                                var allTracks: [Track] = []
+                                for album in albums {
+                                    if let tracks = try? await observable.albumTracks(album: album) {
+                                        allTracks.append(contentsOf: tracks)
+                                    }
+                                }
+                                observable.playNext(tracks: allTracks)
+                            }
+                        }
+                    } label: { Label("Play Next", systemImage: "text.insert") }
+                    Button {
+                        Task {
+                            if let albums = try? await observable.albums(artist: artist) {
+                                var allTracks: [Track] = []
+                                for album in albums {
+                                    if let tracks = try? await observable.albumTracks(album: album) {
+                                        allTracks.append(contentsOf: tracks)
+                                    }
+                                }
+                                observable.addTracksToQueue(tracks: allTracks)
+                            }
+                        }
+                    } label: { Label("Add to Queue", systemImage: "text.append") }
                 }
             }
         }
@@ -32,7 +75,7 @@ struct TvArtistsView: View {
 
     private func load() async {
         do {
-            artists = try await container.libraryRepository.getArtists()
+            artists = try await observable.artists()
         } catch {
             self.error = "Failed to load: \(error.localizedDescription)"
         }
@@ -42,7 +85,7 @@ struct TvArtistsView: View {
 
 /// Albums for a selected album artist.
 struct TvArtistAlbumsView: View {
-    @Environment(TvContainer.self) private var container
+    @Environment(TvLibraryObservable.self) private var observable
     let artist: String
 
     @State private var albums: [Album] = []
@@ -58,7 +101,7 @@ struct TvArtistAlbumsView: View {
                         TvAlbumTracksView(album: album)
                     } label: {
                         HStack(spacing: 16) {
-                            TvArtwork(urlString: container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey), size: 80)
+                            TvArtwork(urlString: observable.artworkUrl(fileKey: album.artworkFileKey) ?? "", size: 80)
                             VStack(alignment: .leading) {
                                 Text(album.name.isEmpty ? "Unknown Album" : album.name)
                                     .font(.headline)
@@ -67,6 +110,29 @@ struct TvArtistAlbumsView: View {
                                 }
                             }
                         }
+                    }
+                    .contextMenu {
+                        Button {
+                            Task {
+                                if let tracks = try? await observable.albumTracks(album: album) {
+                                    observable.play(tracks: tracks, startIndex: 0)
+                                }
+                            }
+                        } label: { Label("Play", systemImage: "play") }
+                        Button {
+                            Task {
+                                if let tracks = try? await observable.albumTracks(album: album) {
+                                    observable.playNext(tracks: tracks)
+                                }
+                            }
+                        } label: { Label("Play Next", systemImage: "text.insert") }
+                        Button {
+                            Task {
+                                if let tracks = try? await observable.albumTracks(album: album) {
+                                    observable.addTracksToQueue(tracks: tracks)
+                                }
+                            }
+                        } label: { Label("Add to Queue", systemImage: "text.append") }
                     }
                 }
             }
@@ -77,7 +143,7 @@ struct TvArtistAlbumsView: View {
 
     private func load() async {
         do {
-            albums = try await container.libraryRepository.getAlbumsByArtist(artistName: artist)
+            albums = try await observable.albums(artist: artist)
         } catch {
             albums = []
         }

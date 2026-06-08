@@ -2,6 +2,7 @@ package com.jrr.jrrkmp_native_ui.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import co.touchlab.kermit.Logger
+import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.repository.BrowseContent
@@ -97,5 +98,37 @@ class TvLibraryViewModel(
         } catch (e: Exception) {
             log.e(e) { "play failed" }
         }
+    }
+
+    /** Add [tracks] to play next in the queue. */
+    fun playNext(tracks: List<Track>) {
+        log.d { "playNext(${tracks.size} tracks)" }
+        try {
+            facade.playNextTracks(tracks)
+        } catch (e: Exception) {
+            log.e(e) { "playNext failed" }
+        }
+    }
+
+    /** Append [tracks] to the end of the queue. */
+    fun addTracksToQueue(tracks: List<Track>) {
+        log.d { "addTracksToQueue(${tracks.size} tracks)" }
+        try {
+            facade.addTracks(tracks)
+        } catch (e: Exception) {
+            log.e(e) { "addTracksToQueue failed" }
+        }
+    }
+
+    /** Browse the files under a node. */
+    suspend fun browseFiles(nodeId: String): List<Track> {
+        log.d { "browseFiles(nodeId=$nodeId)" }
+        return libraryRepository.getBrowseFiles(nodeId)
+    }
+
+    /** Browse the children of a node. */
+    suspend fun browseChildren(parentId: String): List<BrowseItem> {
+        log.d { "browseChildren(parentId=$parentId)" }
+        return libraryRepository.getBrowseChildren(parentId)
     }
 }
