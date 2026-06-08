@@ -1002,7 +1002,7 @@ struct LibraryView: View {
                                                 path,
                                                 with: .color(Color.accentColor.opacity(0.5)),
                                                 style: StrokeStyle(lineWidth: 4),
-                                             )
+                                            )
                                         }
                                     }
                                 }
@@ -1418,7 +1418,7 @@ struct LibraryView: View {
                                         date: String(parts[4]),
                                         artworkFileKey: String(parts[5]),
                                         totalDiscs: Int32(String(parts[6])) ?? 1,
-                                        discNumber: Int32(String(parts[7])) ?? 1
+                                        discNumber: Int32(String(parts[7])) ?? 1,
                                     )
                                 } else {
                                     let oldParts = fav.identifier.split(separator: "|")

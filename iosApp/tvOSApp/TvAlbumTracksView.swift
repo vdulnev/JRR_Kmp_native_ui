@@ -44,59 +44,59 @@ struct TvAlbumTracksView: View {
                                         .foregroundStyle(.secondary)
                                         .frame(width: 60, alignment: .trailing)
                                     Text(track.name)
-                                     if favoritedTrackKeys.contains(track.fileKey) {
-                                         Spacer().frame(width: 8)
-                                         Image(systemName: "star.fill")
-                                             .foregroundColor(.accentColor)
-                                             .font(.system(size: 14))
-                                     }
-                                     Spacer()
-                                 }
-                             }
-                             .contextMenu {
-                                 Button {
-                                     observable.play(tracks: [track], startIndex: 0)
-                                 } label: { Label("Play", systemImage: "play") }
-                                 Button {
-                                     observable.playNext(tracks: [track])
-                                 } label: { Label("Play Next", systemImage: "text.insert") }
-                                 Button {
-                                     observable.addTracksToQueue(tracks: [track])
-                                 } label: { Label("Add to Queue", systemImage: "text.append") }
-                                 Button {
-                                     Task {
-                                         if let nowFav = try? await observable.toggleTrackFavorite(track: track) {
-                                             if nowFav {
-                                                 favoritedTrackKeys.insert(track.fileKey)
-                                             } else {
-                                                 favoritedTrackKeys.remove(track.fileKey)
-                                             }
-                                         }
-                                     }
-                                 } label: {
-                                     let isFav = favoritedTrackKeys.contains(track.fileKey)
-                                     Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
-                                 }
-                             }
-                         }
-                     }
-                 }
-             }
-         }
-         .navigationTitle(album.name.isEmpty ? "Album" : album.name)
-         .task { await load() }
-     }
- 
-     private func load() async {
-         do {
-             tracks = try await observable.albumTracks(album: album)
-             if let favs = try? await observable.favoriteTracks() {
-                 favoritedTrackKeys = Set(favs.map(\.fileKey))
-             }
-             isAlbumFav = (try? await observable.isAlbumFavorite(albumGroupId: album.albumGroupId)) ?? false
-         } catch {
-             tracks = []
-         }
+                                    if favoritedTrackKeys.contains(track.fileKey) {
+                                        Spacer().frame(width: 8)
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(.accentColor)
+                                            .font(.system(size: 14))
+                                    }
+                                    Spacer()
+                                }
+                            }
+                            .contextMenu {
+                                Button {
+                                    observable.play(tracks: [track], startIndex: 0)
+                                } label: { Label("Play", systemImage: "play") }
+                                Button {
+                                    observable.playNext(tracks: [track])
+                                } label: { Label("Play Next", systemImage: "text.insert") }
+                                Button {
+                                    observable.addTracksToQueue(tracks: [track])
+                                } label: { Label("Add to Queue", systemImage: "text.append") }
+                                Button {
+                                    Task {
+                                        if let nowFav = try? await observable.toggleTrackFavorite(track: track) {
+                                            if nowFav {
+                                                favoritedTrackKeys.insert(track.fileKey)
+                                            } else {
+                                                favoritedTrackKeys.remove(track.fileKey)
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    let isFav = favoritedTrackKeys.contains(track.fileKey)
+                                    Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle(album.name.isEmpty ? "Album" : album.name)
+        .task { await load() }
+    }
+
+    private func load() async {
+        do {
+            tracks = try await observable.albumTracks(album: album)
+            if let favs = try? await observable.favoriteTracks() {
+                favoritedTrackKeys = Set(favs.map(\.fileKey))
+            }
+            isAlbumFav = await (try? observable.isAlbumFavorite(albumGroupId: album.albumGroupId)) ?? false
+        } catch {
+            tracks = []
+        }
         loading = false
     }
 

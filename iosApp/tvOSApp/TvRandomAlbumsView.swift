@@ -98,8 +98,8 @@ struct TvRandomAlbumsView: View {
         do {
             albums = try await observable.randomAlbums(limit: 24)
             if let favs = try? await observable.favoriteAlbums() {
-                 favoriteAlbumKeys = Set(favs.map(\.albumGroupId))
-             }
+                favoriteAlbumKeys = Set(favs.map(\.albumGroupId))
+            }
         } catch {
             albums = []
             favoriteAlbumKeys = []
