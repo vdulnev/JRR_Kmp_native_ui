@@ -1100,6 +1100,7 @@ struct LibraryView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.textSecondary)
                         .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
             }
@@ -1499,6 +1500,7 @@ struct LibraryView: View {
                                         .font(.system(size: 16, weight: .bold))
                                         .foregroundColor(.textSecondary)
                                         .frame(width: 32, height: 32)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }
@@ -2193,6 +2195,7 @@ struct LibraryView: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.textSecondary)
                     .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
         }
@@ -2248,11 +2251,13 @@ struct PlaybackActionMenu: View {
                     .foregroundColor(.textSecondary)
                     .rotationEffect(.degrees(90))
                     .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
             } else {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.textSecondary)
                     .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
             }
         }
         .buttonStyle(PlainButtonStyle())

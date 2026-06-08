@@ -229,6 +229,7 @@ private struct AlbumDetailContentView: View {
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(.textPrimary)
                             .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                 }
             }
@@ -478,6 +479,7 @@ private struct AlbumDetailContentView: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.textSecondary)
                     .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
         }
