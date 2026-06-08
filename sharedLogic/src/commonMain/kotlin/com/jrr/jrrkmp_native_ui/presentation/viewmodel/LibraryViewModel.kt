@@ -17,6 +17,7 @@ import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
@@ -120,12 +121,15 @@ class LibraryViewModel(
         // Mirror state to Verbose for change tracing.
         state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
 
-        viewModelScope.launch {
-            try {
-                refreshFavorites()
-            } catch (e: Exception) {
-                log.e(e) { "Failed to load initial favorites" }
-            }
+        if (database != null) {
+            database.favoriteDao().getAllFavoritesFlow()
+                .onEach { favs ->
+                    _state.update { it.copy(favorites = favs) }
+                }
+                .catch { e ->
+                    log.e(e) { "Error collecting favorites flow" }
+                }
+                .launchIn(viewModelScope)
         }
     }
 
@@ -620,21 +624,22 @@ class LibraryViewModel(
     }
 
     fun toggleFavoriteAlbum(album: Album) {
-        log.d { "toggleFavoriteAlbum(name=${album.name}, artist=${album.albumArtist})" }
+        log.d { "toggleFavoriteAlbum(albumGroupId=${album.albumGroupId})" }
         viewModelScope.launch {
             try {
                 val db = database ?: return@launch
                 val dao = db.favoriteDao()
-                val identifier = "${album.name}|${album.albumArtist}"
+                val identifier = album.albumGroupId
                 val existing = dao.getFavorite("album", identifier)
                 if (existing != null) {
                     dao.delete(existing)
                     log.d { "favorite album removed identifier=$identifier" }
                 } else {
+                    val displayName = "${album.name}|${album.albumArtist}|${album.folderPath}|${album.parentFolderPath}|${album.date}|${album.artworkFileKey}|${album.totalDiscs}|${album.discNumber}"
                     val newFav = FavoriteEntity(
                         type = "album",
                         identifier = identifier,
-                        displayName = album.name,
+                        displayName = displayName,
                         addedAt = getTimeMillis()
                     )
                     dao.insert(newFav)

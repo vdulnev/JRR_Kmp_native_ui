@@ -978,63 +978,62 @@ struct LibraryView: View {
                         : [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
                     LazyVGrid(columns: columns, spacing: 14) {
-                        ForEach(observable.randomAlbums, id: \.name) { album in
+                        ForEach(observable.randomAlbums, id: \.albumGroupId) { album in
                             let imageUrl = container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
-                            let isFav = observable.favorites.contains { $0.type == "album" && $0.identifier == "\(album.name)|\(album.albumArtist)" }
-                            Button(action: { onAlbumClick(album) }) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    ZStack {
-                                        if !imageUrl.isEmpty, let url = URL(string: imageUrl) {
-                                            JrrAsyncImage(url: url) { image in
-                                                image
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fill)
-                                            } placeholder: {
-                                                Color.bg2
-                                            }
-                                        } else {
-                                            // Fallback diagonal stripe tile
-                                            Canvas { context, size in
-                                                context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: 0x1E293B)))
-                                                var path = Path()
-                                                path.move(to: .zero)
-                                                path.addLine(to: CGPoint(x: size.width, y: size.height))
-                                                context.stroke(
-                                                    path,
-                                                    with: .color(Color.accentColor.opacity(0.5)),
-                                                    style: StrokeStyle(lineWidth: 4),
-                                                 )
-                                            }
+                            let isFav = observable.favorites.contains { $0.type == "album" && $0.identifier == album.albumGroupId }
+                            VStack(alignment: .leading, spacing: 4) {
+                                ZStack {
+                                    if !imageUrl.isEmpty, let url = URL(string: imageUrl) {
+                                        JrrAsyncImage(url: url) { image in
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                        } placeholder: {
+                                            Color.bg2
+                                        }
+                                    } else {
+                                        // Fallback diagonal stripe tile
+                                        Canvas { context, size in
+                                            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: 0x1E293B)))
+                                            var path = Path()
+                                            path.move(to: .zero)
+                                            path.addLine(to: CGPoint(x: size.width, y: size.height))
+                                            context.stroke(
+                                                path,
+                                                with: .color(Color.accentColor.opacity(0.5)),
+                                                style: StrokeStyle(lineWidth: 4),
+                                             )
                                         }
                                     }
-                                    .frame(maxWidth: .infinity)
-                                    .aspectRatio(1, contentMode: .fit)
-                                    .clipped()
-                                    .cornerRadius(AppSpacing.radiusArt)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: AppSpacing.radiusArt)
-                                            .stroke(Color.line2, lineWidth: 1),
-                                    )
-
-                                    HStack(spacing: 4) {
-                                        Text(album.name)
-                                            .font(AppFont.inter(size: 13, weight: .medium))
-                                            .foregroundColor(.textPrimary)
-                                            .lineLimit(1)
-                                        if isFav {
-                                            Image(systemName: "star.fill")
-                                                .font(.system(size: 11))
-                                                .foregroundColor(.accentColor)
-                                        }
-                                    }
-
-                                    Text(album.albumArtist)
-                                        .font(AppFont.inter(size: 11.5, weight: .regular))
-                                        .foregroundColor(.textSecondary)
-                                        .lineLimit(1)
                                 }
+                                .frame(maxWidth: .infinity)
+                                .aspectRatio(1, contentMode: .fit)
+                                .clipped()
+                                .cornerRadius(AppSpacing.radiusArt)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: AppSpacing.radiusArt)
+                                        .stroke(Color.line2, lineWidth: 1),
+                                )
+
+                                HStack(spacing: 4) {
+                                    Text(album.name)
+                                        .font(AppFont.inter(size: 13, weight: .medium))
+                                        .foregroundColor(.textPrimary)
+                                        .lineLimit(1)
+                                    if isFav {
+                                        Image(systemName: "star.fill")
+                                            .font(.system(size: 11))
+                                            .foregroundColor(.accentColor)
+                                    }
+                                }
+
+                                Text(album.albumArtist)
+                                    .font(AppFont.inter(size: 11.5, weight: .regular))
+                                    .foregroundColor(.textSecondary)
+                                    .lineLimit(1)
                             }
-                            .buttonStyle(PlainButtonStyle())
+                            .contentShape(Rectangle())
+                            .onTapGesture { onAlbumClick(album) }
                             .contextMenu {
                                 Button(action: { observable.playAlbum(album) }) {
                                     Label("Play", systemImage: "play.fill")
@@ -1408,37 +1407,65 @@ struct LibraryView: View {
                         .padding(.bottom, 4)
 
                         ForEach(favoritedAlbums, id: \.identifier) { fav in
-                            let parts = fav.identifier.split(separator: "|")
-                            let artist = parts.count > 1 ? String(parts[1]) : "Unknown Artist"
-                            let albumName = String(parts[0])
-                            let album = Album(name: albumName, albumArtist: artist, folderPath: "", parentFolderPath: "", date: "", artworkFileKey: "", totalDiscs: 1, discNumber: 1)
+                            let parts = fav.displayName.split(separator: "|")
+                            let album: Album = {
+                                if parts.count >= 8 {
+                                    return Album(
+                                        name: String(parts[0]),
+                                        albumArtist: String(parts[1]),
+                                        folderPath: String(parts[2]),
+                                        parentFolderPath: String(parts[3]),
+                                        date: String(parts[4]),
+                                        artworkFileKey: String(parts[5]),
+                                        totalDiscs: Int32(String(parts[6])) ?? 1,
+                                        discNumber: Int32(String(parts[7])) ?? 1
+                                    )
+                                } else {
+                                    let oldParts = fav.identifier.split(separator: "|")
+                                    let artist = oldParts.count > 1 ? String(oldParts[1]) : "Unknown Artist"
+                                    let albumName = String(oldParts[0])
+                                    return Album(name: albumName, albumArtist: artist, folderPath: "", parentFolderPath: "", date: "", artworkFileKey: "", totalDiscs: 1, discNumber: 1)
+                                }
+                            }()
+                            let imageUrl = container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
 
                             HStack {
                                 ZStack {
-                                    Canvas { context, size in
-                                        context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: 0x1E293B)))
-                                        var path = Path()
-                                        path.move(to: .zero)
-                                        path.addLine(to: CGPoint(x: size.width, y: size.height))
-                                        context.stroke(
-                                            path,
-                                            with: .color(Color.accentColor.opacity(0.5)),
-                                            style: StrokeStyle(lineWidth: 4),
-                                        )
+                                    if !imageUrl.isEmpty, let url = URL(string: imageUrl) {
+                                        JrrAsyncImage(url: url) { image in
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                        } placeholder: {
+                                            Color.bg3
+                                        }
+                                    } else {
+                                        Canvas { context, size in
+                                            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: 0x1E293B)))
+                                            var path = Path()
+                                            path.move(to: .zero)
+                                            path.addLine(to: CGPoint(x: size.width, y: size.height))
+                                            context.stroke(
+                                                path,
+                                                with: .color(Color.accentColor.opacity(0.5)),
+                                                style: StrokeStyle(lineWidth: 4),
+                                            )
+                                        }
                                     }
-                                    .frame(width: 48, height: 48)
-                                    .cornerRadius(4)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .stroke(Color.line2, lineWidth: 1),
-                                    )
                                 }
+                                .frame(width: 48, height: 48)
+                                .cornerRadius(4)
+                                .clipped()
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .stroke(Color.line2, lineWidth: 1),
+                                )
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(albumName)
+                                    Text(album.name)
                                         .styleItemTitle()
                                         .lineLimit(2)
-                                    Text(artist)
+                                    Text(album.albumArtist)
                                         .styleItemSubtitle()
                                         .lineLimit(1)
                                 }
@@ -2079,7 +2106,7 @@ struct LibraryView: View {
 
     private func albumRowItem(album: Album, action: @escaping () -> Void) -> some View {
         let imageUrl = container.mcwsClient.buildImageUrl(fileKey: album.artworkFileKey)
-        let isFav = observable.favorites.contains { $0.type == "album" && $0.identifier == "\(album.name)|\(album.albumArtist)" }
+        let isFav = observable.favorites.contains { $0.type == "album" && $0.identifier == album.albumGroupId }
         return HStack {
             ZStack {
                 if !imageUrl.isEmpty, let url = URL(string: imageUrl) {

@@ -93,7 +93,7 @@ struct TvAlbumTracksView: View {
              if let favs = try? await observable.favoriteTracks() {
                  favoritedTrackKeys = Set(favs.map(\.fileKey))
              }
-             isAlbumFav = (try? await observable.isAlbumFavorite(name: album.name, artist: album.albumArtist)) ?? false
+             isAlbumFav = (try? await observable.isAlbumFavorite(albumGroupId: album.albumGroupId)) ?? false
          } catch {
              tracks = []
          }

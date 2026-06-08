@@ -122,7 +122,7 @@ class AlbumDetailViewModel(
                 tracksFlow.value = albumTracks
 
                 // Check favorite status in DB
-                val identifier = "${album.name}|${album.albumArtist}"
+                val identifier = album.albumGroupId
                 val favorite = database.favoriteDao().getFavorite("album", identifier) != null
                 favoriteFlow.value = favorite
             } catch (e: Exception) {
@@ -170,7 +170,7 @@ class AlbumDetailViewModel(
         log.d { "toggleFavorite()" }
         viewModelScope.launch {
             try {
-                val identifier = "${album.name}|${album.albumArtist}"
+                val identifier = album.albumGroupId
                 val dao = database.favoriteDao()
                 val existing = dao.getFavorite("album", identifier)
                 if (existing != null) {
@@ -178,10 +178,11 @@ class AlbumDetailViewModel(
                     favoriteFlow.value = false
                     log.d { "favorite removed identifier=$identifier" }
                 } else {
+                    val displayName = "${album.name}|${album.albumArtist}|${album.folderPath}|${album.parentFolderPath}|${album.date}|${album.artworkFileKey}|${album.totalDiscs}|${album.discNumber}"
                     val newFav = FavoriteEntity(
                         type = "album",
                         identifier = identifier,
-                        displayName = album.name,
+                        displayName = displayName,
                         addedAt = getTimeMillis()
                     )
                     dao.insert(newFav)

@@ -63,23 +63,37 @@ class TvLibraryViewModel(
         return libraryRepository.getBrowseNode(nodeId)
     }
 
-    /** Favorited albums, reconstructed from the stored `name|albumArtist` id. */
+    /** Favorited albums, reconstructed from the stored 8-part metadata or legacy name|albumArtist id. */
     suspend fun favoriteAlbums(): List<Album> = withContext(Dispatchers.IO) {
         log.d { "favoriteAlbums()" }
         database.favoriteDao().getAllFavorites()
             .filter { it.type == "album" }
             .map { fav ->
-                val parts = fav.identifier.split("|", limit = 2)
-                Album(
-                    name = parts.getOrElse(0) { fav.displayName },
-                    albumArtist = parts.getOrElse(1) { "Unknown Artist" },
-                    folderPath = "",
-                    parentFolderPath = "",
-                    date = "",
-                    artworkFileKey = "",
-                    totalDiscs = 1,
-                    discNumber = 1,
-                )
+                val parts = fav.displayName.split("|")
+                if (parts.size >= 8) {
+                    Album(
+                        name = parts[0],
+                        albumArtist = parts[1],
+                        folderPath = parts[2],
+                        parentFolderPath = parts[3],
+                        date = parts[4],
+                        artworkFileKey = parts[5],
+                        totalDiscs = parts[6].toIntOrNull() ?: 1,
+                        discNumber = parts[7].toIntOrNull() ?: 1,
+                    )
+                } else {
+                    val oldParts = fav.identifier.split("|", limit = 2)
+                    Album(
+                        name = oldParts.getOrElse(0) { fav.displayName },
+                        albumArtist = oldParts.getOrElse(1) { "Unknown Artist" },
+                        folderPath = "",
+                        parentFolderPath = "",
+                        date = "",
+                        artworkFileKey = "",
+                        totalDiscs = 1,
+                        discNumber = 1,
+                    )
+                }
             }
     }
 
@@ -227,25 +241,25 @@ class TvLibraryViewModel(
         }
     }
 
-    suspend fun isAlbumFavorite(name: String, artist: String): Boolean = withContext(Dispatchers.IO) {
-        log.d { "isAlbumFavorite(name=$name, artist=$artist)" }
-        val identifier = "$name|$artist"
-        database.favoriteDao().getFavorite("album", identifier) != null
+    suspend fun isAlbumFavorite(albumGroupId: String): Boolean = withContext(Dispatchers.IO) {
+        log.d { "isAlbumFavorite(albumGroupId=$albumGroupId)" }
+        database.favoriteDao().getFavorite("album", albumGroupId) != null
     }
 
     suspend fun toggleAlbumFavorite(album: Album): Boolean = withContext(Dispatchers.IO) {
-        log.d { "toggleAlbumFavorite(name=${album.name}, artist=${album.albumArtist})" }
+        log.d { "toggleAlbumFavorite(albumGroupId=${album.albumGroupId})" }
         val dao = database.favoriteDao()
-        val identifier = "${album.name}|${album.albumArtist}"
+        val identifier = album.albumGroupId
         val existing = dao.getFavorite("album", identifier)
         if (existing != null) {
             dao.delete(existing)
             false
         } else {
+            val displayName = "${album.name}|${album.albumArtist}|${album.folderPath}|${album.parentFolderPath}|${album.date}|${album.artworkFileKey}|${album.totalDiscs}|${album.discNumber}"
             val newFav = FavoriteEntity(
                 type = "album",
                 identifier = identifier,
-                displayName = album.name,
+                displayName = displayName,
                 addedAt = getTimeMillis()
             )
             dao.insert(newFav)

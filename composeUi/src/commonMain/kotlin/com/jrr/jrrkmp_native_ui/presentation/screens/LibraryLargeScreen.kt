@@ -416,7 +416,7 @@ private fun ArtistsSplit(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(albums) { album ->
-                            val isFavorite = state.favorites.any { it.type == "album" && it.identifier == "${album.name}|${album.albumArtist}" }
+                            val isFavorite = state.favorites.any { it.type == "album" && it.identifier == album.albumGroupId }
                             AlbumRowItem(
                                 album = album,
                                 isFavorite = isFavorite,

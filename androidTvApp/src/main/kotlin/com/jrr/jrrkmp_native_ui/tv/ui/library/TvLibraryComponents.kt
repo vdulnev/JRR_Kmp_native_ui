@@ -181,6 +181,8 @@ fun TvTrackListScreen(
     loader: suspend () -> List<Track>,
     onPlay: (tracks: List<Track>, startIndex: Int) -> Unit,
     loadKey: Any? = title,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
 ) {
     val tracks by produceState<List<Track>?>(initialValue = null, loadKey) {
         value = runCatching { loader() }.getOrElse { emptyList() }
@@ -197,6 +199,14 @@ fun TvTrackListScreen(
                 list.isEmpty() -> item { TvListRow("No tracks", onClick = {}) }
                 else -> {
                     item { TvListRow(headline = "▶  Play all", onClick = { onPlay(list, 0) }) }
+                    if (onToggleFavorite != null) {
+                        item {
+                            TvListRow(
+                                headline = if (isFavorite) "⭐  Remove Album from Favorites" else "⭐  Add Album to Favorites",
+                                onClick = onToggleFavorite
+                            )
+                        }
+                    }
                     itemsIndexed(list) { index, track ->
                         TvListRow(
                             headline = "${track.trackNumber}.  ${track.name}",

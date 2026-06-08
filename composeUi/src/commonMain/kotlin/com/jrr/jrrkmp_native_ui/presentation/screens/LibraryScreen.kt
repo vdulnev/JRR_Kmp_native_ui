@@ -412,7 +412,7 @@ fun ArtistsTab(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(filteredAlbums) { album ->
-                            val isFavorite = favorites.any { it.type == "album" && it.identifier == "${album.name}|${album.albumArtist}" }
+                            val isFavorite = favorites.any { it.type == "album" && it.identifier == album.albumGroupId }
                             AlbumRowItem(
                                 album = album,
                                 isFavorite = isFavorite,
@@ -752,7 +752,7 @@ fun RandomTab(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(albums) { album ->
-                    val isFavorite = favorites.any { it.type == "album" && it.identifier == "${album.name}|${album.albumArtist}" }
+                    val isFavorite = favorites.any { it.type == "album" && it.identifier == album.albumGroupId }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1848,19 +1848,33 @@ fun FavoritesTab(
                     Text("Albums", style = AppTypography.sectionLabel, modifier = Modifier.padding(vertical = 8.dp))
                 }
                 items(favoritedAlbums) { fav ->
-                    val parts = fav.identifier.split("|")
-                    val albumName = parts.getOrNull(0) ?: fav.displayName
-                    val artist = parts.getOrNull(1) ?: "Unknown Artist"
-                    val album = Album(
-                        name = albumName,
-                        albumArtist = artist,
-                        folderPath = "",
-                        parentFolderPath = "",
-                        date = "",
-                        artworkFileKey = "",
-                        totalDiscs = 1,
-                        discNumber = 1
-                    )
+                    val displayNameParts = fav.displayName.split("|")
+                    val album = if (displayNameParts.size >= 8) {
+                        Album(
+                            name = displayNameParts[0],
+                            albumArtist = displayNameParts[1],
+                            folderPath = displayNameParts[2],
+                            parentFolderPath = displayNameParts[3],
+                            date = displayNameParts[4],
+                            artworkFileKey = displayNameParts[5],
+                            totalDiscs = displayNameParts[6].toIntOrNull() ?: 1,
+                            discNumber = displayNameParts[7].toIntOrNull() ?: 1
+                        )
+                    } else {
+                        val parts = fav.identifier.split("|")
+                        val albumName = parts.getOrNull(0) ?: fav.displayName
+                        val artist = parts.getOrNull(1) ?: "Unknown Artist"
+                        Album(
+                            name = albumName,
+                            albumArtist = artist,
+                            folderPath = "",
+                            parentFolderPath = "",
+                            date = "",
+                            artworkFileKey = "",
+                            totalDiscs = 1,
+                            discNumber = 1
+                        )
+                    }
                     AlbumRowItem(
                         album = album,
                         isFavorite = true,

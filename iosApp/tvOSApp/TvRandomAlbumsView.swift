@@ -27,7 +27,7 @@ struct TvRandomAlbumsView: View {
                                         HStack(spacing: 8) {
                                             Text(album.name.isEmpty ? "Unknown Album" : album.name)
                                                 .font(.headline).lineLimit(1)
-                                            if favoriteAlbumKeys.contains("\(album.name)|\(album.albumArtist)") {
+                                            if favoriteAlbumKeys.contains(album.albumGroupId) {
                                                 Image(systemName: "star.fill")
                                                     .foregroundColor(.accentColor)
                                                     .font(.system(size: 14))
@@ -64,14 +64,14 @@ struct TvRandomAlbumsView: View {
                                         Task {
                                             if let nowFav = try? await observable.toggleAlbumFavorite(album: album) {
                                                 if nowFav {
-                                                    favoriteAlbumKeys.insert("\(album.name)|\(album.albumArtist)")
+                                                    favoriteAlbumKeys.insert(album.albumGroupId)
                                                 } else {
-                                                    favoriteAlbumKeys.remove("\(album.name)|\(album.albumArtist)")
+                                                    favoriteAlbumKeys.remove(album.albumGroupId)
                                                 }
                                             }
                                         }
                                     } label: {
-                                        let isFav = favoriteAlbumKeys.contains("\(album.name)|\(album.albumArtist)")
+                                        let isFav = favoriteAlbumKeys.contains(album.albumGroupId)
                                         Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
                                     }
                                 }
@@ -98,8 +98,8 @@ struct TvRandomAlbumsView: View {
         do {
             albums = try await observable.randomAlbums(limit: 24)
             if let favs = try? await observable.favoriteAlbums() {
-                favoriteAlbumKeys = Set(favs.map { "\($0.name)|\($0.albumArtist)" })
-            }
+                 favoriteAlbumKeys = Set(favs.map(\.albumGroupId))
+             }
         } catch {
             albums = []
             favoriteAlbumKeys = []

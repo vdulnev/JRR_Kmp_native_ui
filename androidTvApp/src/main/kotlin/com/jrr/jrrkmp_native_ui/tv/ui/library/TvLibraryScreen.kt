@@ -18,11 +18,13 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import kotlinx.coroutines.launch
 import com.jrr.jrrkmp_native_ui.data.repository.BrowseContent
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.TvLibraryViewModel
@@ -41,11 +43,32 @@ internal fun ArtistsFlow(vm: TvLibraryViewModel, drill: () -> Unit, onDrillChang
     var album by remember { mutableStateOf<Album?>(null) }
     LaunchedEffect(artist, album) { onDrillChange(artist != null || album != null) }
 
+    val scope = rememberCoroutineScope()
+    var isFavorite by remember(album) { mutableStateOf(false) }
+    LaunchedEffect(album) {
+        album?.let { a ->
+            isFavorite = vm.isAlbumFavorite(a.albumGroupId)
+        }
+    }
+
     when {
         album != null -> {
             val a = album!!
             BackHandler { album = null }
-            TvTrackListScreen(a.name, a.albumArtist, { vm.albumTracks(a) }, vm::play, a.albumGroupId)
+            TvTrackListScreen(
+                title = a.name,
+                subtitle = a.albumArtist,
+                loader = { vm.albumTracks(a) },
+                onPlay = vm::play,
+                loadKey = a.albumGroupId,
+                isFavorite = isFavorite,
+                onToggleFavorite = {
+                    scope.launch {
+                        val nowFav = vm.toggleAlbumFavorite(a)
+                        isFavorite = nowFav
+                    }
+                }
+            )
         }
         artist != null -> {
             val ar = artist!!
@@ -63,10 +86,31 @@ internal fun RandomAlbumsFlow(vm: TvLibraryViewModel, drill: () -> Unit, onDrill
     var album by remember { mutableStateOf<Album?>(null) }
     LaunchedEffect(album) { onDrillChange(album != null) }
 
+    val scope = rememberCoroutineScope()
+    var isFavorite by remember(album) { mutableStateOf(false) }
+    LaunchedEffect(album) {
+        album?.let { a ->
+            isFavorite = vm.isAlbumFavorite(a.albumGroupId)
+        }
+    }
+
     if (album != null) {
         val a = album!!
         BackHandler { album = null }
-        TvTrackListScreen(a.name, a.albumArtist, { vm.albumTracks(a) }, vm::play, a.albumGroupId)
+        TvTrackListScreen(
+            title = a.name,
+            subtitle = a.albumArtist,
+            loader = { vm.albumTracks(a) },
+            onPlay = vm::play,
+            loadKey = a.albumGroupId,
+            isFavorite = isFavorite,
+            onToggleFavorite = {
+                scope.launch {
+                    val nowFav = vm.toggleAlbumFavorite(a)
+                    isFavorite = nowFav
+                }
+            }
+        )
     } else {
         TvAlbumGridScreen("Random Albums", null, { vm.randomAlbums() }, { vm.artworkUrl(it.artworkFileKey) }, { drill(); album = it }, "random", searchHint = "Search albums", onSearchToggle = drill)
     }
@@ -124,12 +168,33 @@ internal fun FavoritesFlow(vm: TvLibraryViewModel, drill: () -> Unit, onDrillCha
     var album by remember { mutableStateOf<Album?>(null) }
     LaunchedEffect(album) { onDrillChange(album != null) }
 
+    val scope = rememberCoroutineScope()
+    var isFavorite by remember(album) { mutableStateOf(false) }
+    LaunchedEffect(album) {
+        album?.let { a ->
+            isFavorite = vm.isAlbumFavorite(a.albumGroupId)
+        }
+    }
+
     if (album != null) {
         val a = album!!
         BackHandler { album = null }
-        TvTrackListScreen(a.name, a.albumArtist, { vm.albumTracks(a) }, vm::play, a.albumGroupId)
+        TvTrackListScreen(
+            title = a.name,
+            subtitle = a.albumArtist,
+            loader = { vm.albumTracks(a) },
+            onPlay = vm::play,
+            loadKey = a.albumGroupId,
+            isFavorite = isFavorite,
+            onToggleFavorite = {
+                scope.launch {
+                    val nowFav = vm.toggleAlbumFavorite(a)
+                    isFavorite = nowFav
+                }
+            }
+        )
     } else {
-        val albums by produceState<List<Album>?>(initialValue = null) {
+        val albums by produceState<List<Album>?>(initialValue = null, album) {
             value = runCatching { vm.favoriteAlbums() }.getOrElse { emptyList() }
         }
         Column(modifier = Modifier.fillMaxSize()) {
