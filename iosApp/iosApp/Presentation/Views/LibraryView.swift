@@ -180,6 +180,11 @@ class LibraryObservable {
     func addTracksToQueue(_ tracks: [Track]) {
         viewModel.addTracksToQueue(tracks: tracks)
     }
+
+    /// Tracks never played (Number Plays unset/zero) — Browse "Show not played".
+    func notPlayed(_ tracks: [Track]) -> [Track] {
+        viewModel.notPlayed(tracks: tracks)
+    }
 }
 
 /// Collapses the chrome (header / filter / mini-player) when a list is scrolled
@@ -287,6 +292,9 @@ struct LibraryView: View {
     /// Browse tab: when on, a flat track listing is reorganised into Album
     /// Artist → Album sections. `@State` here survives switching tabs.
     @State private var browseGrouped = false
+    /// Browse tab: when on, only tracks never played (Number Plays unset/zero)
+    /// are shown. The filtering rule itself lives in the repository.
+    @State private var browseNotPlayedOnly = false
     /// Album groupIds the user has collapsed in the grouped browse view.
     @State private var collapsedBrowseAlbums: Set<String> = []
     /// Persisted top-visible row id of the compilations contributing-artists
@@ -1084,6 +1092,9 @@ struct LibraryView: View {
                     Button { observable.refreshBrowse() } label: {
                         Label("Refresh", systemImage: "arrow.clockwise")
                     }
+                    Toggle(isOn: $browseNotPlayedOnly) {
+                        Label("Show not played", systemImage: "circle.dashed")
+                    }
                     Toggle(isOn: $browseGrouped) {
                         Label("Group by album artist", systemImage: "person.2")
                     }
@@ -1110,7 +1121,13 @@ struct LibraryView: View {
     }
 
     private func collapseAllBrowseAlbums() {
-        collapsedBrowseAlbums = Set(observable.browseTracks.map { BrowseTrackGroupingKt.albumGroupKeyOf(track: $0) })
+        collapsedBrowseAlbums = Set(browseDisplayTracks.map { BrowseTrackGroupingKt.albumGroupKeyOf(track: $0) })
+    }
+
+    /// Browse tracks after the "Show not played" toggle. The filtering rule
+    /// lives in the repository; the view just chooses whether to apply it.
+    private var browseDisplayTracks: [Track] {
+        browseNotPlayedOnly ? observable.notPlayed(observable.browseTracks) : observable.browseTracks
     }
 
     @ViewBuilder
@@ -1243,10 +1260,11 @@ struct LibraryView: View {
         let cols = isLarge
             ? [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
             : [GridItem(.flexible())]
+        let shown = browseDisplayTracks
         LazyVGrid(columns: cols, spacing: 8) {
-            ForEach(observable.browseTracks, id: \.fileKey) { track in
+            ForEach(shown, id: \.fileKey) { track in
                 trackRowItem(track: track) {
-                    observable.playTracks(observable.browseTracks, startIndex: observable.browseTracks.firstIndex(of: track) ?? 0)
+                    observable.playTracks(shown, startIndex: shown.firstIndex(of: track) ?? 0)
                 }
             }
         }
@@ -1259,7 +1277,7 @@ struct LibraryView: View {
         // Reuses the shared multi-disc folding (BrowseTrackGrouping.kt): a 2-CD
         // set whose per-disc rows carry "… [CD1]"/"[CD2]" tags collapses into a
         // single normalised album, matching the Artists→Albums view.
-        let groups = BrowseTrackGroupingKt.groupTracksByArtistAndAlbum(tracks: observable.browseTracks)
+        let groups = BrowseTrackGroupingKt.groupTracksByArtistAndAlbum(tracks: browseDisplayTracks)
         LazyVStack(alignment: .leading, spacing: 8) {
             ForEach(groups, id: \.artist) { artistGroup in
                 HStack {

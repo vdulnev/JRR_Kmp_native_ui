@@ -101,6 +101,9 @@ class TvLibraryViewModel(
      *  multi-disc-aware grouping). Used by the Browse leaf's grouped view. */
     fun group(tracks: List<Track>): List<ArtistTrackGroup> = groupTracksByArtistAndAlbum(tracks)
 
+    /** Tracks never played (Number Plays unset/zero) — Browse "Show not played". */
+    fun notPlayed(tracks: List<Track>): List<Track> = libraryRepository.notPlayedTracks(tracks)
+
     /** Thumbnail URL for an artwork file key, or null when there is none. */
     fun artworkUrl(fileKey: String): String? =
         fileKey.takeIf { it.isNotEmpty() }?.let { mcwsClient.buildImageUrl(it) }

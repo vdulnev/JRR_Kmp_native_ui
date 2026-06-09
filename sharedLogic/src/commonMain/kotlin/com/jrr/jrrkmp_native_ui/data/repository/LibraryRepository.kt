@@ -120,6 +120,14 @@ private val MULTI_SPACE = Regex("""\s{2,}""")
  *
  * Exposed as `internal` so tests can hammer it with real-world cases.
  */
+/**
+ * Tracks that have never been played — `Track.numberPlays` unset or zero.
+ * Exposed as `internal` so unit tests can exercise it directly; the public
+ * entry point is [LibraryRepository.notPlayedTracks].
+ */
+internal fun filterNotPlayedTracks(tracks: List<Track>): List<Track> =
+    tracks.filter { it.numberPlays <= 0 }
+
 internal fun normalizeAlbumName(name: String): String {
     var result = name
     // Replace with " " (not "") so a disc-marker block in the middle leaves
@@ -720,6 +728,14 @@ class LibraryRepository(
             BrowseContent.Files(mcwsClient.getBrowseFiles(parentId))
         }
     }
+
+    /**
+     * Keep only the tracks that have never been played — JRiver's
+     * `[Number Plays]` unset or zero. Powers the Browse "Show not played"
+     * toggle. Pure filter over an already-loaded list (e.g. a Browse leaf /
+     * playlist), so it needs no extra network round-trip.
+     */
+    fun notPlayedTracks(tracks: List<Track>): List<Track> = filterNotPlayedTracks(tracks)
 
     suspend fun getRemoteQueue(): List<Track> = withContext(Dispatchers.IO) {
         mcwsClient.getRemoteQueue()

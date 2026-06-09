@@ -110,6 +110,7 @@ fun LibraryScreen(
     // Browse grouping toggle + per-album collapse state are hoisted here so
     // they survive switching away from and back to the Browse tab.
     var browseGrouped by remember { mutableStateOf(false) }
+    var browseNotPlayedOnly by remember { mutableStateOf(false) }
     val browseCollapsedAlbums = remember { mutableStateMapOf<String, Boolean>() }
 
     LaunchedEffect(state.transientError) {
@@ -240,7 +241,7 @@ fun LibraryScreen(
                 "browse" -> BrowseTab(
                     stack = state.browseStack,
                     children = state.browseChildren,
-                    tracks = state.browseTracks,
+                    tracks = if (browseNotPlayedOnly) viewModel.notPlayed(state.browseTracks) else state.browseTracks,
                     isLoading = state.isLoading || state.isTabLoading,
                     onNodeClick = { label, id ->
                         viewModel.pushBrowseNode(label, id)
@@ -261,6 +262,8 @@ fun LibraryScreen(
                     onTrackInfoClick = { infoTrack = it },
                     grouped = browseGrouped,
                     onGroupedChange = { browseGrouped = it },
+                    notPlayedOnly = browseNotPlayedOnly,
+                    onNotPlayedChange = { browseNotPlayedOnly = it },
                     collapsedAlbums = browseCollapsedAlbums,
                     onPlayTracks = { viewModel.playTracks(it, 0) },
                     onPlayTracksNext = { viewModel.playTracksNext(it) },
@@ -888,6 +891,8 @@ fun BrowseTab(
     onTrackInfoClick: (Track) -> Unit,
     grouped: Boolean,
     onGroupedChange: (Boolean) -> Unit,
+    notPlayedOnly: Boolean,
+    onNotPlayedChange: (Boolean) -> Unit,
     collapsedAlbums: MutableMap<String, Boolean>,
     onPlayTracks: (List<Track>) -> Unit,
     onPlayTracksNext: (List<Track>) -> Unit,
@@ -946,6 +951,13 @@ fun BrowseTab(
                             text = { Text("Refresh", style = AppTypography.itemTitle) },
                             leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = AppColors.text2) },
                             onClick = { showHeaderMenu = false; onRefresh() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Show not played", style = AppTypography.itemTitle) },
+                            trailingIcon = {
+                                if (notPlayedOnly) Icon(Icons.Default.Check, contentDescription = "On", tint = AppColors.accent)
+                            },
+                            onClick = { showHeaderMenu = false; onNotPlayedChange(!notPlayedOnly) }
                         )
                         DropdownMenuItem(
                             text = { Text("Group by album artist", style = AppTypography.itemTitle) },

@@ -19,11 +19,21 @@ struct TvBrowseNodeView: View {
 
     @State private var children: [BrowseItem] = []
     @State private var tracks: [Track] = []
-    @State private var artistGroups: [ArtistTrackGroup] = []
     @State private var grouped = true
+    @State private var notPlayedOnly = false
     @State private var loading = true
     @State private var favoritedKeys: Set<String> = []
     @State private var favoritedTrackKeys: Set<String> = []
+
+    /// The repository owns the "not played" rule; the view just toggles it over
+    /// the already-loaded node tracks and re-groups the filtered result.
+    private var displayTracks: [Track] {
+        notPlayedOnly ? observable.notPlayed(tracks: tracks) : tracks
+    }
+
+    private var displayGroups: [ArtistTrackGroup] {
+        observable.group(tracks: displayTracks)
+    }
 
     var body: some View {
         Group {
@@ -88,6 +98,12 @@ struct TvBrowseNodeView: View {
         .toolbar {
             if !tracks.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button { notPlayedOnly.toggle() } label: {
+                        Label(notPlayedOnly ? "Not Played" : "All Plays",
+                              systemImage: notPlayedOnly ? "circle.dashed" : "circle")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { grouped.toggle() } label: {
                         Label(grouped ? "Grouped" : "Flat",
                               systemImage: grouped ? "rectangle.grid.1x2" : "list.bullet")
@@ -102,14 +118,14 @@ struct TvBrowseNodeView: View {
         List {
             Section {
                 Button {
-                    play(tracks, from: 0)
+                    play(displayTracks, from: 0)
                 } label: { Label("Play All", systemImage: "play.fill") }
             }
             if grouped {
                 // Drill-down: Album Artists → Albums → Tracks, on the node's
                 // tracks grouped by the shared groupTracksByArtistAndAlbum
                 // (multi-disc albums folded). Same shape as the Artists tab.
-                ForEach(Array(artistGroups.enumerated()), id: \.offset) { _, artistGroup in
+                ForEach(Array(displayGroups.enumerated()), id: \.offset) { _, artistGroup in
                     NavigationLink {
                         TvBrowseArtistAlbumsView(artist: artistGroup.artist, albums: artistGroup.albums)
                     } label: {
@@ -131,9 +147,9 @@ struct TvBrowseNodeView: View {
                     }
                 }
             } else {
-                ForEach(Array(tracks.enumerated()), id: \.element.fileKey) { index, track in
+                ForEach(Array(displayTracks.enumerated()), id: \.element.fileKey) { index, track in
                     Button {
-                        play(tracks, from: index)
+                        play(displayTracks, from: index)
                     } label: {
                         trackRow(track)
                     }
@@ -197,7 +213,6 @@ struct TvBrowseNodeView: View {
             if kids.isEmpty {
                 let files = try await observable.browseFiles(nodeId: nodeId)
                 tracks = files
-                artistGroups = observable.group(tracks: files)
                 if let favs = try? await observable.favoriteTracks() {
                     favoritedTrackKeys = Set(favs.map(\.fileKey))
                 }
