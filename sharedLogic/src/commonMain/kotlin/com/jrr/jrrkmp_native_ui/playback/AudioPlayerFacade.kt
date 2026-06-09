@@ -96,6 +96,13 @@ class AudioPlayerFacade(
     val currentServerToken: String?
         get() = serverRepository?.activeServer?.value?.token
 
+    /**
+     * Identity of the connected real server (empty when none). Favorites are
+     * scoped to it; ViewModels observe this to swap favorites on connect.
+     */
+    val activeServerId: StateFlow<String> =
+        serverRepository?.activeServerId ?: MutableStateFlow("")
+
     // Local audio quality (server-side transcode level for streaming/downloads)
     private val _localAudioQuality = MutableStateFlow(
         LocalAudioQuality.fromName(loadLocalAudioQuality()),

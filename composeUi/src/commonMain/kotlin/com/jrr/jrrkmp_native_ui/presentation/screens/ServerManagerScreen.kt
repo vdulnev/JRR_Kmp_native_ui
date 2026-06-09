@@ -61,10 +61,8 @@ fun ServerManagerScreen(
     var isConnecting by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) } // 0 = Access Key, 1 = Manual
 
-    // Profile currently being assigned to a group, and the group being renamed.
-    var assignTarget by remember { mutableStateOf<SavedServerEntity?>(null) }
-    var renameTarget by remember { mutableStateOf<String?>(null) }
-    var groupNameInput by remember { mutableStateOf("") }
+    // Profile currently being merged into another real server.
+    var mergeTarget by remember { mutableStateOf<SavedServerEntity?>(null) }
 
     // Fetch saved servers (folded into groups)
     LaunchedEffect(Unit) {
@@ -95,10 +93,13 @@ fun ServerManagerScreen(
                         authToken = token,
                         useSsl = ssl,
                         sslPort = sp,
-                        // Preserve the group so reconnecting doesn't ungroup a profile.
-                        groupName = existing?.groupName
+                        // Preserve identity so reconnecting keeps the same server.
+                        serverId = existing?.serverId ?: ""
                     )
-                    serverRepository.saveServer(entity)
+                    // saveServer resolves/mints the real-server identity; scope
+                    // favorites to it.
+                    val serverId = serverRepository.saveServer(entity)
+                    serverRepository.setActiveServerId(serverId)
                     // Set active connection on facade
                     facade.setServerConnection(h, p, ssl, sp, token)
                     
@@ -299,9 +300,12 @@ fun ServerManagerScreen(
         scope.launch { serverGroups = serverRepository.getServerGroups() }
     }
 
-    // One saved connection profile. Tap to connect; overflow menu groups it with
-    // other ip/port settings of the same real server (or ungroups it).
-    val profileRow: @Composable (SavedServerEntity, Boolean) -> Unit = { server, indented ->
+    // Whether more than one real server exists (so "Merge with…" has a target).
+    val hasMergeTargets = serverGroups.size > 1
+
+    // One saved connection profile. Tap to connect; overflow menu marks it as
+    // the same real server as another (merge) or splits it into its own.
+    val profileRow: @Composable (SavedServerEntity, Boolean, Boolean) -> Unit = { server, indented, canSplit ->
         var menuOpen by remember(server.id) { mutableStateOf(false) }
         Row(
             modifier = Modifier
@@ -337,16 +341,18 @@ fun ServerManagerScreen(
                     onDismissRequest = { menuOpen = false },
                     modifier = Modifier.background(AppColors.bg2)
                 ) {
-                    DropdownMenuItem(
-                        text = { Text(if (server.groupName == null) "Add to group…" else "Move to group…", style = AppTypography.itemTitle) },
-                        onClick = { menuOpen = false; groupNameInput = server.groupName ?: ""; assignTarget = server }
-                    )
-                    if (server.groupName != null) {
+                    if (hasMergeTargets) {
                         DropdownMenuItem(
-                            text = { Text("Remove from group", style = AppTypography.itemTitle) },
+                            text = { Text("Same server as…", style = AppTypography.itemTitle) },
+                            onClick = { menuOpen = false; mergeTarget = server }
+                        )
+                    }
+                    if (canSplit) {
+                        DropdownMenuItem(
+                            text = { Text("Make separate server", style = AppTypography.itemTitle) },
                             onClick = {
                                 menuOpen = false
-                                scope.launch { serverRepository.setProfileGroup(server.id, null); reloadGroups() }
+                                scope.launch { serverRepository.splitProfileToNewServer(server.id); reloadGroups() }
                             }
                         )
                     }
@@ -375,27 +381,18 @@ fun ServerManagerScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             serverGroups.forEach { group ->
-                val name = group.name
-                if (name == null) {
-                    item(key = group.profiles.first().id) { profileRow(group.profiles.first(), false) }
+                if (group.profiles.size == 1) {
+                    item(key = group.profiles.first().id) { profileRow(group.profiles.first(), false, false) }
                 } else {
-                    item(key = "group:$name") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "$name  (${group.profiles.size})",
-                                style = AppTypography.sectionLabel,
-                                color = AppColors.accent,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(onClick = { renameTarget = name; groupNameInput = name }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Rename group", tint = AppColors.text2)
-                            }
-                        }
+                    item(key = "group:${group.serverId}") {
+                        Text(
+                            text = "${group.displayName}  (${group.profiles.size})",
+                            style = AppTypography.sectionLabel,
+                            color = AppColors.accent,
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        )
                     }
-                    items(group.profiles, key = { it.id }) { profileRow(it, true) }
+                    items(group.profiles, key = { it.id }) { profileRow(it, true, true) }
                 }
             }
         }
@@ -434,80 +431,36 @@ fun ServerManagerScreen(
         }
     }
 
-    // Assign a profile to a group: type a new name or tap an existing one.
-    assignTarget?.let { target ->
-        val existing = serverGroups.mapNotNull { it.name }.distinct()
+    // Mark a profile as the same real server as another: pick the target. Its
+    // favorites merge into the target server.
+    mergeTarget?.let { target ->
+        val others = serverGroups.filter { it.serverId != target.serverId }
         AlertDialog(
-            onDismissRequest = { assignTarget = null },
+            onDismissRequest = { mergeTarget = null },
             containerColor = AppColors.bg2,
-            title = { Text("Group connection", color = AppColors.text) },
+            title = { Text("Same server as…", color = AppColors.text) },
             text = {
                 Column {
                     Text(
-                        "Profiles in the same group are different ip/port settings for one server.",
+                        "Pick the real server this connection points at. Its favorites merge with that server's.",
                         style = AppTypography.itemSubtitle,
                         color = AppColors.text2,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
-                    OutlinedTextField(
-                        value = groupNameInput,
-                        onValueChange = { groupNameInput = it },
-                        label = { Text("Group name", color = AppColors.text2) },
-                        colors = outlinedTextFieldColors(),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (existing.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
-                        Text("Existing:", style = AppTypography.itemSubtitle, color = AppColors.text2)
-                        existing.forEach { g ->
-                            TextButton(onClick = { groupNameInput = g }) { Text(g, color = AppColors.accent) }
-                        }
+                    others.forEach { g ->
+                        TextButton(onClick = {
+                            scope.launch {
+                                serverRepository.mergeProfileIntoServer(target.id, g.serverId)
+                                reloadGroups()
+                            }
+                            mergeTarget = null
+                        }) { Text(g.displayName, color = AppColors.accent) }
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    val name = groupNameInput.trim()
-                    if (name.isNotEmpty()) {
-                        scope.launch { serverRepository.setProfileGroup(target.id, name); reloadGroups() }
-                    }
-                    assignTarget = null
-                }) { Text("Save", color = AppColors.accent) }
-            },
+            confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { assignTarget = null }) { Text("Cancel", color = AppColors.text2) }
-            }
-        )
-    }
-
-    // Rename a whole group (moves every profile under it).
-    renameTarget?.let { old ->
-        AlertDialog(
-            onDismissRequest = { renameTarget = null },
-            containerColor = AppColors.bg2,
-            title = { Text("Rename group", color = AppColors.text) },
-            text = {
-                OutlinedTextField(
-                    value = groupNameInput,
-                    onValueChange = { groupNameInput = it },
-                    label = { Text("Group name", color = AppColors.text2) },
-                    colors = outlinedTextFieldColors(),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val name = groupNameInput.trim()
-                    if (name.isNotEmpty()) {
-                        scope.launch { serverRepository.renameServerGroup(old, name); reloadGroups() }
-                    }
-                    renameTarget = null
-                }) { Text("Save", color = AppColors.accent) }
-            },
-            dismissButton = {
-                TextButton(onClick = { renameTarget = null }) { Text("Cancel", color = AppColors.text2) }
+                TextButton(onClick = { mergeTarget = null }) { Text("Cancel", color = AppColors.text2) }
             }
         )
     }

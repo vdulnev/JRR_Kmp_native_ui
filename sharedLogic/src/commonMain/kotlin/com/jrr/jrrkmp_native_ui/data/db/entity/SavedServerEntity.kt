@@ -25,10 +25,11 @@ data class SavedServerEntity(
     @ColumnInfo(name = "ssl_port")
     val sslPort: Int = 52200,
     /**
-     * Name of the manual group this connection profile belongs to, or `null`
-     * when it's a standalone profile. Profiles that share a non-null
-     * [groupName] are different ip/port settings for the *same* real server.
+     * Stable identity of the *real* server this connection profile points at.
+     * Profiles that share a `serverId` are different ip/port settings for the
+     * same physical server; a profile with its own unique `serverId` is, by
+     * definition, a distinct server. This is the key favorites are scoped by.
      */
-    @ColumnInfo(name = "group_name")
-    val groupName: String? = null
+    @ColumnInfo(name = "server_id")
+    val serverId: String = ""
 )

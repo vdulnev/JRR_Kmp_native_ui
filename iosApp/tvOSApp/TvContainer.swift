@@ -100,14 +100,9 @@ final class TvContainer {
         )
     }
 
-    /// Clears the active server and forgets saved servers so launch restore
-    /// won't reconnect — used by the Settings "Disconnect" action.
+    /// Clears the active connection (Settings "Disconnect"). Saved server
+    /// configurations are kept so the user can reconnect to them later.
     func disconnect() async {
-        if let servers = try? await serverRepository.getAllServers() {
-            for s in servers {
-                try? await serverRepository.deleteServer(server: s)
-            }
-        }
         serverRepository.setActiveServer(host: "", port: 52199, useSsl: false, sslPort: 52200, token: nil)
     }
 }

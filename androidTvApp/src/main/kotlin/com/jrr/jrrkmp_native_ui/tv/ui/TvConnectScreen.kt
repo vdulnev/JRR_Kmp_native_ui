@@ -5,6 +5,8 @@ package com.jrr.jrrkmp_native_ui.tv.ui
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -25,10 +27,14 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.jrr.jrrkmp_native_ui.data.db.entity.SavedServerEntity
+import com.jrr.jrrkmp_native_ui.data.repository.ServerGroup
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.TvConnectViewModel
 import com.jrr.jrrkmp_native_ui.tv.ui.components.TvTextField
 import com.jrr.jrrkmp_native_ui.tv.ui.components.jrrButtonColors
 import com.jrr.jrrkmp_native_ui.tv.ui.theme.JrrError
+import com.jrr.jrrkmp_native_ui.tv.ui.theme.JrrMuted
+import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.launch
 
 /**
@@ -47,7 +53,23 @@ fun TvConnectScreen(
     var password by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var savedGroups by remember { mutableStateOf<List<ServerGroup>>(emptyList()) }
+    // Profile awaiting a "same server as…" target pick.
+    var mergeProfile by remember { mutableStateOf<SavedServerEntity?>(null) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) { savedGroups = vm.savedServers() }
+
+    fun connectSaved(server: SavedServerEntity) {
+        if (busy) return
+        busy = true
+        status = ""
+        scope.launch {
+            val ok = vm.connectSaved(server)
+            if (ok) onConnected() else status = "Connection failed — server may be offline."
+            busy = false
+        }
+    }
 
     fun connect() {
         if (busy || host.isBlank()) return
@@ -85,6 +107,98 @@ fun TvConnectScreen(
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 8.dp),
         )
+
+        // "Same server as…" target chooser: pick which real server this profile
+        // belongs to. Its favorites merge into the chosen server.
+        val pending = mergeProfile
+        if (pending != null) {
+            Column(
+                modifier = Modifier.widthIn(max = 720.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    "Same server as… (${pending.friendlyName ?: pending.host})",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = JrrMuted,
+                )
+                savedGroups.filter { it.serverId != pending.serverId }.forEach { group ->
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                vm.mergeSaved(pending.id, group.serverId)
+                                mergeProfile = null
+                                savedGroups = vm.savedServers()
+                            }
+                        },
+                        colors = jrrButtonColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(group.displayName) }
+                }
+                Button(onClick = { mergeProfile = null }, colors = jrrButtonColors()) { Text("Cancel") }
+            }
+        } else if (savedGroups.isNotEmpty()) {
+            // Saved connections picker — tap to reconnect to a remembered server.
+            Column(
+                modifier = Modifier.widthIn(max = 720.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text("Saved connections", style = MaterialTheme.typography.titleMedium, color = JrrMuted)
+                savedGroups.forEach { group ->
+                    if (group.profiles.size > 1) {
+                        Text(
+                            "${group.displayName}  (${group.profiles.size})",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = JrrMuted,
+                        )
+                    }
+                    group.profiles.forEach { server ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Button(
+                                onClick = { connectSaved(server) },
+                                enabled = !busy,
+                                colors = jrrButtonColors(),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("${server.friendlyName ?: server.host}  —  ${server.host}:${if (server.useSsl) server.sslPort else server.port}")
+                            }
+                            if (savedGroups.size > 1) {
+                                Button(
+                                    onClick = { mergeProfile = server },
+                                    enabled = !busy,
+                                    colors = jrrButtonColors(),
+                                ) { Text("Same as…") }
+                            }
+                            if (group.profiles.size > 1) {
+                                Button(
+                                    onClick = {
+                                        scope.launch { vm.splitSaved(server.id); savedGroups = vm.savedServers() }
+                                    },
+                                    enabled = !busy,
+                                    colors = jrrButtonColors(),
+                                ) { Text("Separate") }
+                            }
+                            Button(
+                                onClick = {
+                                    scope.launch { vm.deleteSaved(server); savedGroups = vm.savedServers() }
+                                },
+                                enabled = !busy,
+                                colors = jrrButtonColors(),
+                            ) { Text("Remove") }
+                        }
+                    }
+                }
+                Text(
+                    "Or add a new connection:",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = JrrMuted,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+        }
+
         Column(modifier = Modifier.widthIn(max = 720.dp)) {
             TvTextField("Host or IP", host, { host = it }, imeAction = ImeAction.Next)
             TvTextField("Port", port, { port = it }, keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)

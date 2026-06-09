@@ -68,10 +68,15 @@ class AlbumDetailViewModel(
     init {
         log.d { "init album=${album.name} artist=${album.albumArtist}" }
         state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
+        // Favorites are per real server: re-subscribe on identity change.
+        @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+        val favoritesFlow = facade.activeServerId.flatMapLatest { sid ->
+            database.favoriteDao().getAllFavoritesFlow(sid)
+        }
         val dbStateFlow = combine(
             database.downloadedTrackDao().getAllTracksFlow(),
             database.downloadJobDao().getAllJobsFlow(),
-            database.favoriteDao().getAllFavoritesFlow()
+            favoritesFlow
         ) { downloaded, jobs, favorites ->
             Triple(downloaded, jobs, favorites)
         }
@@ -123,7 +128,7 @@ class AlbumDetailViewModel(
 
                 // Check favorite status in DB
                 val identifier = album.albumGroupId
-                val favorite = database.favoriteDao().getFavorite("album", identifier) != null
+                val favorite = database.favoriteDao().getFavorite(facade.activeServerId.value, "album", identifier) != null
                 favoriteFlow.value = favorite
             } catch (e: Exception) {
                 log.e(e) { "refreshTracksAndFavorite failed" }
@@ -172,7 +177,8 @@ class AlbumDetailViewModel(
             try {
                 val identifier = album.albumGroupId
                 val dao = database.favoriteDao()
-                val existing = dao.getFavorite("album", identifier)
+                val sid = facade.activeServerId.value
+                val existing = dao.getFavorite(sid, "album", identifier)
                 if (existing != null) {
                     dao.delete(existing)
                     favoriteFlow.value = false
@@ -180,6 +186,7 @@ class AlbumDetailViewModel(
                 } else {
                     val displayName = "${album.name}|${album.albumArtist}|${album.folderPath}|${album.parentFolderPath}|${album.date}|${album.artworkFileKey}|${album.totalDiscs}|${album.discNumber}"
                     val newFav = FavoriteEntity(
+                        serverId = sid,
                         type = "album",
                         identifier = identifier,
                         displayName = displayName,
@@ -200,13 +207,15 @@ class AlbumDetailViewModel(
         viewModelScope.launch {
             try {
                 val dao = database.favoriteDao()
-                val existing = dao.getFavorite("track", track.fileKey)
+                val sid = facade.activeServerId.value
+                val existing = dao.getFavorite(sid, "track", track.fileKey)
                 if (existing != null) {
                     dao.delete(existing)
                     log.d { "favorite track removed fileKey=${track.fileKey}" }
                 } else {
                     val displayName = "${track.name}|${track.artist}|${track.album}|${track.durationMs}"
                     val newFav = FavoriteEntity(
+                        serverId = sid,
                         type = "track",
                         identifier = track.fileKey,
                         displayName = displayName,
