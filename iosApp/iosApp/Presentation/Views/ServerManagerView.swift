@@ -124,12 +124,14 @@ struct ServerManagerView: View {
 
                 VStack(spacing: 12) {
                     if activeTab == 0 {
-                        customTextField(title: "6-Digit Access Key", text: $accessKey, placeholder: "e.g. A1B2C3")
+                        customTextField(title: "6-Digit Access Key", text: $accessKey, placeholder: "e.g. aB3xZ9")
+                            // Access keys are case-sensitive — do not force caps.
+                            .noAutocapitalization()
+                            .disableAutocorrection(true)
                             .onChange(of: accessKey) { _, newVal in
                                 if newVal.count > 6 {
                                     accessKey = String(newVal.prefix(6))
                                 }
-                                accessKey = accessKey.uppercased()
                             }
                     } else {
                         customTextField(title: "Host Address / IP", text: $host, placeholder: "e.g. 192.168.1.100")
