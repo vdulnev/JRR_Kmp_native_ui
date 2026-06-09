@@ -15,6 +15,12 @@ struct ServerManagerView: View {
     }
 
     @State private var savedServers: [SavedServerEntity] = []
+    /// Saved profiles folded into groups (one entry per real server).
+    @State private var serverGroups: [ServerGroup] = []
+    /// Profile being assigned to a group; the group being renamed; shared input.
+    @State private var assignTarget: SavedServerEntity? = nil
+    @State private var renameTarget: String? = nil
+    @State private var groupNameInput = ""
 
     @State private var activeTab = 0 // 0 = Access Key, 1 = Manual IP
     @State private var accessKey = ""
@@ -51,6 +57,36 @@ struct ServerManagerView: View {
         }
         .background(Color.bg1.ignoresSafeArea())
         .onAppear { loadServers() }
+        .alert(
+            "Group connection",
+            isPresented: Binding(get: { assignTarget != nil }, set: { if !$0 { assignTarget = nil } }),
+        ) {
+            TextField("Group name", text: $groupNameInput)
+            Button("Save") {
+                if let t = assignTarget {
+                    let name = groupNameInput.trimmingCharacters(in: .whitespaces)
+                    if !name.isEmpty { setGroup(t, name) }
+                }
+                assignTarget = nil
+            }
+            Button("Cancel", role: .cancel) { assignTarget = nil }
+        } message: {
+            Text("Profiles in the same group are different ip/port settings for one server.")
+        }
+        .alert(
+            "Rename group",
+            isPresented: Binding(get: { renameTarget != nil }, set: { if !$0 { renameTarget = nil } }),
+        ) {
+            TextField("Group name", text: $groupNameInput)
+            Button("Save") {
+                if let old = renameTarget {
+                    let name = groupNameInput.trimmingCharacters(in: .whitespaces)
+                    if !name.isEmpty { renameGroup(old, name) }
+                }
+                renameTarget = nil
+            }
+            Button("Cancel", role: .cancel) { renameTarget = nil }
+        }
     }
 
     private func formColumn() -> some View {
@@ -176,7 +212,7 @@ struct ServerManagerView: View {
 
     private func savedColumn(showWhenEmpty: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            if savedServers.isEmpty {
+            if serverGroups.isEmpty {
                 if showWhenEmpty {
                     Text("SAVED CONNECTIONS")
                         .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
@@ -195,41 +231,96 @@ struct ServerManagerView: View {
                     .padding(.top, isLarge ? 0 : 10)
 
                 VStack(spacing: 8) {
-                    ForEach(savedServers, id: \.id) { server in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(server.friendlyName ?? "JRiver Server")
-                                    .font(AppFont.inter(size: 16, weight: .medium))
-                                    .foregroundColor(.textPrimary)
-
-                                Text("\(server.host):\(server.useSsl ? server.sslPort : server.port)")
-                                    .font(AppFont.inter(size: 13, weight: .regular))
-                                    .foregroundColor(.textSecondary)
+                    ForEach(Array(serverGroups.enumerated()), id: \.offset) { _, group in
+                        if let name = group.name {
+                            HStack {
+                                Text("\(name)  (\(group.profiles.count))")
+                                    .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
+                                    .tracking(1.2)
+                                    .foregroundColor(.accentColor)
+                                Spacer()
+                                Button {
+                                    groupNameInput = name
+                                    renameTarget = name
+                                } label: {
+                                    Image(systemName: "pencil").foregroundColor(.textSecondary)
+                                }
                             }
-
-                            Spacer()
-
-                            Button(action: {
-                                deleteServer(server)
-                            }) {
-                                Image(systemName: "trash")
-                                    .foregroundColor(.errorColor)
-                                    .frame(width: 44, height: 44)
+                            .padding(.top, 6)
+                            ForEach(group.profiles, id: \.id) { server in
+                                profileRow(server, indented: true)
                             }
-                        }
-                        .padding(12)
-                        .background(Color.bg2)
-                        .cornerRadius(10)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.line, lineWidth: 1),
-                        )
-                        .onTapGesture {
-                            fillFormAndConnect(server: server)
+                        } else {
+                            profileRow(group.profiles[0], indented: false)
                         }
                     }
                 }
             }
+        }
+    }
+
+    private func profileRow(_ server: SavedServerEntity, indented: Bool) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(server.friendlyName ?? "JRiver Server")
+                    .font(AppFont.inter(size: 16, weight: .medium))
+                    .foregroundColor(.textPrimary)
+
+                Text("\(server.host):\(server.useSsl ? server.sslPort : server.port)")
+                    .font(AppFont.inter(size: 13, weight: .regular))
+                    .foregroundColor(.textSecondary)
+            }
+
+            Spacer()
+
+            Menu {
+                Button {
+                    groupNameInput = server.groupName ?? ""
+                    assignTarget = server
+                } label: {
+                    Label(server.groupName == nil ? "Add to group…" : "Move to group…", systemImage: "rectangle.3.group")
+                }
+                if server.groupName != nil {
+                    Button { setGroup(server, nil) } label: {
+                        Label("Remove from group", systemImage: "rectangle.badge.minus")
+                    }
+                }
+                Button(role: .destructive) { deleteServer(server) } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .foregroundColor(.textSecondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(12)
+        .padding(.leading, indented ? 12 : 0)
+        .background(Color.bg2)
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.line, lineWidth: 1),
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            fillFormAndConnect(server: server)
+        }
+    }
+
+    private func setGroup(_ server: SavedServerEntity, _ name: String?) {
+        Task {
+            try? await container.serverRepository.setProfileGroup(profileId: server.id, groupName: name)
+            loadServers()
+        }
+    }
+
+    private func renameGroup(_ old: String, _ newName: String) {
+        Task {
+            try? await container.serverRepository.renameServerGroup(oldName: old, newName: newName)
+            loadServers()
         }
     }
 
@@ -375,8 +466,10 @@ struct ServerManagerView: View {
                     let t2 = s2.lastUsedAt
                     return t1 > t2
                 }
+                let groups = try await container.serverRepository.getServerGroups()
                 await MainActor.run {
                     savedServers = sorted
+                    serverGroups = groups
                 }
             } catch {
                 log.e("Failed to load servers: \(error)")
@@ -456,6 +549,7 @@ struct ServerManagerView: View {
                     authToken: token,
                     useSsl: resolvedUseSsl,
                     sslPort: Int32(resolvedSslPort),
+                    groupName: existing?.groupName,
                 )
 
                 try await container.serverRepository.saveServer(server: newServer)

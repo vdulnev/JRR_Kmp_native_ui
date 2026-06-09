@@ -70,6 +70,7 @@ struct TvConnectView: View {
                         authToken: token,
                         useSsl: false,
                         sslPort: 52200,
+                        groupName: nil,
                     )
                     try? await container.serverRepository.saveServer(server: server)
                     onConnected()

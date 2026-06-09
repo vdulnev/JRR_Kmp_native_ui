@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +31,7 @@ import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.outlinedTextFieldColors
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
 import com.jrr.jrrkmp_native_ui.data.db.entity.SavedServerEntity
+import com.jrr.jrrkmp_native_ui.data.repository.ServerGroup
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
@@ -55,13 +57,18 @@ fun ServerManagerScreen(
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    var savedServers by remember { mutableStateOf<List<SavedServerEntity>>(emptyList()) }
+    var serverGroups by remember { mutableStateOf<List<ServerGroup>>(emptyList()) }
     var isConnecting by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) } // 0 = Access Key, 1 = Manual
 
-    // Fetch saved servers
+    // Profile currently being assigned to a group, and the group being renamed.
+    var assignTarget by remember { mutableStateOf<SavedServerEntity?>(null) }
+    var renameTarget by remember { mutableStateOf<String?>(null) }
+    var groupNameInput by remember { mutableStateOf("") }
+
+    // Fetch saved servers (folded into groups)
     LaunchedEffect(Unit) {
-        savedServers = serverRepository.getAllServers()
+        serverGroups = serverRepository.getServerGroups()
     }
 
     val connectAction: (String, Int, Boolean, Int, String, String, String?) -> Unit = { h, p, ssl, sp, u, pass, friendly ->
@@ -87,7 +94,9 @@ fun ServerManagerScreen(
                         lastUsedAt = com.jrr.jrrkmp_native_ui.presentation.nowEpochMillis(),
                         authToken = token,
                         useSsl = ssl,
-                        sslPort = sp
+                        sslPort = sp,
+                        // Preserve the group so reconnecting doesn't ungroup a profile.
+                        groupName = existing?.groupName
                     )
                     serverRepository.saveServer(entity)
                     // Set active connection on facade
@@ -102,7 +111,7 @@ fun ServerManagerScreen(
                 platformUi.showToast("Error: ${e.localizedMessage}")
             } finally {
                 isConnecting = false
-                savedServers = serverRepository.getAllServers()
+                serverGroups = serverRepository.getServerGroups()
             }
         }
     }
@@ -285,6 +294,73 @@ fun ServerManagerScreen(
         }
     }
 
+    fun reloadGroups() {
+        scope.launch { serverGroups = serverRepository.getServerGroups() }
+    }
+
+    // One saved connection profile. Tap to connect; overflow menu groups it with
+    // other ip/port settings of the same real server (or ungroups it).
+    val profileRow: @Composable (SavedServerEntity, Boolean) -> Unit = { server, indented ->
+        var menuOpen by remember(server.id) { mutableStateOf(false) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = if (indented) 16.dp else 0.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(AppColors.bg2)
+                .border(1.dp, AppColors.line, RoundedCornerShape(8.dp))
+                .clickable {
+                    connectAction(
+                        server.host, server.port, server.useSsl, server.sslPort,
+                        server.username, server.passwordKey, server.friendlyName,
+                    )
+                }
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = server.friendlyName ?: "JRiver Server", style = AppTypography.itemTitle)
+                Text(
+                    text = "${server.host}:${if (server.useSsl) server.sslPort else server.port}",
+                    style = AppTypography.itemSubtitle,
+                    color = AppColors.text2
+                )
+            }
+
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = AppColors.text2)
+                }
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    modifier = Modifier.background(AppColors.bg2)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(if (server.groupName == null) "Add to group…" else "Move to group…", style = AppTypography.itemTitle) },
+                        onClick = { menuOpen = false; groupNameInput = server.groupName ?: ""; assignTarget = server }
+                    )
+                    if (server.groupName != null) {
+                        DropdownMenuItem(
+                            text = { Text("Remove from group", style = AppTypography.itemTitle) },
+                            onClick = {
+                                menuOpen = false
+                                scope.launch { serverRepository.setProfileGroup(server.id, null); reloadGroups() }
+                            }
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text("Delete", style = AppTypography.itemTitle, color = AppColors.error) },
+                        onClick = {
+                            menuOpen = false
+                            scope.launch { serverRepository.deleteServer(server); reloadGroups() }
+                        }
+                    )
+                }
+            }
+        }
+    }
+
     val savedPane: @Composable ColumnScope.() -> Unit = {
         // Saved Servers section
         Text(
@@ -297,51 +373,28 @@ fun ServerManagerScreen(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(savedServers) { server ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(AppColors.bg2)
-                        .border(1.dp, AppColors.line, RoundedCornerShape(8.dp))
-                        .clickable {
-                            connectAction(
-                                server.host,
-                                server.port,
-                                server.useSsl,
-                                server.sslPort,
-                                server.username,
-                                server.passwordKey,
-                                server.friendlyName
-                             )
+            serverGroups.forEach { group ->
+                val name = group.name
+                if (name == null) {
+                    item(key = group.profiles.first().id) { profileRow(group.profiles.first(), false) }
+                } else {
+                    item(key = "group:$name") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "$name  (${group.profiles.size})",
+                                style = AppTypography.sectionLabel,
+                                color = AppColors.accent,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = { renameTarget = name; groupNameInput = name }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Rename group", tint = AppColors.text2)
+                            }
                         }
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = server.friendlyName ?: "JRiver Server",
-                            style = AppTypography.itemTitle
-                        )
-                        Text(
-                            text = "${server.host}:${if (server.useSsl) server.sslPort else server.port}",
-                            style = AppTypography.itemSubtitle,
-                            color = AppColors.text2
-                        )
                     }
-
-                    IconButton(onClick = {
-                        scope.launch {
-                            serverRepository.deleteServer(server)
-                            savedServers = serverRepository.getAllServers()
-                        }
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete Server",
-                            tint = AppColors.error
-                        )
-                    }
+                    items(group.profiles, key = { it.id }) { profileRow(it, true) }
                 }
             }
         }
@@ -378,5 +431,83 @@ fun ServerManagerScreen(
             formPane()
             savedPane()
         }
+    }
+
+    // Assign a profile to a group: type a new name or tap an existing one.
+    assignTarget?.let { target ->
+        val existing = serverGroups.mapNotNull { it.name }.distinct()
+        AlertDialog(
+            onDismissRequest = { assignTarget = null },
+            containerColor = AppColors.bg2,
+            title = { Text("Group connection", color = AppColors.text) },
+            text = {
+                Column {
+                    Text(
+                        "Profiles in the same group are different ip/port settings for one server.",
+                        style = AppTypography.itemSubtitle,
+                        color = AppColors.text2,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    OutlinedTextField(
+                        value = groupNameInput,
+                        onValueChange = { groupNameInput = it },
+                        label = { Text("Group name", color = AppColors.text2) },
+                        colors = outlinedTextFieldColors(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (existing.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text("Existing:", style = AppTypography.itemSubtitle, color = AppColors.text2)
+                        existing.forEach { g ->
+                            TextButton(onClick = { groupNameInput = g }) { Text(g, color = AppColors.accent) }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val name = groupNameInput.trim()
+                    if (name.isNotEmpty()) {
+                        scope.launch { serverRepository.setProfileGroup(target.id, name); reloadGroups() }
+                    }
+                    assignTarget = null
+                }) { Text("Save", color = AppColors.accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { assignTarget = null }) { Text("Cancel", color = AppColors.text2) }
+            }
+        )
+    }
+
+    // Rename a whole group (moves every profile under it).
+    renameTarget?.let { old ->
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            containerColor = AppColors.bg2,
+            title = { Text("Rename group", color = AppColors.text) },
+            text = {
+                OutlinedTextField(
+                    value = groupNameInput,
+                    onValueChange = { groupNameInput = it },
+                    label = { Text("Group name", color = AppColors.text2) },
+                    colors = outlinedTextFieldColors(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val name = groupNameInput.trim()
+                    if (name.isNotEmpty()) {
+                        scope.launch { serverRepository.renameServerGroup(old, name); reloadGroups() }
+                    }
+                    renameTarget = null
+                }) { Text("Save", color = AppColors.accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text("Cancel", color = AppColors.text2) }
+            }
+        )
     }
 }

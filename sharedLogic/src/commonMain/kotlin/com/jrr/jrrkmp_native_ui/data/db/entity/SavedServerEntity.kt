@@ -23,5 +23,12 @@ data class SavedServerEntity(
     @ColumnInfo(name = "use_ssl")
     val useSsl: Boolean = false,
     @ColumnInfo(name = "ssl_port")
-    val sslPort: Int = 52200
+    val sslPort: Int = 52200,
+    /**
+     * Name of the manual group this connection profile belongs to, or `null`
+     * when it's a standalone profile. Profiles that share a non-null
+     * [groupName] are different ip/port settings for the *same* real server.
+     */
+    @ColumnInfo(name = "group_name")
+    val groupName: String? = null
 )
