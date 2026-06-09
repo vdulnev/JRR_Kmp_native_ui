@@ -11,11 +11,6 @@ struct LargeScreenShell<Content: View>: View {
     var nowPlaying: NowPlayingObservable
     @ViewBuilder let content: () -> Content
 
-    /// Holds keyboard focus so the shell receives hardware-keyboard shortcuts.
-    /// A focused text field (the library filter) takes focus on tap and
-    /// consumes character keys first, so typing is never hijacked.
-    @FocusState private var keyboardFocused: Bool
-
     private static var sidebarWidth: CGFloat {
         256
     }
@@ -30,32 +25,6 @@ struct LargeScreenShell<Content: View>: View {
                 .background(Color.bg1)
         }
         .background(Color.bg1)
-        .focusable()
-        .focused($keyboardFocused)
-        .onAppear { keyboardFocused = true }
-        .onKeyPress { press in handleKey(press) }
-    }
-
-    private func handleKey(_ press: KeyPress) -> KeyPress.Result {
-        switch press.key {
-        case .space:
-            if nowPlaying.isPlaying { nowPlaying.pause() } else { nowPlaying.play() }
-            return .handled
-        case .leftArrow:
-            nowPlaying.previous(); return .handled
-        case .rightArrow:
-            nowPlaying.next(); return .handled
-        case .upArrow:
-            nowPlaying.setVolume(level: min(1, nowPlaying.volume + 0.05)); return .handled
-        case .downArrow:
-            nowPlaying.setVolume(level: max(0, nowPlaying.volume - 0.05)); return .handled
-        case KeyEquivalent("q"):
-            onSelect(2); return .handled
-        case KeyEquivalent("l"):
-            onSelect(0); return .handled
-        default:
-            return .ignored
-        }
     }
 }
 

@@ -44,22 +44,6 @@
             }
             .defaultSize(width: 1200, height: 820)
             .windowResizability(.contentMinSize)
-            .commands {
-                // Native macOS menu-bar transport controls, driven straight
-                // through the playback facade (same entry points the on-screen
-                // controls use).
-                CommandMenu("Playback") {
-                    Button("Play") { container.facade.play() }
-                        .keyboardShortcut("p", modifiers: .command)
-                    Button("Pause") { container.facade.pause() }
-                        .keyboardShortcut("p", modifiers: [.command, .shift])
-                    Divider()
-                    Button("Next Track") { container.facade.next() }
-                        .keyboardShortcut(.rightArrow, modifiers: .command)
-                    Button("Previous Track") { container.facade.previous() }
-                        .keyboardShortcut(.leftArrow, modifiers: .command)
-                }
-            }
         }
     }
 #endif
