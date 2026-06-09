@@ -29,13 +29,13 @@ interface SavedServerDao {
     @Query("SELECT * FROM saved_servers ORDER BY last_used_at DESC LIMIT 1")
     suspend fun getLastUsedServer(): SavedServerEntity?
 
-    /** Assign (or clear, with null) the group of a single connection profile. */
-    @Query("UPDATE saved_servers SET group_name = :groupName WHERE id = :id")
-    suspend fun setGroupName(id: String, groupName: String?)
+    /** Point a connection profile at a real server identity. */
+    @Query("UPDATE saved_servers SET server_id = :serverId WHERE id = :id")
+    suspend fun setServerId(id: String, serverId: String)
 
-    /** Rename a whole group — every profile sharing [oldName] moves to [newName]. */
-    @Query("UPDATE saved_servers SET group_name = :newName WHERE group_name = :oldName")
-    suspend fun renameGroup(oldName: String, newName: String)
+    /** How many profiles still reference a server identity (0 = orphaned). */
+    @Query("SELECT COUNT(*) FROM saved_servers WHERE server_id = :serverId")
+    suspend fun countProfilesForServer(serverId: String): Int
 }
 
 @Dao
@@ -46,14 +46,22 @@ interface FavoriteDao {
     @Delete
     suspend fun delete(favorite: FavoriteEntity)
 
-    @Query("SELECT * FROM favorites ORDER BY added_at DESC")
-    suspend fun getAllFavorites(): List<FavoriteEntity>
+    @Query("SELECT * FROM favorites WHERE server_id = :serverId ORDER BY added_at DESC")
+    suspend fun getAllFavorites(serverId: String): List<FavoriteEntity>
 
-    @Query("SELECT * FROM favorites ORDER BY added_at DESC")
-    fun getAllFavoritesFlow(): Flow<List<FavoriteEntity>>
+    @Query("SELECT * FROM favorites WHERE server_id = :serverId ORDER BY added_at DESC")
+    fun getAllFavoritesFlow(serverId: String): Flow<List<FavoriteEntity>>
 
-    @Query("SELECT * FROM favorites WHERE type = :type AND identifier = :identifier LIMIT 1")
-    suspend fun getFavorite(type: String, identifier: String): FavoriteEntity?
+    @Query("SELECT * FROM favorites WHERE server_id = :serverId AND type = :type AND identifier = :identifier LIMIT 1")
+    suspend fun getFavorite(serverId: String, type: String, identifier: String): FavoriteEntity?
+
+    /** Re-key one server's favorites onto another (used when grouping). */
+    @Query("UPDATE OR IGNORE favorites SET server_id = :target WHERE server_id = :source")
+    suspend fun moveFavorites(source: String, target: String)
+
+    /** Drop any favorites left on a now-orphaned server identity. */
+    @Query("DELETE FROM favorites WHERE server_id = :serverId")
+    suspend fun deleteFavoritesForServer(serverId: String)
 }
 
 @Dao

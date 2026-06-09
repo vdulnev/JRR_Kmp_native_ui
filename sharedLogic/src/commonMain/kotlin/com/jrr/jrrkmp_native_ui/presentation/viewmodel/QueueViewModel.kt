@@ -80,9 +80,14 @@ class QueueViewModel(
             )
         }
 
+        // Favorites are per real server: re-subscribe on identity change.
+        @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+        val favoritesFlow = facade.activeServerId.flatMapLatest { sid ->
+            database?.favoriteDao()?.getAllFavoritesFlow(sid) ?: flowOf(emptyList())
+        }
         val dbFlow = combine(
             database?.downloadedTrackDao()?.getAllTracksFlow() ?: flowOf(emptyList()),
-            database?.favoriteDao()?.getAllFavoritesFlow() ?: flowOf(emptyList())
+            favoritesFlow
         ) { downloaded, favorites ->
             Pair(downloaded, favorites)
         }
@@ -198,13 +203,15 @@ class QueueViewModel(
         viewModelScope.launch {
             try {
                 val dao = db.favoriteDao()
-                val existing = dao.getFavorite("track", track.fileKey)
+                val sid = facade.activeServerId.value
+                val existing = dao.getFavorite(sid, "track", track.fileKey)
                 if (existing != null) {
                     dao.delete(existing)
                     log.d { "favorite track removed fileKey=${track.fileKey}" }
                 } else {
                     val displayName = "${track.name}|${track.artist}|${track.album}|${track.durationMs}"
                     val newFav = FavoriteEntity(
+                        serverId = sid,
                         type = "track",
                         identifier = track.fileKey,
                         displayName = displayName,

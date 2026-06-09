@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -122,7 +123,11 @@ class LibraryViewModel(
         state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
 
         if (database != null) {
-            database.favoriteDao().getAllFavoritesFlow()
+            // Favorites are per real server: re-subscribe whenever the active
+            // server identity changes so the list swaps on connect.
+            @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+            facade.activeServerId
+                .flatMapLatest { sid -> database.favoriteDao().getAllFavoritesFlow(sid) }
                 .onEach { favs ->
                     _state.update { it.copy(favorites = favs) }
                 }
@@ -132,6 +137,9 @@ class LibraryViewModel(
                 .launchIn(viewModelScope)
         }
     }
+
+    /** Active real-server identity favorites are scoped to (empty if none). */
+    private val activeServerId: String get() = facade.activeServerId.value
 
     fun switchTab(tab: String) {
         log.d { "switchTab($tab)" }
@@ -551,7 +559,7 @@ class LibraryViewModel(
                     }
 
                     "favorites" -> {
-                        val favs = database?.favoriteDao()?.getAllFavorites() ?: emptyList()
+                        val favs = database?.favoriteDao()?.getAllFavorites(activeServerId) ?: emptyList()
                         log.d { "loaded ${favs.size} favorites" }
                         _state.update {
                             it.copy(
@@ -579,12 +587,13 @@ class LibraryViewModel(
             try {
                 val db = database ?: return@launch
                 val dao = db.favoriteDao()
-                val existing = dao.getFavorite("playlist", key)
+                val existing = dao.getFavorite(activeServerId, "playlist", key)
                 if (existing != null) {
                     dao.delete(existing)
                     log.d { "favorite playlist removed key=$key" }
                 } else {
                     val newFav = FavoriteEntity(
+                        serverId = activeServerId,
                         type = "playlist",
                         identifier = key,
                         displayName = name,
@@ -607,13 +616,14 @@ class LibraryViewModel(
             try {
                 val db = database ?: return@launch
                 val dao = db.favoriteDao()
-                val existing = dao.getFavorite("track", track.fileKey)
+                val existing = dao.getFavorite(activeServerId, "track", track.fileKey)
                 if (existing != null) {
                     dao.delete(existing)
                     log.d { "favorite track removed key=${track.fileKey}" }
                 } else {
                     val displayName = "${track.name}|${track.artist}|${track.album}|${track.durationMs}"
                     val newFav = FavoriteEntity(
+                        serverId = activeServerId,
                         type = "track",
                         identifier = track.fileKey,
                         displayName = displayName,
@@ -637,13 +647,14 @@ class LibraryViewModel(
                 val db = database ?: return@launch
                 val dao = db.favoriteDao()
                 val identifier = album.albumGroupId
-                val existing = dao.getFavorite("album", identifier)
+                val existing = dao.getFavorite(activeServerId, "album", identifier)
                 if (existing != null) {
                     dao.delete(existing)
                     log.d { "favorite album removed identifier=$identifier" }
                 } else {
                     val displayName = "${album.name}|${album.albumArtist}|${album.folderPath}|${album.parentFolderPath}|${album.date}|${album.artworkFileKey}|${album.totalDiscs}|${album.discNumber}"
                     val newFav = FavoriteEntity(
+                        serverId = activeServerId,
                         type = "album",
                         identifier = identifier,
                         displayName = displayName,
@@ -662,7 +673,7 @@ class LibraryViewModel(
 
     private suspend fun refreshFavorites() {
         val db = database ?: return
-        val favs = db.favoriteDao().getAllFavorites()
+        val favs = db.favoriteDao().getAllFavorites(activeServerId)
         _state.update {
             it.copy(favorites = favs)
         }

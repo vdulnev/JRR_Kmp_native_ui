@@ -3,6 +3,7 @@ package com.jrr.jrrkmp_native_ui.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.data.db.entity.SavedServerEntity
+import com.jrr.jrrkmp_native_ui.data.repository.ServerGroup
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import io.ktor.util.date.getTimeMillis
@@ -38,7 +39,7 @@ class TvConnectViewModel(
             serverRepository.authenticate(host, port, useSsl, sslPort, username, password)
         }.getOrNull() ?: return false
         facade.setServerConnection(host, port, useSsl, sslPort, token)
-        serverRepository.saveServer(
+        val serverId = serverRepository.saveServer(
             SavedServerEntity(
                 id = "$host:$port",
                 host = host,
@@ -52,6 +53,7 @@ class TvConnectViewModel(
                 sslPort = sslPort,
             ),
         )
+        serverRepository.setActiveServerId(serverId)
         return true
     }
 
@@ -77,16 +79,42 @@ class TvConnectViewModel(
             return false
         }
         facade.setServerConnection(last.host, last.port, last.useSsl, last.sslPort, token)
+        if (last.serverId.isNotBlank()) serverRepository.setActiveServerId(last.serverId)
         log.i { "restore: connected host=${last.host}" }
         return true
     }
 
-    /** Forget saved servers and clear the active server (Settings → Disconnect). */
+    /**
+     * Clear the active connection (Settings → Disconnect). Saved server
+     * configurations are kept so the user can reconnect to them later.
+     */
     suspend fun disconnect() {
         log.i { "disconnect()" }
-        runCatching {
-            serverRepository.getAllServers().forEach { serverRepository.deleteServer(it) }
-        }
         serverRepository.setActiveServer(host = "", port = 52199, useSsl = false, sslPort = 52200, token = null)
+    }
+
+    /** Saved server configurations, grouped by real server (for the picker). */
+    suspend fun savedServers(): List<ServerGroup> = serverRepository.getServerGroups()
+
+    /** Connect to a previously-saved profile (re-auth with its stored creds). */
+    suspend fun connectSaved(server: SavedServerEntity): Boolean =
+        connect(server.host, server.port, server.username, server.passwordKey, server.useSsl, server.sslPort)
+
+    /** Remove a single saved profile. */
+    suspend fun deleteSaved(server: SavedServerEntity) {
+        log.i { "deleteSaved(${server.host})" }
+        serverRepository.deleteServer(server)
+    }
+
+    /** Mark [profileId] as the same real server as [targetServerId] (merges favorites). */
+    suspend fun mergeSaved(profileId: String, targetServerId: String) {
+        log.i { "mergeSaved($profileId → $targetServerId)" }
+        serverRepository.mergeProfileIntoServer(profileId, targetServerId)
+    }
+
+    /** Split a profile into its own distinct server (duplicates favorites). */
+    suspend fun splitSaved(profileId: String) {
+        log.i { "splitSaved($profileId)" }
+        serverRepository.splitProfileToNewServer(profileId)
     }
 }

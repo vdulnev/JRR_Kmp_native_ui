@@ -13,6 +13,7 @@ class PlaybackStateObserver: ObservableObject {
     @Published var favorites: [FavoriteEntity] = []
 
     private let database: JrrDatabase
+    private let facade: AudioPlayerFacade
     private let nowPlayingCoordinator: NowPlayingCoordinator
     private let mcwsClient: McwsClient
 
@@ -26,8 +27,17 @@ class PlaybackStateObserver: ObservableObject {
     ) {
         log.d("init")
         self.database = database
+        self.facade = facade
         self.nowPlayingCoordinator = nowPlayingCoordinator
         self.mcwsClient = mcwsClient
+
+        // Favorites are per real server: refresh whenever the active identity
+        // changes so they swap on connect.
+        observationTasks.insert(Task { @MainActor [weak self] in
+            for await _ in facade.activeServerId {
+                self?.refreshFavorites()
+            }
+        })
 
         observationTasks.insert(Task { @MainActor [weak self] in
             for await zone in facade.activeZone {
@@ -93,7 +103,7 @@ class PlaybackStateObserver: ObservableObject {
     func refreshFavorites() {
         Task {
             do {
-                let favs = try await database.favoriteDao().getAllFavorites()
+                let favs = try await database.favoriteDao().getAllFavorites(serverId: facade.activeServerId.value)
                 await MainActor.run {
                     self.favorites = favs
                     log.d("favorites refreshed (count=\(favs.count))")

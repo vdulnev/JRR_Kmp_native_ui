@@ -33,40 +33,55 @@ data class McwsServerData(
 )
 
 /**
- * One real server and its connection profiles. A [name] of `null` marks a
- * standalone (ungrouped) profile — those each become their own single-profile
- * group so callers can render one flat list.
+ * One real server: all connection profiles sharing a [serverId]. A server with
+ * a single profile is a standalone server; profiles never appear ungrouped,
+ * because every profile belongs to exactly one server identity.
+ *
+ * [displayName] comes from the most-recently-used profile's JRiver
+ * FriendlyName (falling back to its host).
  */
 data class ServerGroup(
-    val name: String?,
+    val serverId: String,
+    val displayName: String,
     val profiles: List<SavedServerEntity>,
 )
 
 /**
- * Fold flat saved profiles into [ServerGroup]s: profiles sharing a non-null
- * `groupName` collapse into one group (most-recently-used profile first), and
- * each ungrouped profile becomes its own single-profile group. Groups are
- * ordered by their most-recently-used profile. Exposed as `internal` so unit
- * tests can drive it without a database; the public entry point is
- * [ServerRepository.getServerGroups].
+ * Fold flat saved profiles into [ServerGroup]s by `serverId` (one entry per
+ * real server, most-recently-used profile first; groups ordered by recency).
+ * Exposed as `internal` so unit tests can drive it without a database; the
+ * public entry point is [ServerRepository.getServerGroups].
  */
-internal fun groupServers(servers: List<SavedServerEntity>): List<ServerGroup> {
-    val grouped = servers
-        .filter { it.groupName != null }
-        .groupBy { it.groupName!! }
-        .map { (name, profiles) -> ServerGroup(name, profiles.sortedByDescending { it.lastUsedAt }) }
-    val standalone = servers
-        .filter { it.groupName == null }
-        .map { ServerGroup(null, listOf(it)) }
-    return (grouped + standalone)
+internal fun groupServers(servers: List<SavedServerEntity>): List<ServerGroup> =
+    servers
+        .groupBy { it.serverId }
+        .map { (serverId, profiles) ->
+            val ordered = profiles.sortedByDescending { it.lastUsedAt }
+            val rep = ordered.first()
+            ServerGroup(
+                serverId = serverId,
+                displayName = rep.friendlyName?.takeIf { it.isNotBlank() } ?: rep.host,
+                profiles = ordered,
+            )
+        }
         .sortedByDescending { group -> group.profiles.maxOfOrNull { it.lastUsedAt } ?: 0L }
-}
 
 class ServerRepository(
     private val database: JrrDatabase,
     private val httpClient: HttpClient,
 ) {
     private val serverDao = database.savedServerDao()
+    private val favoriteDao = database.favoriteDao()
+
+    // Identity of the currently-connected real server. Favorites are scoped to
+    // it; empty when disconnected/offline.
+    private val _activeServerId = MutableStateFlow("")
+    val activeServerId: StateFlow<String> = _activeServerId.asStateFlow()
+
+    fun setActiveServerId(serverId: String) {
+        log.i { "setActiveServerId($serverId)" }
+        _activeServerId.value = serverId
+    }
 
     // Serialises connection recovery so the facade (init) and the shell
     // view-model don't both authenticate/reconnect on startup. Once a recovery
@@ -81,6 +96,7 @@ class ServerRepository(
     fun setActiveServer(host: String, port: Int, useSsl: Boolean, sslPort: Int, token: String?) {
         log.i { "setActiveServer(host=$host port=$port ssl=$useSsl sslPort=$sslPort token=${token.redact()})" }
         _activeServer.value = if (host.isEmpty()) null else McwsServerData(host, port, useSsl, sslPort, token)
+        if (host.isEmpty()) _activeServerId.value = ""
     }
 
     suspend fun lookupAccessKey(key: String): WebPlayLookupResult? = withContext(Dispatchers.IO) {
@@ -177,17 +193,42 @@ class ServerRepository(
         groupServers(serverDao.getAllServers()).also { log.d { "getServerGroups → ${it.size}" } }
     }
 
-    /** Assign a profile to [groupName] (a new or existing group), or clear it with null. */
-    suspend fun setProfileGroup(profileId: String, groupName: String?) = withContext(Dispatchers.IO) {
-        log.i { "setProfileGroup(id=$profileId group=${groupName ?: "<none>"})" }
-        serverDao.setGroupName(profileId, groupName?.takeIf { it.isNotBlank() })
+    /**
+     * Mark [profileId] as belonging to the same real server as [targetServerId].
+     * If the profile was the last one of its old identity, that server's
+     * favorites are merged into the target (deduped) and the old identity drops.
+     */
+    suspend fun mergeProfileIntoServer(profileId: String, targetServerId: String) = withContext(Dispatchers.IO) {
+        val profile = serverDao.getServerById(profileId) ?: return@withContext
+        val oldServerId = profile.serverId
+        if (oldServerId == targetServerId) return@withContext
+        log.i { "mergeProfileIntoServer(profile=$profileId $oldServerId → $targetServerId)" }
+        serverDao.setServerId(profileId, targetServerId)
+        // Only fold favorites when the old identity no longer has any profiles —
+        // i.e. this profile *was* that (standalone) server.
+        if (serverDao.countProfilesForServer(oldServerId) == 0) {
+            favoriteDao.moveFavorites(oldServerId, targetServerId)
+            favoriteDao.deleteFavoritesForServer(oldServerId)
+        }
+        if (_activeServerId.value == oldServerId) _activeServerId.value = targetServerId
     }
 
-    /** Rename a group — every profile under [oldName] moves to [newName]. */
-    suspend fun renameServerGroup(oldName: String, newName: String) = withContext(Dispatchers.IO) {
-        if (newName.isBlank() || oldName == newName) return@withContext
-        log.i { "renameServerGroup($oldName → $newName)" }
-        serverDao.renameGroup(oldName, newName)
+    /**
+     * Split [profileId] out into its own brand-new real server identity. The
+     * former server's favorites are duplicated onto the new identity, so the
+     * now-distinct server starts with the same favorites. Returns the new id.
+     */
+    suspend fun splitProfileToNewServer(profileId: String): String = withContext(Dispatchers.IO) {
+        val profile = serverDao.getServerById(profileId) ?: return@withContext ""
+        val oldServerId = profile.serverId
+        val newServerId = randomServerId()
+        log.i { "splitProfileToNewServer(profile=$profileId $oldServerId → $newServerId)" }
+        serverDao.setServerId(profileId, newServerId)
+        // Duplicate (copy) the source server's favorites onto the new identity.
+        favoriteDao.getAllFavorites(oldServerId).forEach { fav ->
+            favoriteDao.insert(fav.copy(id = 0, serverId = newServerId))
+        }
+        newServerId
     }
 
     suspend fun getLastUsedServer(): SavedServerEntity? = withContext(Dispatchers.IO) {
@@ -196,15 +237,32 @@ class ServerRepository(
         s
     }
 
-    suspend fun saveServer(server: SavedServerEntity) = withContext(Dispatchers.IO) {
-        log.i { "saveServer(host=${server.host} name=${server.friendlyName})" }
-        serverDao.insert(server)
+    /**
+     * Persist a connection profile, resolving its real-server identity:
+     * - keep an explicit [SavedServerEntity.serverId] if set,
+     * - else reuse the identity of an already-saved profile with the same id
+     *   (so reconnecting is stable),
+     * - else mint a new identity (a brand-new standalone server).
+     *
+     * Returns the resolved `serverId` so callers can mark it active.
+     */
+    suspend fun saveServer(server: SavedServerEntity): String = withContext(Dispatchers.IO) {
+        val resolvedId = server.serverId.takeIf { it.isNotBlank() }
+            ?: serverDao.getServerById(server.id)?.serverId?.takeIf { it.isNotBlank() }
+            ?: randomServerId()
+        log.i { "saveServer(host=${server.host} name=${server.friendlyName} serverId=$resolvedId)" }
+        serverDao.insert(server.copy(serverId = resolvedId))
+        resolvedId
     }
 
     suspend fun deleteServer(server: SavedServerEntity) = withContext(Dispatchers.IO) {
         log.i { "deleteServer(host=${server.host})" }
         serverDao.delete(server)
     }
+
+    // Reasonably-unique identity for a new real server (timestamp + random).
+    private fun randomServerId(): String =
+        "srv-${io.ktor.util.date.getTimeMillis()}-${kotlin.random.Random.nextInt(100_000, 999_999)}"
 
     suspend fun recoverActiveServer(
         onRecovered: suspend (host: String, port: Int, useSsl: Boolean, sslPort: Int, token: String?) -> Unit
@@ -226,6 +284,8 @@ class ServerRepository(
         return try {
             val lastServer = getLastUsedServer() ?: return false
             log.i { "Attempting background server connection recovery to: ${lastServer.host}" }
+            // Restore favorites context to the recovered server's identity.
+            if (lastServer.serverId.isNotBlank()) _activeServerId.value = lastServer.serverId
 
             // Immediately notify caller using the saved token to allow instant browse queries
             onRecovered(lastServer.host, lastServer.port, lastServer.useSsl, lastServer.sslPort, lastServer.authToken)

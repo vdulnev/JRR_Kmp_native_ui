@@ -17,10 +17,8 @@ struct ServerManagerView: View {
     @State private var savedServers: [SavedServerEntity] = []
     /// Saved profiles folded into groups (one entry per real server).
     @State private var serverGroups: [ServerGroup] = []
-    /// Profile being assigned to a group; the group being renamed; shared input.
-    @State private var assignTarget: SavedServerEntity? = nil
-    @State private var renameTarget: String? = nil
-    @State private var groupNameInput = ""
+    /// Profile being marked as the same real server as another.
+    @State private var mergeTarget: SavedServerEntity? = nil
 
     @State private var activeTab = 0 // 0 = Access Key, 1 = Manual IP
     @State private var accessKey = ""
@@ -57,35 +55,22 @@ struct ServerManagerView: View {
         }
         .background(Color.bg1.ignoresSafeArea())
         .onAppear { loadServers() }
-        .alert(
-            "Group connection",
-            isPresented: Binding(get: { assignTarget != nil }, set: { if !$0 { assignTarget = nil } }),
+        .confirmationDialog(
+            "Same server as…",
+            isPresented: Binding(get: { mergeTarget != nil }, set: { if !$0 { mergeTarget = nil } }),
+            titleVisibility: .visible,
         ) {
-            TextField("Group name", text: $groupNameInput)
-            Button("Save") {
-                if let t = assignTarget {
-                    let name = groupNameInput.trimmingCharacters(in: .whitespaces)
-                    if !name.isEmpty { setGroup(t, name) }
+            if let target = mergeTarget {
+                ForEach(serverGroups.filter { $0.serverId != target.serverId }, id: \.serverId) { group in
+                    Button(group.displayName) {
+                        mergeProfile(target, into: group.serverId)
+                        mergeTarget = nil
+                    }
                 }
-                assignTarget = nil
             }
-            Button("Cancel", role: .cancel) { assignTarget = nil }
+            Button("Cancel", role: .cancel) { mergeTarget = nil }
         } message: {
-            Text("Profiles in the same group are different ip/port settings for one server.")
-        }
-        .alert(
-            "Rename group",
-            isPresented: Binding(get: { renameTarget != nil }, set: { if !$0 { renameTarget = nil } }),
-        ) {
-            TextField("Group name", text: $groupNameInput)
-            Button("Save") {
-                if let old = renameTarget {
-                    let name = groupNameInput.trimmingCharacters(in: .whitespaces)
-                    if !name.isEmpty { renameGroup(old, name) }
-                }
-                renameTarget = nil
-            }
-            Button("Cancel", role: .cancel) { renameTarget = nil }
+            Text("Pick the real server this connection points at. Its favorites merge with that server's.")
         }
     }
 
@@ -233,27 +218,21 @@ struct ServerManagerView: View {
                     .padding(.top, isLarge ? 0 : 10)
 
                 VStack(spacing: 8) {
-                    ForEach(Array(serverGroups.enumerated()), id: \.offset) { _, group in
-                        if let name = group.name {
+                    ForEach(serverGroups, id: \.serverId) { group in
+                        if group.profiles.count > 1 {
                             HStack {
-                                Text("\(name)  (\(group.profiles.count))")
+                                Text("\(group.displayName)  (\(group.profiles.count))")
                                     .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
                                     .tracking(1.2)
                                     .foregroundColor(.accentColor)
                                 Spacer()
-                                Button {
-                                    groupNameInput = name
-                                    renameTarget = name
-                                } label: {
-                                    Image(systemName: "pencil").foregroundColor(.textSecondary)
-                                }
                             }
                             .padding(.top, 6)
                             ForEach(group.profiles, id: \.id) { server in
-                                profileRow(server, indented: true)
+                                profileRow(server, indented: true, canSplit: true)
                             }
                         } else {
-                            profileRow(group.profiles[0], indented: false)
+                            profileRow(group.profiles[0], indented: false, canSplit: false)
                         }
                     }
                 }
@@ -261,7 +240,7 @@ struct ServerManagerView: View {
         }
     }
 
-    private func profileRow(_ server: SavedServerEntity, indented: Bool) -> some View {
+    private func profileRow(_ server: SavedServerEntity, indented: Bool, canSplit: Bool) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(server.friendlyName ?? "JRiver Server")
@@ -276,15 +255,16 @@ struct ServerManagerView: View {
             Spacer()
 
             Menu {
-                Button {
-                    groupNameInput = server.groupName ?? ""
-                    assignTarget = server
-                } label: {
-                    Label(server.groupName == nil ? "Add to group…" : "Move to group…", systemImage: "rectangle.3.group")
+                if serverGroups.count > 1 {
+                    Button {
+                        mergeTarget = server
+                    } label: {
+                        Label("Same server as…", systemImage: "rectangle.3.group")
+                    }
                 }
-                if server.groupName != nil {
-                    Button { setGroup(server, nil) } label: {
-                        Label("Remove from group", systemImage: "rectangle.badge.minus")
+                if canSplit {
+                    Button { splitProfile(server) } label: {
+                        Label("Make separate server", systemImage: "rectangle.badge.minus")
                     }
                 }
                 Button(role: .destructive) { deleteServer(server) } label: {
@@ -312,16 +292,16 @@ struct ServerManagerView: View {
         }
     }
 
-    private func setGroup(_ server: SavedServerEntity, _ name: String?) {
+    private func mergeProfile(_ server: SavedServerEntity, into targetServerId: String) {
         Task {
-            try? await container.serverRepository.setProfileGroup(profileId: server.id, groupName: name)
+            try? await container.serverRepository.mergeProfileIntoServer(profileId: server.id, targetServerId: targetServerId)
             loadServers()
         }
     }
 
-    private func renameGroup(_ old: String, _ newName: String) {
+    private func splitProfile(_ server: SavedServerEntity) {
         Task {
-            try? await container.serverRepository.renameServerGroup(oldName: old, newName: newName)
+            _ = try? await container.serverRepository.splitProfileToNewServer(profileId: server.id)
             loadServers()
         }
     }
@@ -551,10 +531,13 @@ struct ServerManagerView: View {
                     authToken: token,
                     useSsl: resolvedUseSsl,
                     sslPort: Int32(resolvedSslPort),
-                    groupName: existing?.groupName,
+                    serverId: existing?.serverId ?? "",
                 )
 
-                try await container.serverRepository.saveServer(server: newServer)
+                // saveServer resolves/mints the real-server identity; scope
+                // favorites to it.
+                let resolvedServerId = try await container.serverRepository.saveServer(server: newServer)
+                container.serverRepository.setActiveServerId(serverId: resolvedServerId)
                 UserDefaults.standard.set(true, forKey: "has_saved_servers")
 
                 // Configure handler
