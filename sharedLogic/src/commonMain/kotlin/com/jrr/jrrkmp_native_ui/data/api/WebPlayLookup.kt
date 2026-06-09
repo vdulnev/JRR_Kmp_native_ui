@@ -25,7 +25,10 @@ data class WebPlayLookupResult(
  */
 suspend fun webPlayLookup(httpClient: HttpClient, accessKey: String): WebPlayLookupResult? {
     log.i { "webPlayLookup(key=${accessKey.redact()})" }
-    val url = "http://webplay.jriver.com/libraryserver/lookup?id=$accessKey"
+    // HTTPS: this is a public JRiver service, and iOS/macOS App Transport
+    // Security blocks plaintext to non-local hosts. The endpoint serves the
+    // same response over TLS.
+    val url = "https://webplay.jriver.com/libraryserver/lookup?id=$accessKey"
     val xml = try {
         val response: HttpResponse = httpClient.get(url)
         if (response.status.value in 200..299) {
