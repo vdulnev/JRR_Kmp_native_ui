@@ -236,6 +236,30 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun groupAlbums_perDiscImagesInSameFolderKeepOwnFolder() {
+        // Two single-file disc images in ONE folder, with per-disc names
+        // ("… CD1 (AFM 789-0)" / "… CD2 …"). They fold into one album, but the
+        // path must stay the shared folder (not the parent) so the album isn't
+        // hidden by the various-artists scan.
+        val folder = "/m/U.D.O. - 2021 - Live In Bulgaria [2CD-FLAC]/"
+        val cd1 = makeAlbum(
+            name = "Live in Bulgaria 2020 - Pandemic Survival Show CD1 (AFM 789-0)",
+            folderPath = folder, parentFolderPath = "/m/", totalDiscs = 1, discNumber = 1,
+            albumArtist = "U.D.O.",
+        )
+        val cd2 = makeAlbum(
+            name = "Live in Bulgaria 2020 - Pandemic Survival Show CD2 (AFM 789-0)",
+            folderPath = folder, parentFolderPath = "/m/", totalDiscs = 1, discNumber = 2,
+            albumArtist = "U.D.O.",
+        )
+        val result = groupAlbumsByGroupId(listOf(cd1, cd2))
+        assertEquals(1, result.size)
+        val rep = result.single()
+        assertEquals(folder, rep.folderPath)
+        assertTrue(rep.totalDiscs > 1)
+    }
+
+    @Test
     fun groupAlbums_multiDiscFoldsToOneRepresentative() {
         val disc1 = makeAlbum(
             name = "The Wall",

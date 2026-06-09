@@ -301,18 +301,22 @@ internal fun groupAlbumsByGroupId(albums: List<Album>): List<Album> {
             // shared parent.
             val foldsByFolder = isDiscSubfolder(rep.folderPath)
             val hasDiscMarker = normalizeAlbumName(rep.name) != rep.name
-            // Discs live in sibling subfolders only when we actually saw more
-            // than one disc folder, the rep's own folder is a disc bucket, or
-            // the name carried a per-disc marker. A bare `Total Discs > 1` with
-            // a single folder means all discs sit in that one folder — keeping
-            // its own path (rather than the parent) avoids scanning the whole
-            // library above it, which previously hid the album behind the
-            // various-artists filter.
-            val discsInSubfolders = discs.size > 1 || foldsByFolder || hasDiscMarker
-            if (discsInSubfolders || rep.totalDiscs > 1) {
+            // Fold disc-level rows into one album when we saw multiple discs, the
+            // name carried a per-disc marker, the rep's folder is a disc bucket,
+            // or it's tagged multi-disc.
+            val shouldFold = discs.size > 1 || foldsByFolder || hasDiscMarker || rep.totalDiscs > 1
+            // …but only point the album at its PARENT folder when the discs truly
+            // live in sibling subfolders — i.e. they span more than one folder, or
+            // the rep's own folder is a disc bucket (`…/CD 1`). Discs that share a
+            // single folder (e.g. two per-disc FLAC images, or one folder tagged
+            // Total Discs=2) must keep their own folder; otherwise the path climbs
+            // to the library root and the various-artists filter hides the album.
+            val multiFolder = discs.map { it.folderPath }.distinct().size > 1
+            val useParentFolder = multiFolder || foldsByFolder
+            if (shouldFold) {
                 val copied = rep.copy(
                     name = normalizeAlbumName(rep.name),
-                    folderPath = if (discsInSubfolders) rep.parentFolderPath else rep.folderPath,
+                    folderPath = if (useParentFolder) rep.parentFolderPath else rep.folderPath,
                     // ≥2 so getAlbumTracks treats it as grouped and prefix-
                     // matches every disc folder under the parent.
                     totalDiscs = maxOf(
