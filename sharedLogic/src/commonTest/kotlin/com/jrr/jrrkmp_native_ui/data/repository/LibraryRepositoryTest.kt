@@ -711,6 +711,35 @@ class LibraryRepositoryTest {
         assertTrue(filterNotPlayedTracks(tracks).isEmpty())
     }
 
+    // ---- shuffleTracksList -------------------------------------------------
+
+    @Test
+    fun shuffle_isPermutationOfInput() {
+        val tracks = (1..20).map { trk("/m", it).copy(name = "t$it") }
+        val shuffled = shuffleTracksList(tracks, seed = 42)
+        assertEquals(tracks.size, shuffled.size)
+        assertEquals(tracks.map { it.name }.toSet(), shuffled.map { it.name }.toSet())
+    }
+
+    @Test
+    fun shuffle_isDeterministicForSameSeed() {
+        val tracks = (1..20).map { trk("/m", it).copy(name = "t$it") }
+        assertEquals(
+            shuffleTracksList(tracks, seed = 7).map { it.name },
+            shuffleTracksList(tracks, seed = 7).map { it.name },
+        )
+    }
+
+    @Test
+    fun shuffle_differentSeedsReorder() {
+        val tracks = (1..20).map { trk("/m", it).copy(name = "t$it") }
+        // Overwhelmingly likely to differ for 20 items across two seeds.
+        assertTrue(
+            shuffleTracksList(tracks, seed = 1).map { it.name } !=
+                shuffleTracksList(tracks, seed = 2).map { it.name },
+        )
+    }
+
     @Test
     fun lastNumberIn_extractsTrailingNumber() {
         assertEquals(2, lastNumberIn("Golden_Vol_2"))

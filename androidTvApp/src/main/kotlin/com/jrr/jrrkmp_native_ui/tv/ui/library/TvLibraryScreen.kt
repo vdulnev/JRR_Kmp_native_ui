@@ -145,7 +145,7 @@ internal fun BrowseFlow(vm: TvLibraryViewModel, drill: () -> Unit, onDrillChange
             }
         }
         is BrowseContent.Files ->
-            TvBrowseLeaf(current.title, c.tracks, vm::play, vm::group, vm::notPlayed)
+            TvBrowseLeaf(current.title, c.tracks, vm::play, vm::group, vm::notPlayed, vm::shuffle)
     }
 }
 

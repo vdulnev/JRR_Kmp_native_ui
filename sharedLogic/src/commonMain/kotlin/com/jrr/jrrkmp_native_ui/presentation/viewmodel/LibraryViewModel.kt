@@ -283,6 +283,10 @@ class LibraryViewModel(
     /** Tracks never played (Number Plays unset/zero) — Browse "Show not played". */
     fun notPlayed(tracks: List<Track>): List<Track> = libraryRepository.notPlayedTracks(tracks)
 
+    /** Deterministically shuffled track list for the given seed — Browse "Shuffle". */
+    fun shuffle(tracks: List<Track>, seed: Long): List<Track> =
+        libraryRepository.shuffleTracks(tracks, seed)
+
     private fun loadBrowseNodeContent(nodeId: String) {
         viewModelScope.launch {
             log.d { "loadBrowseNodeContent(nodeId=$nodeId)" }

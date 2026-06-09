@@ -254,6 +254,11 @@ final class TvLibraryObservable {
         viewModel.notPlayed(tracks: tracks)
     }
 
+    /// Deterministically shuffled tracks for a seed — Browse "Shuffle".
+    func shuffle(tracks: [Track], seed: Int64) -> [Track] {
+        viewModel.shuffle(tracks: tracks, seed: seed)
+    }
+
     func artworkUrl(fileKey: String) -> String? {
         viewModel.artworkUrl(fileKey: fileKey)
     }

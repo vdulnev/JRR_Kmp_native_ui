@@ -185,6 +185,11 @@ class LibraryObservable {
     func notPlayed(_ tracks: [Track]) -> [Track] {
         viewModel.notPlayed(tracks: tracks)
     }
+
+    /// Deterministically shuffled tracks for a seed — Browse "Shuffle".
+    func shuffle(_ tracks: [Track], seed: Int64) -> [Track] {
+        viewModel.shuffle(tracks: tracks, seed: seed)
+    }
 }
 
 /// Collapses the chrome (header / filter / mini-player) when a list is scrolled
@@ -295,6 +300,11 @@ struct LibraryView: View {
     /// Browse tab: when on, only tracks never played (Number Plays unset/zero)
     /// are shown. The filtering rule itself lives in the repository.
     @State private var browseNotPlayedOnly = false
+    /// Browse tab: when on, tracks are shuffled (and grouping is suppressed,
+    /// since a random order has no artist/album structure). The seed keeps the
+    /// shuffled order stable across re-renders; the rule lives in the repository.
+    @State private var browseShuffled = false
+    @State private var browseShuffleSeed: Int64 = 0
     /// Album groupIds the user has collapsed in the grouped browse view.
     @State private var collapsedBrowseAlbums: Set<String> = []
     /// Persisted top-visible row id of the compilations contributing-artists
@@ -1092,18 +1102,24 @@ struct LibraryView: View {
                     Button { observable.refreshBrowse() } label: {
                         Label("Refresh", systemImage: "arrow.clockwise")
                     }
+                    Toggle(isOn: shuffleBinding) {
+                        Label("Shuffle", systemImage: "shuffle")
+                    }
                     Toggle(isOn: $browseNotPlayedOnly) {
                         Label("Show not played", systemImage: "circle.dashed")
                     }
-                    Toggle(isOn: $browseGrouped) {
-                        Label("Group by album artist", systemImage: "person.2")
-                    }
-                    if browseGrouped {
-                        Button { collapseAllBrowseAlbums() } label: {
-                            Label("Collapse all", systemImage: "rectangle.compress.vertical")
+                    // Shuffling makes a flat random order, so grouping is hidden then.
+                    if !browseShuffled {
+                        Toggle(isOn: $browseGrouped) {
+                            Label("Group by album artist", systemImage: "person.2")
                         }
-                        Button { collapsedBrowseAlbums = [] } label: {
-                            Label("Expand all", systemImage: "rectangle.expand.vertical")
+                        if browseGrouped {
+                            Button { collapseAllBrowseAlbums() } label: {
+                                Label("Collapse all", systemImage: "rectangle.compress.vertical")
+                            }
+                            Button { collapsedBrowseAlbums = [] } label: {
+                                Label("Expand all", systemImage: "rectangle.expand.vertical")
+                            }
                         }
                     }
                 } label: {
@@ -1127,7 +1143,19 @@ struct LibraryView: View {
     /// Browse tracks after the "Show not played" toggle. The filtering rule
     /// lives in the repository; the view just chooses whether to apply it.
     private var browseDisplayTracks: [Track] {
-        browseNotPlayedOnly ? observable.notPlayed(observable.browseTracks) : observable.browseTracks
+        let base = browseNotPlayedOnly ? observable.notPlayed(observable.browseTracks) : observable.browseTracks
+        return browseShuffled ? observable.shuffle(base, seed: browseShuffleSeed) : base
+    }
+
+    /// Toggling shuffle on picks a fresh seed so a new random order is produced.
+    private var shuffleBinding: Binding<Bool> {
+        Binding(
+            get: { browseShuffled },
+            set: { on in
+                if on { browseShuffleSeed = Int64(Date().timeIntervalSince1970 * 1000) }
+                browseShuffled = on
+            },
+        )
     }
 
     @ViewBuilder
@@ -1163,7 +1191,7 @@ struct LibraryView: View {
                 if !observable.browseChildren.isEmpty {
                     browseChildrenList()
                 } else if !observable.browseTracks.isEmpty {
-                    if browseGrouped {
+                    if browseGrouped, !browseShuffled {
                         browseGroupedTracksList()
                     } else {
                         browseTracksList()
