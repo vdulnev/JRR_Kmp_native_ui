@@ -219,6 +219,23 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun groupAlbums_singleFolderMultiDiscKeepsOwnFolder() {
+        // A 2-disc album whose discs all live in ONE folder (Total Discs = 2,
+        // no per-disc subfolders). Its path must stay its own folder, NOT the
+        // parent — otherwise the various-artists scan walks the whole library.
+        val album = makeAlbum(
+            name = "Boston Garden, Boston, MA, 27.06.1977",
+            folderPath = "/m/1977 - Pink Floyd - Boston Garden/",
+            parentFolderPath = "/m/",
+            totalDiscs = 2,
+            discNumber = 1,
+        )
+        val rep = groupAlbumsByGroupId(listOf(album)).single()
+        assertEquals("/m/1977 - Pink Floyd - Boston Garden/", rep.folderPath)
+        assertTrue(rep.totalDiscs > 1) // still treated as grouped for track loading
+    }
+
+    @Test
     fun groupAlbums_multiDiscFoldsToOneRepresentative() {
         val disc1 = makeAlbum(
             name = "The Wall",

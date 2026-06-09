@@ -301,10 +301,18 @@ internal fun groupAlbumsByGroupId(albums: List<Album>): List<Album> {
             // shared parent.
             val foldsByFolder = isDiscSubfolder(rep.folderPath)
             val hasDiscMarker = normalizeAlbumName(rep.name) != rep.name
-            if (discs.size > 1 || foldsByFolder || hasDiscMarker || rep.totalDiscs > 1) {
+            // Discs live in sibling subfolders only when we actually saw more
+            // than one disc folder, the rep's own folder is a disc bucket, or
+            // the name carried a per-disc marker. A bare `Total Discs > 1` with
+            // a single folder means all discs sit in that one folder — keeping
+            // its own path (rather than the parent) avoids scanning the whole
+            // library above it, which previously hid the album behind the
+            // various-artists filter.
+            val discsInSubfolders = discs.size > 1 || foldsByFolder || hasDiscMarker
+            if (discsInSubfolders || rep.totalDiscs > 1) {
                 val copied = rep.copy(
                     name = normalizeAlbumName(rep.name),
-                    folderPath = rep.parentFolderPath,
+                    folderPath = if (discsInSubfolders) rep.parentFolderPath else rep.folderPath,
                     // ≥2 so getAlbumTracks treats it as grouped and prefix-
                     // matches every disc folder under the parent.
                     totalDiscs = maxOf(
