@@ -689,6 +689,28 @@ class LibraryRepositoryTest {
         sampleRate = 0, channels = 0, fileType = "", filePath = "", folderPath = folderPath,
     )
 
+    // ---- filterNotPlayedTracks ---------------------------------------------
+
+    @Test
+    fun filterNotPlayed_keepsOnlyUnsetOrZeroPlays() {
+        val tracks = listOf(
+            trk("/m", 1).copy(name = "a", numberPlays = 0),
+            trk("/m", 2).copy(name = "b", numberPlays = 5),
+            trk("/m", 3).copy(name = "c", numberPlays = 0),
+            trk("/m", 4).copy(name = "d", numberPlays = 1),
+        )
+        assertEquals(listOf("a", "c"), filterNotPlayedTracks(tracks).map { it.name })
+    }
+
+    @Test
+    fun filterNotPlayed_emptyWhenAllPlayed() {
+        val tracks = listOf(
+            trk("/m", 1).copy(numberPlays = 2),
+            trk("/m", 2).copy(numberPlays = 1),
+        )
+        assertTrue(filterNotPlayedTracks(tracks).isEmpty())
+    }
+
     @Test
     fun lastNumberIn_extractsTrailingNumber() {
         assertEquals(2, lastNumberIn("Golden_Vol_2"))

@@ -231,10 +231,17 @@ fun TvBrowseLeaf(
     tracks: List<Track>,
     onPlay: (tracks: List<Track>, startIndex: Int) -> Unit,
     group: (List<Track>) -> List<ArtistTrackGroup>,
+    notPlayed: (List<Track>) -> List<Track>,
 ) {
     var grouped by remember(title) { mutableStateOf(false) }
+    var notPlayedOnly by remember(title) { mutableStateOf(false) }
     var expanded by remember(title) { mutableStateOf(emptySet<String>()) }
-    val groups = remember(tracks, grouped) { if (grouped) group(tracks) else emptyList() }
+    // The repository owns the "not played" rule; the UI just toggles it on the
+    // already-loaded leaf/playlist tracks.
+    val visibleTracks = remember(tracks, notPlayedOnly) {
+        if (notPlayedOnly) notPlayed(tracks) else tracks
+    }
+    val groups = remember(visibleTracks, grouped) { if (grouped) group(visibleTracks) else emptyList() }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Header(title, null)
@@ -242,6 +249,9 @@ fun TvBrowseLeaf(
             modifier = Modifier.padding(start = 48.dp, end = 48.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Button(onClick = { notPlayedOnly = !notPlayedOnly }, colors = jrrButtonColors()) {
+                Text(if (notPlayedOnly) "Show all" else "Show not played")
+            }
             Button(onClick = { grouped = !grouped }, colors = jrrButtonColors()) {
                 Text(if (grouped) "Ungroup" else "Group by Album Artist")
             }
@@ -260,15 +270,15 @@ fun TvBrowseLeaf(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             if (!grouped) {
-                if (tracks.isEmpty()) {
-                    item { TvListRow("No tracks", onClick = {}) }
+                if (visibleTracks.isEmpty()) {
+                    item { TvListRow(if (notPlayedOnly) "No unplayed tracks" else "No tracks", onClick = {}) }
                 } else {
-                    item { TvListRow(headline = "▶  Play all", onClick = { onPlay(tracks, 0) }) }
-                    itemsIndexed(tracks) { index, track ->
+                    item { TvListRow(headline = "▶  Play all", onClick = { onPlay(visibleTracks, 0) }) }
+                    itemsIndexed(visibleTracks) { index, track ->
                         TvListRow(
                             headline = "${track.trackNumber}.  ${track.name}",
                             supporting = track.artist,
-                            onClick = { onPlay(tracks, index) },
+                            onClick = { onPlay(visibleTracks, index) },
                         )
                     }
                 }

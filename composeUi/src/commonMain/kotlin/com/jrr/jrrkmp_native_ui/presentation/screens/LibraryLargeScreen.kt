@@ -77,6 +77,7 @@ fun LibraryLargeScreen(
     // Browse grouping toggle + per-album collapse state, hoisted so they
     // survive switching away from and back to the Browse tab.
     var browseGrouped by remember { mutableStateOf(false) }
+    var browseNotPlayedOnly by remember { mutableStateOf(false) }
     val browseCollapsedAlbums = remember { mutableStateMapOf<String, Boolean>() }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.bg1)) {
@@ -161,7 +162,7 @@ fun LibraryLargeScreen(
                 "browse" -> BrowseTab(
                     stack = state.browseStack,
                     children = state.browseChildren,
-                    tracks = state.browseTracks,
+                    tracks = if (browseNotPlayedOnly) viewModel.notPlayed(state.browseTracks) else state.browseTracks,
                     isLoading = state.isLoading || state.isTabLoading,
                     onNodeClick = { label, id -> viewModel.pushBrowseNode(label, id) },
                     onTrackClick = { clicked, all -> viewModel.playTracks(all, all.indexOf(clicked).coerceAtLeast(0)) },
@@ -177,6 +178,8 @@ fun LibraryLargeScreen(
                     onTrackInfoClick = { infoTrack = it },
                     grouped = browseGrouped,
                     onGroupedChange = { browseGrouped = it },
+                    notPlayedOnly = browseNotPlayedOnly,
+                    onNotPlayedChange = { browseNotPlayedOnly = it },
                     collapsedAlbums = browseCollapsedAlbums,
                     onPlayTracks = { viewModel.playTracks(it, 0) },
                     onPlayTracksNext = { viewModel.playTracksNext(it) },

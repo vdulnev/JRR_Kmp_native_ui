@@ -249,6 +249,11 @@ final class TvLibraryObservable {
         viewModel.group(tracks: tracks)
     }
 
+    /// Tracks never played (Number Plays unset/zero) — Browse "Show not played".
+    func notPlayed(tracks: [Track]) -> [Track] {
+        viewModel.notPlayed(tracks: tracks)
+    }
+
     func artworkUrl(fileKey: String) -> String? {
         viewModel.artworkUrl(fileKey: fileKey)
     }

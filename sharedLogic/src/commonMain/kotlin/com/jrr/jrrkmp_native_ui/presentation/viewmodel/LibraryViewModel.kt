@@ -280,6 +280,9 @@ class LibraryViewModel(
         loadBrowseNodeContent(current.nodeId)
     }
 
+    /** Tracks never played (Number Plays unset/zero) — Browse "Show not played". */
+    fun notPlayed(tracks: List<Track>): List<Track> = libraryRepository.notPlayedTracks(tracks)
+
     private fun loadBrowseNodeContent(nodeId: String) {
         viewModelScope.launch {
             log.d { "loadBrowseNodeContent(nodeId=$nodeId)" }
