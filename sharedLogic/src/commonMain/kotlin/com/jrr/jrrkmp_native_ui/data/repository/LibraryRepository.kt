@@ -616,18 +616,39 @@ class LibraryRepository(
             // (per-disc names don't match the normalised name) and rely on
             // the parent-folder prefix + [Media Type]=Audio to scope the
             // result — sibling albums would live under a different parent.
-            val mcwsQuery = if (isGrouped && album.folderPath.isNotEmpty()) {
+            // When the album carries a folder, scope the search by `[Filename
+            // (path)]` in MCWS (a reliable prefix match) and match the album NAME
+            // in Kotlin afterwards. JRiver's `[Album]=[…]` filter silently returns
+            // nothing for some names — e.g. ones containing an apostrophe like
+            // "The Beatles' Hits" — and a shared folder (such as a box set whose
+            // EPs sit side-by-side under one parent) needs the name match to keep
+            // out sibling albums. Doing the name match in code sidesteps both.
+            val scopeByFolder = album.folderPath.isNotEmpty()
+            val mcwsQuery = if (scopeByFolder) {
                 "[Media Type]=Audio [Filename (path)]=\"${esc(album.folderPath)}\" " +
                         "~sort=[Disc #],[Track #]"
             } else {
-                val pathFilter = if (album.folderPath.isNotEmpty()) {
-                    "[Filename (path)]=\"${esc(album.folderPath)}\""
-                } else {
-                    ""
-                }
-                "[Album]=[${esc(album.name)}] $pathFilter ~sort=[Disc #],[Track #]"
+                "[Album]=[${esc(album.name)}] ~sort=[Disc #],[Track #]"
             }
             mcwsClient.searchTracks(mcwsQuery)
+                // Grouped reps deliberately span disc-suffixed names across sibling
+                // folders, so only the non-grouped case filters by exact name.
+                .let {
+                    if (scopeByFolder && !isGrouped) {
+                        // Match on the normalised name. A single folder can hold
+                        // several disc-suffixed albums — e.g. a box set of EPs all
+                        // tagged "… (Disc N)" side by side under one folder — whose
+                        // grouped display name had the suffix stripped. Normalising
+                        // both sides keeps only the selected album's tracks while
+                        // excluding its folder-mates.
+                        val target = normalizeAlbumName(album.name)
+                        it.filter { track ->
+                            normalizeAlbumName(track.album).equals(target, ignoreCase = true)
+                        }
+                    } else {
+                        it
+                    }
+                }
                 .map { it.withFolderDiscNumber() }
                 .let { if (isGrouped) assignDiscsBySubfolder(it) else it }
                 .sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
