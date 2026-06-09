@@ -104,6 +104,10 @@ class TvLibraryViewModel(
     /** Tracks never played (Number Plays unset/zero) — Browse "Show not played". */
     fun notPlayed(tracks: List<Track>): List<Track> = libraryRepository.notPlayedTracks(tracks)
 
+    /** Deterministically shuffled track list for the given seed — Browse "Shuffle". */
+    fun shuffle(tracks: List<Track>, seed: Long): List<Track> =
+        libraryRepository.shuffleTracks(tracks, seed)
+
     /** Thumbnail URL for an artwork file key, or null when there is none. */
     fun artworkUrl(fileKey: String): String? =
         fileKey.takeIf { it.isNotEmpty() }?.let { mcwsClient.buildImageUrl(it) }

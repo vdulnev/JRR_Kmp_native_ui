@@ -111,6 +111,8 @@ fun LibraryScreen(
     // they survive switching away from and back to the Browse tab.
     var browseGrouped by remember { mutableStateOf(false) }
     var browseNotPlayedOnly by remember { mutableStateOf(false) }
+    var browseShuffled by remember { mutableStateOf(false) }
+    var browseShuffleSeed by remember { mutableStateOf(0L) }
     val browseCollapsedAlbums = remember { mutableStateMapOf<String, Boolean>() }
 
     LaunchedEffect(state.transientError) {
@@ -241,7 +243,8 @@ fun LibraryScreen(
                 "browse" -> BrowseTab(
                     stack = state.browseStack,
                     children = state.browseChildren,
-                    tracks = if (browseNotPlayedOnly) viewModel.notPlayed(state.browseTracks) else state.browseTracks,
+                    tracks = (if (browseNotPlayedOnly) viewModel.notPlayed(state.browseTracks) else state.browseTracks)
+                        .let { if (browseShuffled) viewModel.shuffle(it, browseShuffleSeed) else it },
                     isLoading = state.isLoading || state.isTabLoading,
                     onNodeClick = { label, id ->
                         viewModel.pushBrowseNode(label, id)
@@ -264,6 +267,11 @@ fun LibraryScreen(
                     onGroupedChange = { browseGrouped = it },
                     notPlayedOnly = browseNotPlayedOnly,
                     onNotPlayedChange = { browseNotPlayedOnly = it },
+                    shuffled = browseShuffled,
+                    onShuffledChange = {
+                        if (it) browseShuffleSeed = kotlin.random.Random.nextLong()
+                        browseShuffled = it
+                    },
                     collapsedAlbums = browseCollapsedAlbums,
                     onPlayTracks = { viewModel.playTracks(it, 0) },
                     onPlayTracksNext = { viewModel.playTracksNext(it) },
@@ -893,6 +901,8 @@ fun BrowseTab(
     onGroupedChange: (Boolean) -> Unit,
     notPlayedOnly: Boolean,
     onNotPlayedChange: (Boolean) -> Unit,
+    shuffled: Boolean,
+    onShuffledChange: (Boolean) -> Unit,
     collapsedAlbums: MutableMap<String, Boolean>,
     onPlayTracks: (List<Track>) -> Unit,
     onPlayTracksNext: (List<Track>) -> Unit,
@@ -953,21 +963,31 @@ fun BrowseTab(
                             onClick = { showHeaderMenu = false; onRefresh() }
                         )
                         DropdownMenuItem(
+                            text = { Text("Shuffle", style = AppTypography.itemTitle) },
+                            trailingIcon = {
+                                if (shuffled) Icon(Icons.Default.Check, contentDescription = "On", tint = AppColors.accent)
+                            },
+                            onClick = { showHeaderMenu = false; onShuffledChange(!shuffled) }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Show not played", style = AppTypography.itemTitle) },
                             trailingIcon = {
                                 if (notPlayedOnly) Icon(Icons.Default.Check, contentDescription = "On", tint = AppColors.accent)
                             },
                             onClick = { showHeaderMenu = false; onNotPlayedChange(!notPlayedOnly) }
                         )
-                        DropdownMenuItem(
-                            text = { Text("Group by album artist", style = AppTypography.itemTitle) },
-                            trailingIcon = {
-                                if (grouped) Icon(Icons.Default.Check, contentDescription = "On", tint = AppColors.accent)
-                            },
-                            // Leave the menu open so the collapse/expand items appear immediately.
-                            onClick = { onGroupedChange(!grouped) }
-                        )
-                        if (grouped) {
+                        // Shuffling makes a flat random order, so grouping is hidden then.
+                        if (!shuffled) {
+                            DropdownMenuItem(
+                                text = { Text("Group by album artist", style = AppTypography.itemTitle) },
+                                trailingIcon = {
+                                    if (grouped) Icon(Icons.Default.Check, contentDescription = "On", tint = AppColors.accent)
+                                },
+                                // Leave the menu open so the collapse/expand items appear immediately.
+                                onClick = { onGroupedChange(!grouped) }
+                            )
+                        }
+                        if (grouped && !shuffled) {
                             DropdownMenuItem(
                                 text = { Text("Collapse all", style = AppTypography.itemTitle) },
                                 leadingIcon = { Icon(Icons.Default.UnfoldLess, contentDescription = null, tint = AppColors.text2) },
@@ -1020,7 +1040,7 @@ fun BrowseTab(
                         )
                     }
                 }
-            } else if (grouped) {
+            } else if (grouped && !shuffled) {
                 BrowseGroupedTracks(
                     tracks = tracks,
                     pad = pad,

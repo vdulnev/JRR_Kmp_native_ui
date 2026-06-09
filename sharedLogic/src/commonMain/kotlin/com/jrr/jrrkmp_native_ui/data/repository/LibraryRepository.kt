@@ -9,6 +9,7 @@ import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import io.ktor.util.date.getTimeMillis
+import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.async
@@ -127,6 +128,15 @@ private val MULTI_SPACE = Regex("""\s{2,}""")
  */
 internal fun filterNotPlayedTracks(tracks: List<Track>): List<Track> =
     tracks.filter { it.numberPlays <= 0 }
+
+/**
+ * A shuffled copy of [tracks], deterministic for a given [seed]. The seed makes
+ * the order stable across re-renders (the UI keeps one seed per shuffle), while
+ * a new seed reshuffles. Exposed as `internal` for unit tests; the public entry
+ * point is [LibraryRepository.shuffleTracks].
+ */
+internal fun shuffleTracksList(tracks: List<Track>, seed: Long): List<Track> =
+    tracks.shuffled(Random(seed))
 
 internal fun normalizeAlbumName(name: String): String {
     var result = name
@@ -736,6 +746,14 @@ class LibraryRepository(
      * playlist), so it needs no extra network round-trip.
      */
     fun notPlayedTracks(tracks: List<Track>): List<Track> = filterNotPlayedTracks(tracks)
+
+    /**
+     * Shuffle a track list (e.g. a Browse leaf / playlist). Deterministic for a
+     * given [seed] so the order stays stable while the UI shows it; pass a new
+     * seed to reshuffle. Powers the Browse "Shuffle" toggle.
+     */
+    fun shuffleTracks(tracks: List<Track>, seed: Long): List<Track> =
+        shuffleTracksList(tracks, seed)
 
     suspend fun getRemoteQueue(): List<Track> = withContext(Dispatchers.IO) {
         mcwsClient.getRemoteQueue()

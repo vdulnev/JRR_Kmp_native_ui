@@ -21,14 +21,18 @@ struct TvBrowseNodeView: View {
     @State private var tracks: [Track] = []
     @State private var grouped = true
     @State private var notPlayedOnly = false
+    @State private var shuffled = false
+    @State private var shuffleSeed: Int64 = 0
     @State private var loading = true
     @State private var favoritedKeys: Set<String> = []
     @State private var favoritedTrackKeys: Set<String> = []
 
-    /// The repository owns the "not played" rule; the view just toggles it over
-    /// the already-loaded node tracks and re-groups the filtered result.
+    /// The repository owns the "not played" / "shuffle" rules; the view just
+    /// toggles them over the loaded node tracks. The seed keeps the shuffled
+    /// order stable across re-renders. Shuffling forces a flat listing.
     private var displayTracks: [Track] {
-        notPlayedOnly ? observable.notPlayed(tracks: tracks) : tracks
+        let base = notPlayedOnly ? observable.notPlayed(tracks: tracks) : tracks
+        return shuffled ? observable.shuffle(tracks: base, seed: shuffleSeed) : base
     }
 
     private var displayGroups: [ArtistTrackGroup] {
@@ -98,15 +102,26 @@ struct TvBrowseNodeView: View {
         .toolbar {
             if !tracks.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        if !shuffled { shuffleSeed = Int64(Date().timeIntervalSince1970 * 1000) }
+                        shuffled.toggle()
+                    } label: {
+                        Label(shuffled ? "Shuffled" : "Shuffle", systemImage: "shuffle")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { notPlayedOnly.toggle() } label: {
                         Label(notPlayedOnly ? "Not Played" : "All Plays",
                               systemImage: notPlayedOnly ? "circle.dashed" : "circle")
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { grouped.toggle() } label: {
-                        Label(grouped ? "Grouped" : "Flat",
-                              systemImage: grouped ? "rectangle.grid.1x2" : "list.bullet")
+                // Shuffling makes a flat random order, so grouping is hidden then.
+                if !shuffled {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { grouped.toggle() } label: {
+                            Label(grouped ? "Grouped" : "Flat",
+                                  systemImage: grouped ? "rectangle.grid.1x2" : "list.bullet")
+                        }
                     }
                 }
             }
@@ -121,7 +136,7 @@ struct TvBrowseNodeView: View {
                     play(displayTracks, from: 0)
                 } label: { Label("Play All", systemImage: "play.fill") }
             }
-            if grouped {
+            if grouped, !shuffled {
                 // Drill-down: Album Artists → Albums → Tracks, on the node's
                 // tracks grouped by the shared groupTracksByArtistAndAlbum
                 // (multi-disc albums folded). Same shape as the Artists tab.

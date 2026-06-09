@@ -232,16 +232,24 @@ fun TvBrowseLeaf(
     onPlay: (tracks: List<Track>, startIndex: Int) -> Unit,
     group: (List<Track>) -> List<ArtistTrackGroup>,
     notPlayed: (List<Track>) -> List<Track>,
+    shuffle: (tracks: List<Track>, seed: Long) -> List<Track>,
 ) {
     var grouped by remember(title) { mutableStateOf(false) }
     var notPlayedOnly by remember(title) { mutableStateOf(false) }
+    var shuffled by remember(title) { mutableStateOf(false) }
+    var shuffleSeed by remember(title) { mutableStateOf(0L) }
     var expanded by remember(title) { mutableStateOf(emptySet<String>()) }
-    // The repository owns the "not played" rule; the UI just toggles it on the
-    // already-loaded leaf/playlist tracks.
+    // The repository owns the "not played" / "shuffle" rules; the UI just toggles
+    // them on the already-loaded leaf/playlist tracks. Shuffling forces a flat
+    // listing — artist/album grouping is meaningless once the order is random.
     val visibleTracks = remember(tracks, notPlayedOnly) {
         if (notPlayedOnly) notPlayed(tracks) else tracks
     }
-    val groups = remember(visibleTracks, grouped) { if (grouped) group(visibleTracks) else emptyList() }
+    val orderedTracks = remember(visibleTracks, shuffled, shuffleSeed) {
+        if (shuffled) shuffle(visibleTracks, shuffleSeed) else visibleTracks
+    }
+    val showGrouped = grouped && !shuffled
+    val groups = remember(visibleTracks, showGrouped) { if (showGrouped) group(visibleTracks) else emptyList() }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Header(title, null)
@@ -249,13 +257,22 @@ fun TvBrowseLeaf(
             modifier = Modifier.padding(start = 48.dp, end = 48.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Button(
+                onClick = {
+                    if (!shuffled) shuffleSeed = System.currentTimeMillis()
+                    shuffled = !shuffled
+                },
+                colors = jrrButtonColors(),
+            ) { Text(if (shuffled) "Unshuffle" else "Shuffle") }
             Button(onClick = { notPlayedOnly = !notPlayedOnly }, colors = jrrButtonColors()) {
                 Text(if (notPlayedOnly) "Show all" else "Show not played")
             }
-            Button(onClick = { grouped = !grouped }, colors = jrrButtonColors()) {
-                Text(if (grouped) "Ungroup" else "Group by Album Artist")
+            if (!shuffled) {
+                Button(onClick = { grouped = !grouped }, colors = jrrButtonColors()) {
+                    Text(if (grouped) "Ungroup" else "Group by Album Artist")
+                }
             }
-            if (grouped) {
+            if (showGrouped) {
                 Button(
                     onClick = { expanded = groups.flatMap { g -> g.albums.map { it.groupId } }.toSet() },
                     colors = jrrButtonColors(),
@@ -269,16 +286,16 @@ fun TvBrowseLeaf(
             contentPadding = PaddingValues(horizontal = 48.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            if (!grouped) {
-                if (visibleTracks.isEmpty()) {
+            if (!showGrouped) {
+                if (orderedTracks.isEmpty()) {
                     item { TvListRow(if (notPlayedOnly) "No unplayed tracks" else "No tracks", onClick = {}) }
                 } else {
-                    item { TvListRow(headline = "▶  Play all", onClick = { onPlay(visibleTracks, 0) }) }
-                    itemsIndexed(visibleTracks) { index, track ->
+                    item { TvListRow(headline = "▶  Play all", onClick = { onPlay(orderedTracks, 0) }) }
+                    itemsIndexed(orderedTracks) { index, track ->
                         TvListRow(
                             headline = "${track.trackNumber}.  ${track.name}",
                             supporting = track.artist,
-                            onClick = { onPlay(visibleTracks, index) },
+                            onClick = { onPlay(orderedTracks, index) },
                         )
                     }
                 }

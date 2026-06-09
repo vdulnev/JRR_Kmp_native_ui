@@ -78,6 +78,8 @@ fun LibraryLargeScreen(
     // survive switching away from and back to the Browse tab.
     var browseGrouped by remember { mutableStateOf(false) }
     var browseNotPlayedOnly by remember { mutableStateOf(false) }
+    var browseShuffled by remember { mutableStateOf(false) }
+    var browseShuffleSeed by remember { mutableStateOf(0L) }
     val browseCollapsedAlbums = remember { mutableStateMapOf<String, Boolean>() }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.bg1)) {
@@ -162,7 +164,8 @@ fun LibraryLargeScreen(
                 "browse" -> BrowseTab(
                     stack = state.browseStack,
                     children = state.browseChildren,
-                    tracks = if (browseNotPlayedOnly) viewModel.notPlayed(state.browseTracks) else state.browseTracks,
+                    tracks = (if (browseNotPlayedOnly) viewModel.notPlayed(state.browseTracks) else state.browseTracks)
+                        .let { if (browseShuffled) viewModel.shuffle(it, browseShuffleSeed) else it },
                     isLoading = state.isLoading || state.isTabLoading,
                     onNodeClick = { label, id -> viewModel.pushBrowseNode(label, id) },
                     onTrackClick = { clicked, all -> viewModel.playTracks(all, all.indexOf(clicked).coerceAtLeast(0)) },
@@ -180,6 +183,11 @@ fun LibraryLargeScreen(
                     onGroupedChange = { browseGrouped = it },
                     notPlayedOnly = browseNotPlayedOnly,
                     onNotPlayedChange = { browseNotPlayedOnly = it },
+                    shuffled = browseShuffled,
+                    onShuffledChange = {
+                        if (it) browseShuffleSeed = kotlin.random.Random.nextLong()
+                        browseShuffled = it
+                    },
                     collapsedAlbums = browseCollapsedAlbums,
                     onPlayTracks = { viewModel.playTracks(it, 0) },
                     onPlayTracksNext = { viewModel.playTracksNext(it) },
