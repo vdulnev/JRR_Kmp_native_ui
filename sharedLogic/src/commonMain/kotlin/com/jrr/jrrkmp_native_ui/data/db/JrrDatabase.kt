@@ -15,7 +15,7 @@ import com.jrr.jrrkmp_native_ui.data.db.entity.*
         DownloadedTrackEntity::class,
         DownloadJobEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @ConstructedBy(JrrDatabaseConstructor::class)

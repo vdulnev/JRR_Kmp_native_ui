@@ -28,6 +28,14 @@ interface SavedServerDao {
 
     @Query("SELECT * FROM saved_servers ORDER BY last_used_at DESC LIMIT 1")
     suspend fun getLastUsedServer(): SavedServerEntity?
+
+    /** Assign (or clear, with null) the group of a single connection profile. */
+    @Query("UPDATE saved_servers SET group_name = :groupName WHERE id = :id")
+    suspend fun setGroupName(id: String, groupName: String?)
+
+    /** Rename a whole group — every profile sharing [oldName] moves to [newName]. */
+    @Query("UPDATE saved_servers SET group_name = :newName WHERE group_name = :oldName")
+    suspend fun renameGroup(oldName: String, newName: String)
 }
 
 @Dao

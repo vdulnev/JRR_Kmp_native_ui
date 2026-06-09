@@ -32,6 +32,36 @@ data class McwsServerData(
     val token: String?
 )
 
+/**
+ * One real server and its connection profiles. A [name] of `null` marks a
+ * standalone (ungrouped) profile — those each become their own single-profile
+ * group so callers can render one flat list.
+ */
+data class ServerGroup(
+    val name: String?,
+    val profiles: List<SavedServerEntity>,
+)
+
+/**
+ * Fold flat saved profiles into [ServerGroup]s: profiles sharing a non-null
+ * `groupName` collapse into one group (most-recently-used profile first), and
+ * each ungrouped profile becomes its own single-profile group. Groups are
+ * ordered by their most-recently-used profile. Exposed as `internal` so unit
+ * tests can drive it without a database; the public entry point is
+ * [ServerRepository.getServerGroups].
+ */
+internal fun groupServers(servers: List<SavedServerEntity>): List<ServerGroup> {
+    val grouped = servers
+        .filter { it.groupName != null }
+        .groupBy { it.groupName!! }
+        .map { (name, profiles) -> ServerGroup(name, profiles.sortedByDescending { it.lastUsedAt }) }
+    val standalone = servers
+        .filter { it.groupName == null }
+        .map { ServerGroup(null, listOf(it)) }
+    return (grouped + standalone)
+        .sortedByDescending { group -> group.profiles.maxOfOrNull { it.lastUsedAt } ?: 0L }
+}
+
 class ServerRepository(
     private val database: JrrDatabase,
     private val httpClient: HttpClient,
@@ -140,6 +170,24 @@ class ServerRepository(
 
     suspend fun getAllServers(): List<SavedServerEntity> = withContext(Dispatchers.IO) {
         serverDao.getAllServers().also { log.d { "getAllServers → ${it.size}" } }
+    }
+
+    /** Saved profiles folded into groups (one entry per real server). */
+    suspend fun getServerGroups(): List<ServerGroup> = withContext(Dispatchers.IO) {
+        groupServers(serverDao.getAllServers()).also { log.d { "getServerGroups → ${it.size}" } }
+    }
+
+    /** Assign a profile to [groupName] (a new or existing group), or clear it with null. */
+    suspend fun setProfileGroup(profileId: String, groupName: String?) = withContext(Dispatchers.IO) {
+        log.i { "setProfileGroup(id=$profileId group=${groupName ?: "<none>"})" }
+        serverDao.setGroupName(profileId, groupName?.takeIf { it.isNotBlank() })
+    }
+
+    /** Rename a group — every profile under [oldName] moves to [newName]. */
+    suspend fun renameServerGroup(oldName: String, newName: String) = withContext(Dispatchers.IO) {
+        if (newName.isBlank() || oldName == newName) return@withContext
+        log.i { "renameServerGroup($oldName → $newName)" }
+        serverDao.renameGroup(oldName, newName)
     }
 
     suspend fun getLastUsedServer(): SavedServerEntity? = withContext(Dispatchers.IO) {
