@@ -157,7 +157,8 @@ fun ServerManagerScreen(
                     // Access Key Flow
                     OutlinedTextField(
                         value = accessKey,
-                        onValueChange = { if (it.length <= 6) accessKey = it.uppercase() },
+                        // Access keys are case-sensitive — keep the entered case.
+                        onValueChange = { if (it.length <= 6) accessKey = it },
                         label = { Text("6-Digit Access Key", color = AppColors.text2) },
                         colors = outlinedTextFieldColors(),
                         singleLine = true,
