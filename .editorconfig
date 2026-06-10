@@ -1,0 +1,9 @@
+root = true
+
+# ktlint is used ONLY as an import optimizer/checker (see githooks/pre-push).
+# The standard ruleset is disabled wholesale; just the two import rules run,
+# so the rest of the codebase style stays as-is.
+[*.{kt,kts}]
+ktlint_standard = disabled
+ktlint_standard_no-unused-imports = enabled
+ktlint_standard_import-ordering = enabled

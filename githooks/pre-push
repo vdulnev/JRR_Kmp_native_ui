@@ -5,10 +5,33 @@
 # Warnings are treated as errors on both sides:
 #  - Kotlin: -PstrictWarnings flips allWarningsAsErrors on (see root build.gradle.kts)
 #  - Swift:  SWIFT/GCC_TREAT_WARNINGS_AS_ERRORS on the xcodebuild invocation
+# Kotlin imports must be optimized (no unused, sorted): ktlint, scoped to the
+# two import rules via the root .editorconfig.
+
+KOTLIN_SOURCES=(
+    "sharedLogic/src/**/*.kt"
+    "androidCore/src/**/*.kt"
+    "androidApp/src/**/*.kt"
+    "androidTvApp/src/**/*.kt"
+    "composeUi/src/**/*.kt"
+    "desktopApp/src/**/*.kt"
+)
 
 echo "========================================="
 echo "Running pre-push verification checks..."
 echo "========================================="
+
+# 0. Kotlin import check (cheap, fails fast). Rules are scoped in .editorconfig.
+echo "Step 0: Checking Kotlin imports (unused/ordering)..."
+if ! command -v ktlint > /dev/null; then
+    echo "❌ ktlint not installed (brew install ktlint). Aborting push."
+    exit 1
+fi
+ktlint "${KOTLIN_SOURCES[@]}"
+if [ $? -ne 0 ]; then
+    echo "❌ Kotlin import check failed! Run 'ktlint -F' on the files above to optimize imports."
+    exit 1
+fi
 
 # 1. Run Android & KMP checking (including tests and linting), warnings fatal
 echo "Step 1: Running Kotlin & Android checks and unit tests (warnings as errors)..."
