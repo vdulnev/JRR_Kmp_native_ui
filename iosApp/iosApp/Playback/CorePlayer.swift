@@ -188,13 +188,9 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
             url = URL(fileURLWithPath: localPath)
             source = "local"
         } else {
-            let host = facade.currentServerHost ?? ""
-            let useSsl = facade.currentServerUseSsl
-            let port = useSsl ? facade.currentServerSslPort : facade.currentServerPort
-            let scheme = useSsl ? "https" : "http"
-            let token = facade.currentServerToken ?? ""
-            let quality = facade.currentLocalAudioQuality
-            let encodedUrl = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(track.fileKey)&FileType=Key&Playback=1&\(quality.mcwsParams)&Token=\(token)"
+            // Single source of truth for the stream URL (server + quality +
+            // Channels=2) lives in the shared facade.
+            let encodedUrl = facade.streamUrl(fileKey: track.fileKey, playback: true)
             url = URL(string: encodedUrl) ?? URL(fileURLWithPath: "")
             source = "stream"
             // The converted stream carries no extension, so hand AVPlayer the

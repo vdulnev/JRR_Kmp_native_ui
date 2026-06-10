@@ -9,8 +9,6 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import co.touchlab.kermit.Logger
-import com.jrr.jrrkmp_native_ui.core.logging.redact
-import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
@@ -18,8 +16,6 @@ import com.jrr.jrrkmp_native_ui.domain.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
-import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -32,9 +28,19 @@ private val json = Json {
 
 class LocalPlayerHandler(
     private val context: Context,
-    private val serverRepository: ServerRepository,
     private val checkLocalFileProvider: (String) -> String?,
-    private val localAudioQualityProvider: () -> LocalAudioQuality = { LocalAudioQuality.LOSSLESS },
+    /**
+     * Builds the MCWS `GetFile` stream URL for a track. Sourced from
+     * [AudioPlayerFacade.streamUrl] so the URL format (incl. `Channels=2`) and
+     * the transcode quality live in one place — the facade — rather than being
+     * rebuilt here. Defaults to empty (no server) for standalone construction.
+     */
+    private val streamUrlProvider: (Track) -> String = { "" },
+    /**
+     * Builds the MCWS thumbnail URL for a file key — sourced from
+     * [AudioPlayerFacade.artworkUrl] for the same reason.
+     */
+    private val artworkUrlProvider: (String) -> String = { "" },
 ) : LocalPlayerEngine {
     private var exoPlayer: ExoPlayer? = null
     
@@ -173,39 +179,14 @@ class LocalPlayerHandler(
         return exoPlayer!!
     }
 
-    /** The user-configured streaming quality, so other producers of remote
-     *  media items (e.g. the Android Auto service) honour the same setting. */
-    fun currentAudioQuality(): LocalAudioQuality = localAudioQualityProvider()
-
     private fun createMediaItem(track: Track): MediaItem {
-        // Resolve the server once — needed for a remote stream URL and for remote
-        // artwork (so Now Playing shows covers for non-downloaded tracks too).
-        val active = serverRepository.activeServer.value
-        val (serverUrl, token) = if (active != null) {
-            val host = active.host
-            val scheme = if (active.useSsl) "https" else "http"
-            val port = if (active.useSsl) active.sslPort else active.port
-            Pair("$scheme://$host:$port/MCWS/v1", active.token ?: "")
-        } else {
-            val activeServer = runBlocking { serverRepository.getLastUsedServer() }
-            if (activeServer != null) {
-                val host = activeServer.host
-                val scheme = if (activeServer.useSsl) "https" else "http"
-                val port = if (activeServer.useSsl) activeServer.sslPort else activeServer.port
-                Pair("$scheme://$host:$port/MCWS/v1", activeServer.authToken ?: "")
-            } else {
-                Pair("", "")
-            }
-        }
-
         val localPath = checkLocalFileProvider(track.fileKey)
         val uri = if (localPath != null && File(localPath).exists()) {
             log.v { "createMediaItem(${track.fileKey}) → local file" }
             Uri.fromFile(File(localPath))
         } else {
-            val quality = localAudioQualityProvider()
-            log.v { "createMediaItem(${track.fileKey}) → remote $serverUrl quality=${quality.name} token=${token.redact()}" }
-            Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&FileType=Key&Playback=1&${quality.mcwsParams}&Token=${token}")
+            log.v { "createMediaItem(${track.fileKey}) → remote stream" }
+            Uri.parse(streamUrlProvider(track))
         }
 
         val extras = android.os.Bundle().apply {
@@ -221,7 +202,7 @@ class LocalPlayerHandler(
                     .setTitle(track.name)
                     .setArtist(track.artist)
                     .setAlbumTitle(track.album)
-                    .setArtworkUri(artworkUriFor(track.fileKey, serverUrl, token))
+                    .setArtworkUri(artworkUriFor(track.fileKey))
                     .setExtras(extras)
                     .build()
             )
@@ -230,21 +211,19 @@ class LocalPlayerHandler(
 
     /**
      * Prefer the downloaded art file (instant, offline); otherwise fall back to
-     * the MCWS thumbnail endpoint so remote tracks still show a cover on the
-     * Now Playing screen / head unit.
+     * the MCWS thumbnail (via [artworkUrlProvider] → the facade) so remote
+     * tracks still show a cover on the Now Playing screen / head unit.
      */
-    private fun artworkUriFor(fileKey: String, serverUrl: String, token: String): Uri {
+    private fun artworkUriFor(fileKey: String): Uri {
         val localArt = File(context.filesDir, "downloads/art_$fileKey.jpg")
         if (localArt.exists()) {
             return Uri.parse(
                 "content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_$fileKey.jpg"
             )
         }
-        if (serverUrl.isNotEmpty() && token.isNotEmpty() && fileKey.isNotEmpty()) {
-            return Uri.parse(
-                "$serverUrl/File/GetImage?File=$fileKey&Type=Thumbnail" +
-                    "&Width=300&Height=300&Square=1&Token=$token"
-            )
+        val remote = artworkUrlProvider(fileKey)
+        if (remote.isNotEmpty()) {
+            return Uri.parse(remote)
         }
         return Uri.parse(
             "content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_$fileKey.jpg"

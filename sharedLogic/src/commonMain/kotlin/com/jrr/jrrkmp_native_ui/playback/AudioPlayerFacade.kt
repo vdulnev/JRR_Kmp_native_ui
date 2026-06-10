@@ -113,6 +113,43 @@ class AudioPlayerFacade(
     val currentLocalAudioQuality: LocalAudioQuality
         get() = _localAudioQuality.value
 
+    /**
+     * Single source of truth for the MCWS `GetFile` stream/download URL, shared
+     * by every platform's track request (Android [LocalPlayerHandler],
+     * iOS/macOS/tvOS CorePlayer + DownloadManager). Built from the **active
+     * server only** — returns an empty string when none is connected. `Channels=2`
+     * forces a stereo downmix; [playback] adds `Playback=1` for streaming
+     * (downloads pass false). The transcode level comes from [currentLocalAudioQuality].
+     */
+    fun streamUrl(fileKey: String, playback: Boolean): String {
+        val host = currentServerHost
+        if (host.isNullOrEmpty()) return ""
+        val useSsl = currentServerUseSsl
+        val scheme = if (useSsl) "https" else "http"
+        val port = if (useSsl) currentServerSslPort else currentServerPort
+        val token = currentServerToken ?: ""
+        val playbackParam = if (playback) "&Playback=1" else ""
+        return "$scheme://$host:$port/MCWS/v1/File/GetFile?File=$fileKey" +
+            "&FileType=Key$playbackParam&${currentLocalAudioQuality.mcwsParams}&Channels=2&Token=$token"
+    }
+
+    // Artwork URLs. Like [streamUrl] these are the single source of truth for
+    // playback-layer consumers (Android player/Auto service, iOS players,
+    // download pipelines) and are built from the active server only — empty
+    // string when none. They delegate to [McwsClient], which shares the same
+    // active-server flow, so UI callers using the client directly stay in sync.
+
+    /** 300×300 square thumbnail for a file key (Now Playing, lists). */
+    fun artworkUrl(fileKey: String): String =
+        if (fileKey.isEmpty()) "" else mcwsClient.buildImageUrl(fileKey)
+
+    /** Full-size cover for a file key — persisted next to downloaded tracks. */
+    fun fullArtworkUrl(fileKey: String): String =
+        if (fileKey.isEmpty()) "" else mcwsClient.buildFullImageUrl(fileKey)
+
+    /** Representative cover for a Browse-tree node (album/category folder). */
+    fun browseNodeArtUrl(nodeId: String): String = mcwsClient.buildBrowseImageUrl(nodeId)
+
     // Remote Playback Handler
     private val remoteHandler = McwsRemotePlayerHandler(mcwsClient)
 

@@ -101,6 +101,15 @@ class McwsClient(
         return "$base/File/GetImage?File=$fileKey&Type=Thumbnail&Width=300&Height=300&Square=1&Token=$token"
     }
 
+    /** Full-size cover (no thumbnail scaling) — used when persisting artwork
+     *  alongside downloaded tracks. */
+    fun buildFullImageUrl(fileKey: String): String {
+        val base = getBaseUrl() ?: return ""
+        val server = getActiveServer() ?: return ""
+        val token = server.token ?: return ""
+        return "$base/File/GetImage?File=$fileKey&Token=$token"
+    }
+
     /** Cover for a Browse-tree node (album/category folder). Unlike
      *  [buildImageUrl], this targets `Browse/Image` keyed by the browse node id. */
     fun buildBrowseImageUrl(nodeId: String): String {

@@ -10,7 +10,6 @@ import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.createDatabase
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
-import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.playback.LocalPlayerHandler
@@ -55,15 +54,16 @@ class AppContainer(context: Context) {
         log.d { "lazy: localPlayerHandler" }
         LocalPlayerHandler(
             context = appContext,
-            serverRepository = serverRepository,
             checkLocalFileProvider = { fileKey ->
                 runBlocking {
                     database.downloadedTrackDao().getTrack(fileKey)?.filePath
                 }
             },
-            localAudioQualityProvider = {
-                LocalAudioQuality.fromName(prefs.getString("local_audio_quality", null))
-            },
+            // The facade is the single source of truth for stream + artwork URLs
+            // (active server, quality, Channels=2). `facade` is `by lazy` and defined
+            // below, so the lambdas resolve it at call time — no construction cycle.
+            streamUrlProvider = { track -> facade.streamUrl(track.fileKey, playback = true) },
+            artworkUrlProvider = { fileKey -> facade.artworkUrl(fileKey) },
         )
     }
 

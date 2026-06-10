@@ -16,7 +16,6 @@ import com.jrr.jrrkmp_native_ui.core.di.appContainer
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.domain.model.Album
-import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import kotlinx.coroutines.*
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -124,43 +123,11 @@ class PlaybackService : MediaLibraryService() {
         return null
     }
 
-    /**
-     * Resolve the active server's MCWS base URL and token once, so list
-     * conversions don't hit the DB ([getLastUsedServer]) per track. Prefers the
-     * in-memory active server, falling back to the last-used saved server.
-     */
-    private fun resolveServerUrlAndToken(): Pair<String, String> {
-        val active = this@PlaybackService.appContainer.serverRepository.activeServer.value
-        if (active != null) {
-            val scheme = if (active.useSsl) "https" else "http"
-            val port = if (active.useSsl) active.sslPort else active.port
-            return Pair("$scheme://${active.host}:$port/MCWS/v1", active.token ?: "")
-        }
-        val saved = runBlocking { this@PlaybackService.appContainer.serverRepository.getLastUsedServer() }
-        return if (saved != null) {
-            val scheme = if (saved.useSsl) "https" else "http"
-            val port = if (saved.useSsl) saved.sslPort else saved.port
-            Pair("$scheme://${saved.host}:$port/MCWS/v1", saved.authToken ?: "")
-        } else {
-            Pair("", "")
-        }
-    }
+    private fun mapTrackToMediaItem(track: Track): MediaItem =
+        mapDomainTrackToMediaItem(track)
 
-    /** Single-track convenience: resolves server + quality, then maps. */
-    private fun mapTrackToMediaItem(track: Track): MediaItem {
-        val (serverUrl, token) = resolveServerUrlAndToken()
-        return mapDomainTrackToMediaItem(track, serverUrl, token, currentQuality())
-    }
-
-    /** List conversion: resolves server + quality once for the whole batch. */
-    private fun mapTracksToMediaItems(tracks: List<Track>): List<MediaItem> {
-        val (serverUrl, token) = resolveServerUrlAndToken()
-        val quality = currentQuality()
-        return tracks.map { mapDomainTrackToMediaItem(it, serverUrl, token, quality) }
-    }
-
-    private fun currentQuality(): LocalAudioQuality =
-        this@PlaybackService.appContainer.localPlayerHandler.currentAudioQuality()
+    private fun mapTracksToMediaItems(tracks: List<Track>): List<MediaItem> =
+        tracks.map { mapDomainTrackToMediaItem(it) }
 
     /**
      * Roll a fresh random-albums set and broadcast a children-changed signal to
@@ -190,22 +157,20 @@ class PlaybackService : MediaLibraryService() {
 
     /**
      * Artwork URI for a file key: prefer the downloaded copy (instant, offline),
-     * otherwise fall back to the MCWS thumbnail endpoint so remote albums/tracks
-     * still show art in Android Auto. Media3's default BitmapLoader fetches the
-     * http(s) URI for us.
+     * otherwise fall back to the MCWS thumbnail (via the facade, active server
+     * only) so remote albums/tracks still show art in Android Auto. Media3's
+     * default BitmapLoader fetches the http(s) URI for us.
      */
-    private fun artworkUriFor(fileKey: String, serverUrl: String, token: String): Uri {
+    private fun artworkUriFor(fileKey: String): Uri {
         val localArt = File(filesDir, "downloads/art_$fileKey.jpg")
         if (localArt.exists()) {
             return Uri.parse(
                 "content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_$fileKey.jpg"
             )
         }
-        if (serverUrl.isNotEmpty() && token.isNotEmpty() && fileKey.isNotEmpty()) {
-            return Uri.parse(
-                "$serverUrl/File/GetImage?File=$fileKey&Type=Thumbnail" +
-                    "&Width=300&Height=300&Square=1&Token=$token"
-            )
+        val remote = this@PlaybackService.appContainer.facade.artworkUrl(fileKey)
+        if (remote.isNotEmpty()) {
+            return Uri.parse(remote)
         }
         return Uri.parse(
             "content://com.jrr.jrrkmp_native_ui.fileprovider/downloads/art_$fileKey.jpg"
@@ -218,11 +183,10 @@ class PlaybackService : MediaLibraryService() {
      * which is different from a file's `File/GetImage`. Returns null when we have
      * no server context.
      */
-    private fun browseNodeArtUri(nodeId: String, serverUrl: String, token: String): Uri? {
-        if (serverUrl.isEmpty() || token.isEmpty() || nodeId.isEmpty()) return null
-        return Uri.parse(
-            "$serverUrl/Browse/Image?ID=$nodeId&Format=jpg&Width=300&Height=300&Token=$token"
-        )
+    private fun browseNodeArtUri(nodeId: String): Uri? {
+        if (nodeId.isEmpty()) return null
+        val url = this@PlaybackService.appContainer.facade.browseNodeArtUrl(nodeId)
+        return if (url.isEmpty()) null else Uri.parse(url)
     }
 
     /** JRiver "Album Artist (auto)": album artist, falling back to track artist. */
@@ -239,7 +203,6 @@ class PlaybackService : MediaLibraryService() {
 
     /** Browsable album rows keyed `album|<artist>|<name>` (matches the Albums node). */
     private fun mapAlbumsToBrowsableItems(albums: List<Album>): List<MediaItem> {
-        val (serverUrl, token) = resolveServerUrlAndToken()
         return albums.map { album ->
             MediaItem.Builder()
                 .setMediaId("album|${album.albumArtist}|${album.name}")
@@ -247,7 +210,7 @@ class PlaybackService : MediaLibraryService() {
                     MediaMetadata.Builder()
                         .setTitle(album.name)
                         .setSubtitle(album.albumArtist)
-                        .setArtworkUri(artworkUriFor(album.artworkFileKey, serverUrl, token))
+                        .setArtworkUri(artworkUriFor(album.artworkFileKey))
                         .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
                         .setIsPlayable(true)
                         .setIsBrowsable(true)
@@ -257,20 +220,17 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    private fun mapDomainTrackToMediaItem(
-        track: Track,
-        serverUrl: String,
-        token: String,
-        quality: LocalAudioQuality,
-    ): MediaItem {
+    private fun mapDomainTrackToMediaItem(track: Track): MediaItem {
         val db = this@PlaybackService.appContainer.database
         val localTrack = runBlocking { db.downloadedTrackDao().getTrack(track.fileKey) }
         val uri = if (localTrack != null && File(localTrack.filePath).exists()) {
             Uri.fromFile(File(localTrack.filePath))
         } else {
-            Uri.parse("${serverUrl}/File/GetFile?File=${track.fileKey}&FileType=Key&Playback=1&${quality.mcwsParams}&Token=${token}")
+            // Stream URL (server + quality + Channels=2) comes from the facade —
+            // single source of truth, active server only.
+            Uri.parse(this@PlaybackService.appContainer.facade.streamUrl(track.fileKey, playback = true))
         }
-        val artUri = artworkUriFor(track.fileKey, serverUrl, token)
+        val artUri = artworkUriFor(track.fileKey)
         val extras = android.os.Bundle().apply {
             putString("track_json", json.encodeToString(track))
         }
@@ -453,7 +413,6 @@ class PlaybackService : MediaLibraryService() {
                     } else if (parentId.startsWith("dl_artist|")) {
                         // Albums for one album-artist, drawn from downloads.
                         val artist = parentId.substringAfter("dl_artist|")
-                        val (artSrv, artTok) = resolveServerUrlAndToken()
                         val albums = repository.getDownloadedTracks()
                             .filter { autoAlbumArtist(it) == artist }
                             .groupBy { albumOf(it) }
@@ -467,7 +426,7 @@ class PlaybackService : MediaLibraryService() {
                                     MediaMetadata.Builder()
                                         .setTitle(album)
                                         .setSubtitle(artist)
-                                        .setArtworkUri(artworkUriFor(artKey, artSrv, artTok))
+                                        .setArtworkUri(artworkUriFor(artKey))
                                         .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
                                         .setIsPlayable(true)
                                         .setIsBrowsable(true)
@@ -523,14 +482,13 @@ class PlaybackService : MediaLibraryService() {
                     } else if (parentId.startsWith("artist|")) {
                         val artistName = parentId.substring("artist|".length)
                         val albums = repository.getAlbumsByArtist(artistName)
-                        val (artSrv, artTok) = resolveServerUrlAndToken()
                         resultList.addAll(albums.map { album ->
                             MediaItem.Builder()
                                 .setMediaId("artist_album|$artistName|${album.name}")
                                 .setMediaMetadata(
                                     MediaMetadata.Builder()
                                         .setTitle(album.name)
-                                        .setArtworkUri(artworkUriFor(album.artworkFileKey, artSrv, artTok))
+                                        .setArtworkUri(artworkUriFor(album.artworkFileKey))
                                         .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
                                         .setIsPlayable(true)
                                         .setIsBrowsable(true)
@@ -567,14 +525,13 @@ class PlaybackService : MediaLibraryService() {
                         val nodeId = parentId.substringAfter("browse|")
                         val children = repository.getBrowseChildren(nodeId)
                         if (children.isNotEmpty()) {
-                            val (brSrv, brTok) = resolveServerUrlAndToken()
                             resultList.addAll(children.map { item ->
                                 MediaItem.Builder()
                                     .setMediaId("browse|${item.key}")
                                     .setMediaMetadata(
                                         MediaMetadata.Builder()
                                             .setTitle(item.name)
-                                            .setArtworkUri(browseNodeArtUri(item.key, brSrv, brTok))
+                                            .setArtworkUri(browseNodeArtUri(item.key))
                                             .setFolderType(MediaMetadata.FOLDER_TYPE_MIXED)
                                             .setIsPlayable(false)
                                             .setIsBrowsable(true)

@@ -62,23 +62,16 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
     }
 
     private func triggerDownload(fileKey: String, jobId: Int32) {
-        // Resolve connection settings from the injected facade
-        guard let host = facade.currentServerHost else {
+        // Single source of truth for the URL (server + quality + Channels=2)
+        // lives in the shared facade. Download omits Playback=1 (playback: false).
+        // The server transcodes on the fly and returns the converted format
+        // (flac/opus); the destination extension comes from the response's
+        // suggestedFilename below. Empty when no server is connected.
+        let urlString = facade.streamUrl(fileKey: fileKey, playback: false)
+        guard !urlString.isEmpty, let url = URL(string: urlString) else {
             log.w("Download failed: server not configured")
             return
         }
-
-        let useSsl = facade.currentServerUseSsl
-        let port = useSsl ? facade.currentServerSslPort : facade.currentServerPort
-        let scheme = useSsl ? "https" : "http"
-        let token = facade.currentServerToken ?? ""
-
-        // Download in the user-selected quality. The server transcodes on the
-        // fly and returns the converted format (flac/opus); the destination
-        // extension is taken from the response's suggestedFilename below.
-        let quality = facade.currentLocalAudioQuality
-        let urlString = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetFile?File=\(fileKey)&FileType=Key&\(quality.mcwsParams)&Token=\(token)"
-        guard let url = URL(string: urlString) else { return }
 
         let task = session.downloadTask(with: url)
 
@@ -356,17 +349,12 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
     }
 
     private func downloadArtwork(fileKey: String) {
-        guard let host = facade.currentServerHost else {
-            log.w("Artwork download failed: host is missing")
+        // Artwork URL comes from the shared facade (active server only).
+        let urlString = facade.artworkUrl(fileKey: fileKey)
+        guard !urlString.isEmpty, let url = URL(string: urlString) else {
+            log.w("Artwork download failed: server not configured")
             return
         }
-        let useSsl = facade.currentServerUseSsl
-        let port = useSsl ? facade.currentServerSslPort : facade.currentServerPort
-        let scheme = useSsl ? "https" : "http"
-        let token = facade.currentServerToken ?? ""
-
-        let urlString = "\(scheme)://\(host):\(port)/MCWS/v1/File/GetImage?File=\(fileKey)&Type=Thumbnail&Width=300&Height=300&Square=1&Token=\(token)"
-        guard let url = URL(string: urlString) else { return }
 
         log.d("Starting artwork download fileKey=\(fileKey)")
 
