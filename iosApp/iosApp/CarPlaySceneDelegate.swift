@@ -201,15 +201,19 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             do {
                 let tracks = try await container.libraryRepository.getDownloadedTracks()
                     .filter { autoAlbumArtist($0) == artist }
-                let albums = Dictionary(grouping: tracks) { albumOf($0) }
-                    .sorted { $0.key.lowercased() < $1.key.lowercased() }
-                let items = albums.map { album, albumTracks -> CPListItem in
-                    let item = CPListItem(text: album, detailText: artist)
+                // Group by albumGroupId (name + folder identity), not album
+                // name — names are not unique, and name grouping merges
+                // same-named albums. Matches the Android Auto Downloads tree.
+                let albums = Dictionary(grouping: tracks) { $0.albumGroupId }
+                    .sorted { albumOf($0.value[0]).lowercased() < albumOf($1.value[0]).lowercased() }
+                let items = albums.map { _, albumTracks -> CPListItem in
+                    let albumName = albumOf(albumTracks[0])
+                    let item = CPListItem(text: albumName, detailText: artist)
                     if let rep = albumTracks.first {
                         loadArtwork(into: item, url: container.mcwsClient.buildImageUrl(fileKey: rep.fileKey))
                     }
                     item.handler = { [weak self] _, completion in
-                        self?.pushTracks(title: album, tracks: self?.sortedAlbum(albumTracks) ?? [])
+                        self?.pushTracks(title: albumName, tracks: self?.sortedAlbum(albumTracks) ?? [])
                         completion()
                     }
                     return item
