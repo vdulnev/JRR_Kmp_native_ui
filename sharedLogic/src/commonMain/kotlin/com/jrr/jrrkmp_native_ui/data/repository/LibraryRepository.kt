@@ -591,25 +591,22 @@ class LibraryRepository(
         return mcwsClient.searchTracks(query).map { it.albumArtist }.toSet()
     }
 
-    suspend fun getAllAlbums(): List<Album> = withContext(Dispatchers.IO) {
-        val offline = isOfflineProvider.isOffline()
-        log.d { "getAllAlbums() offline=$offline" }
-        if (offline) {
-            return@withContext getOfflineAllAlbums()
+    /**
+     * Resolve one album by its [Album.albumGroupId] — the unique album identity
+     * (normalized name + folder path) used for favorites and media ids. Name and
+     * artist alone are NOT unique (reissues, same-titled albums), so callers
+     * carrying an album reference across a process/IPC boundary (e.g. Android
+     * Auto media ids) should round-trip the groupId and resolve through here.
+     *
+     * [albumArtist] scopes the lookup to one artist's albums via
+     * [getAlbumsByArtist].
+     */
+    suspend fun getAlbumByGroupId(albumArtist: String, groupId: String): Album? =
+        withContext(Dispatchers.IO) {
+            log.d { "getAlbumByGroupId(artist=$albumArtist, groupId=$groupId)" }
+            getAlbumsByArtist(albumArtist).find { it.albumGroupId == groupId }
+                .also { if (it == null) log.w { "getAlbumByGroupId: no album for artist=$albumArtist groupId=$groupId" } }
         }
-        try {
-            // ~limit groups by the first field, so this caps distinct albums
-            // (one representative track each), not total tracks — 2000 covers
-            // large libraries for the car/full browse tree.
-            val mcwsQuery = "[Media Type]=Audio ~limit=2000,1,[Album],[Filename (path)] ~sort=[Album]"
-            val raw = mcwsClient.searchTracks(mcwsQuery).map { Album(it) }
-            groupAlbumsByGroupId(raw)
-                .sortedBy { it.name.lowercase() }
-        } catch (e: Exception) {
-            log.w(e) { "getAllAlbums online search failed, falling back to offline" }
-            getOfflineAllAlbums()
-        }
-    }
 
     private suspend fun getOfflineAllAlbums(): List<Album> {
         val db = database ?: return emptyList()

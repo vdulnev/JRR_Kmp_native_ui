@@ -168,27 +168,33 @@ class DownloadWorker(
                     log.w(e) { "artwork download failed fileKey=$fileKey" }
                 }
 
-                // 3. Add to downloaded_tracks
+                // 3. Add to downloaded_tracks. Copy the library identity fields
+                // (date, disc/track numbers, folderPath) from the job — they
+                // feed Track.albumGroupId, so dropping them would merge
+                // same-named albums in the offline library. The technical
+                // fields describe the on-disk file instead: the server
+                // transcoded it (fileType = conversion, stereo via Channels=2),
+                // so the original bitrate/bitDepth/sampleRate no longer apply.
                 val downloadedTrack = DownloadedTrackEntity(
                     fileKey = fileKey,
                     name = job.name,
                     artist = job.artist,
                     album = job.album,
                     albumArtist = job.albumArtist,
-                    date = "",
+                    date = job.date,
                     durationMs = job.durationMs,
                     trackNumber = job.trackNumber,
                     genre = job.genre,
-                    discNumber = 1,
-                    totalDiscs = 1,
-                    totalTracks = 1,
+                    discNumber = job.discNumber,
+                    totalDiscs = job.totalDiscs,
+                    totalTracks = job.totalTracks,
                     bitrate = 0,
                     bitDepth = 0,
                     sampleRate = 0,
                     channels = 2,
                     fileType = quality.conversion,
                     filePath = finalFile.absolutePath,
-                    folderPath = ""
+                    folderPath = job.folderPath
                 )
                 trackDao.insert(downloadedTrack)
 
