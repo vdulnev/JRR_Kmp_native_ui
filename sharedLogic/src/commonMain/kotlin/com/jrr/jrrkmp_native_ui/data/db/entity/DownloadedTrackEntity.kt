@@ -10,7 +10,6 @@ data class DownloadedTrackEntity(
     @PrimaryKey
     @ColumnInfo(name = "file_key")
     val fileKey: String,
-    @ColumnInfo(name = "file_path")
     val name: String,
     val artist: String,
     val album: String,
