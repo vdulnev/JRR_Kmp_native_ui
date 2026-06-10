@@ -443,7 +443,7 @@ class LibraryRepository(
         }
         try {
             val mcwsQuery =
-                "[Album Artist (auto)]=[${esc(MULTIPLE_ARTISTS_SENTINEL)}] " +
+                "[Media Type]=Audio [Album Artist (auto)]=[${esc(MULTIPLE_ARTISTS_SENTINEL)}] " +
                         "~limit=-1,1,[Artist] ~sort=[Artist]"
             mcwsClient.searchTracks(mcwsQuery)
                 .map { it.artist.trim() }
@@ -483,7 +483,7 @@ class LibraryRepository(
             }
             try {
                 val mcwsQuery =
-                    "[Album Artist (auto)]=[${esc(MULTIPLE_ARTISTS_SENTINEL)}] " +
+                    "[Media Type]=Audio [Album Artist (auto)]=[${esc(MULTIPLE_ARTISTS_SENTINEL)}] " +
                             "[Artist]=[${esc(artistName)}] " +
                             "~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
                 val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
@@ -517,7 +517,7 @@ class LibraryRepository(
         }
         try {
             val mcwsQuery =
-                "[Album Artist (auto)]=[${esc(artistName)}] ~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
+                "[Media Type]=Audio [Album Artist (auto)]=[${esc(artistName)}] ~limit=-1,1,[Album],[Filename (path)] ~sort=[Album]"
             val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
             val grouped = groupAlbumsByGroupId(raw).sortedBy { it.name.lowercase() }
             // A multi-disc box set whose discs carry mixed album artists otherwise
@@ -655,10 +655,10 @@ class LibraryRepository(
             // out sibling albums. Doing the name match in code sidesteps both.
             val scopeByFolder = album.folderPath.isNotEmpty()
             val mcwsQuery = if (scopeByFolder) {
-                "[Media Type]=Audio [Filename (path)]=\"${esc(album.folderPath)}\" " +
+                "[Media Type]=Audio [Channels]=2 [Filename (path)]=\"${esc(album.folderPath)}\" " +
                         "~sort=[Disc #],[Track #]"
             } else {
-                "[Album]=[${esc(album.name)}] ~sort=[Disc #],[Track #]"
+                "[Media Type]=Audio [Channels]=2 [Album]=[${esc(album.name)}] ~sort=[Disc #],[Track #]"
             }
             mcwsClient.searchTracks(mcwsQuery)
                 // Grouped reps deliberately span disc-suffixed names across sibling
@@ -717,7 +717,7 @@ class LibraryRepository(
 
     suspend fun getRandomAlbums(limit: Int = 10): List<Album> = withContext(Dispatchers.IO) {
         log.d { "getRandomAlbums(limit=$limit)" }
-        val mcwsQuery = "[Media Type]=Audio ~limit=$limit,-1,[Album],[Filename (path)] ~n=$limit"
+        val mcwsQuery = "[Media Type]=Audio [Media Type]=Audio ~limit=$limit,-1,[Album],[Filename (path)] ~n=$limit"
         val raw = mcwsClient.searchTracks(mcwsQuery).map { track -> Album(track) }
         groupAlbumsByGroupId(raw)
     }
