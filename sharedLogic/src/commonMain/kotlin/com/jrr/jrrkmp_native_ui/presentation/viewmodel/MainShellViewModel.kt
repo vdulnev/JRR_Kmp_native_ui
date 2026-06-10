@@ -4,17 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.logged
-import com.jrr.jrrkmp_native_ui.core.logging.redact
-import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
+import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Dispatchers
-import io.ktor.util.date.getTimeMillis
 
 private val log = Logger.withTag("vm:MainShell")
 

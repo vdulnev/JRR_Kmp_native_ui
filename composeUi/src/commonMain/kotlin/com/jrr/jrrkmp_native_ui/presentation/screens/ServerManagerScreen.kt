@@ -6,21 +6,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -28,13 +26,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
-import com.jrr.jrrkmp_native_ui.core.theme.outlinedTextFieldColors
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
+import com.jrr.jrrkmp_native_ui.core.theme.outlinedTextFieldColors
 import com.jrr.jrrkmp_native_ui.data.db.entity.SavedServerEntity
 import com.jrr.jrrkmp_native_ui.data.repository.ServerGroup
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
-import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
+import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)

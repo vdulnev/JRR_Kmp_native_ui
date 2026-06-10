@@ -6,12 +6,10 @@ import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.logged
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
-import com.jrr.jrrkmp_native_ui.domain.model.PlayerStatus
 import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 
 private val log = Logger.withTag("vm:NowPlaying")
 

@@ -1,6 +1,7 @@
 package com.jrr.jrrkmp_native_ui.core.di
 
 import android.content.Context
+import androidx.core.content.edit
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.JrrApplication
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
@@ -14,7 +15,6 @@ import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.playback.LocalPlayerHandler
 import kotlinx.coroutines.runBlocking
-import androidx.core.content.edit
 
 private val log = Logger.withTag("di:AppContainer")
 

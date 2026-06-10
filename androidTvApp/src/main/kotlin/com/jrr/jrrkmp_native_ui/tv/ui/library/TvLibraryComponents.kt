@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,6 +35,7 @@ import com.jrr.jrrkmp_native_ui.tv.ui.components.TvSearchBar
 import com.jrr.jrrkmp_native_ui.tv.ui.components.jrrButtonColors
 import com.jrr.jrrkmp_native_ui.tv.ui.theme.JrrGold
 import com.jrr.jrrkmp_native_ui.tv.ui.theme.JrrMuted
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 
 /** Screen heading + optional subtitle, consistent left margin across Library. */
 @Composable

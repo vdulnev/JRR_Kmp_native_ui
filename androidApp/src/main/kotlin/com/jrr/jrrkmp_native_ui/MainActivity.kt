@@ -1,17 +1,17 @@
 package com.jrr.jrrkmp_native_ui
 
-import android.os.Bundle
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalConfiguration
 import com.arkivanov.decompose.defaultComponentContext
-import com.jrr.jrrkmp_native_ui.core.theme.JrrTheme
 import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.di.appContainer
+import com.jrr.jrrkmp_native_ui.core.theme.JrrTheme
 import com.jrr.jrrkmp_native_ui.presentation.MainShell
 import com.jrr.jrrkmp_native_ui.presentation.navigation.AppDeps
 import com.jrr.jrrkmp_native_ui.presentation.navigation.RootComponent

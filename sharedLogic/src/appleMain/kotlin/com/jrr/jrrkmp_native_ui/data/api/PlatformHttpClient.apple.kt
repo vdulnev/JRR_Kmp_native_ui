@@ -6,8 +6,8 @@ import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.convert
 import platform.Foundation.NSURLCredential
-import platform.Foundation.NSURLSessionAuthChallengeUseCredential
 import platform.Foundation.NSURLSessionAuthChallengePerformDefaultHandling
+import platform.Foundation.NSURLSessionAuthChallengeUseCredential
 import platform.Foundation.create
 import platform.Foundation.serverTrust
 

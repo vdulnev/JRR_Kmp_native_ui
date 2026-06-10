@@ -2,8 +2,8 @@ package com.jrr.jrrkmp_native_ui.presentation.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -13,13 +13,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import co.touchlab.kermit.Severity
-import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
+import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)

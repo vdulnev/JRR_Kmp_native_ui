@@ -17,11 +17,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import co.touchlab.kermit.Severity
 import androidx.tv.material3.Button
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import co.touchlab.kermit.Severity
 import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.SettingsViewModel
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.TvConnectViewModel

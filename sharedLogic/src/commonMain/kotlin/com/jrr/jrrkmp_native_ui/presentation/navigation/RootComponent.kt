@@ -7,7 +7,6 @@ import com.arkivanov.decompose.router.stack.StackNavigation
 import com.arkivanov.decompose.router.stack.bringToFront
 import com.arkivanov.decompose.router.stack.childStack
 import com.arkivanov.decompose.value.Value
-import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.MainShellSettings
 
 /**

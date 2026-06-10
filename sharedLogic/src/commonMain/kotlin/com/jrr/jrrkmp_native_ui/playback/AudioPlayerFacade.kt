@@ -3,12 +3,11 @@ package com.jrr.jrrkmp_native_ui.playback
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.redact
 import com.jrr.jrrkmp_native_ui.core.logging.runCatchingLogged
-import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
-
 import com.jrr.jrrkmp_native_ui.data.api.McwsClient
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.LocalQueueStateEntity
 import com.jrr.jrrkmp_native_ui.data.db.entity.LocalQueueTrackEntity
+import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.PlayerStatus
@@ -16,7 +15,6 @@ import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
-import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,10 +24,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

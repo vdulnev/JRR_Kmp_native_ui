@@ -20,8 +20,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
-import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.domain.model.Album
+import com.jrr.jrrkmp_native_ui.domain.model.Track
 
 fun Track.toInfoFields(): List<Pair<String, String>> = listOfNotNull(
     "Title" to name,

@@ -6,7 +6,6 @@ import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

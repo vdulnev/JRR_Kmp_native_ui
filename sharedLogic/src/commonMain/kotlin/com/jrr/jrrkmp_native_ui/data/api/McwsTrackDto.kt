@@ -1,11 +1,11 @@
 package com.jrr.jrrkmp_native_ui.data.api
 
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 import com.jrr.jrrkmp_native_ui.domain.model.Track
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
 internal data class McwsTrackDto(
