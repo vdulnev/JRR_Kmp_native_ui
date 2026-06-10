@@ -141,7 +141,7 @@ class CorePlayer: NSObject, ObservableObject, NativePlayerController {
     }
 
     private func handleItemDidPlayToEnd(notification: Notification) {
-        if (engine.repeatMode.value as? RepeatMode) == .track {
+        if engine.repeatMode.value == .track {
             if let item = notification.object as? AVPlayerItem {
                 item.seek(to: .zero, completionHandler: nil)
                 queuePlayer?.play()
