@@ -46,7 +46,7 @@ class VoiceSearchResolver {
             when (focus) {
                 MediaStore.Audio.Genres.ENTRY_CONTENT_TYPE, "vnd.android.cursor.item/genre" -> {
                     if (!genre.isNullOrEmpty()) {
-                        val matched = allTracks.filter { it.genre?.lowercase()?.contains(genre) == true }
+                        val matched = allTracks.filter { it.genre.lowercase().contains(genre) }
                         if (matched.isNotEmpty()) return SearchResult(matched, forceShuffle)
                     }
                 }
@@ -113,7 +113,7 @@ class VoiceSearchResolver {
         }
 
         // Search for genre matches
-        val genreMatches = allTracks.filter { it.genre?.lowercase()?.contains(cleanQuery) == true }
+        val genreMatches = allTracks.filter { it.genre.lowercase().contains(cleanQuery) }
         if (genreMatches.isNotEmpty()) {
             return SearchResult(genreMatches, forceShuffle)
         }

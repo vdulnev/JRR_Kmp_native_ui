@@ -134,7 +134,9 @@ fun ServerManagerScreen(
                 .padding(bottom = 16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                TabRow(
+                // SecondaryTabRow replaces the deprecated TabRow; it keeps the
+                // classic underline indicator the screen was designed around.
+                SecondaryTabRow(
                     selectedTabIndex = activeTab,
                     containerColor = Color.Transparent,
                     contentColor = AppColors.accent,

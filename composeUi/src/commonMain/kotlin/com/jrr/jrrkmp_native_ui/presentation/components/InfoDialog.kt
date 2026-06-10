@@ -69,6 +69,10 @@ fun InfoDialog(
     onDismiss: () -> Unit
 ) {
     val platformUi = com.jrr.jrrkmp_native_ui.presentation.LocalPlatformUi.current
+    // LocalClipboardManager is deprecated in favor of the suspend Clipboard
+    // API, but Compose Multiplatform 1.11 has no commonMain ClipEntry
+    // factory yet, so plain-text copies can't migrate in shared code.
+    @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
 
     val allText = fields.joinToString("\n") { "${it.first}: ${it.second}" }

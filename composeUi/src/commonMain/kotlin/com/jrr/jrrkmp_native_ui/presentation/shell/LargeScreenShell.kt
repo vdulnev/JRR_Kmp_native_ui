@@ -25,7 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
@@ -196,7 +196,7 @@ private fun RailSidebar(active: RootConfig, onSelectTab: (RootConfig) -> Unit) {
         ) {
             RailItem("Playing", Icons.Default.PlayArrow, active == RootConfig.Player) { onSelectTab(RootConfig.Player) }
             RailItem("Library", Icons.Default.Home, active == RootConfig.Library) { onSelectTab(RootConfig.Library) }
-            RailItem("Zones", Icons.Default.List, active == RootConfig.Zones) { onSelectTab(RootConfig.Zones) }
+            RailItem("Zones", Icons.AutoMirrored.Filled.List, active == RootConfig.Zones) { onSelectTab(RootConfig.Zones) }
             RailItem("Settings", Icons.Default.Settings, active == RootConfig.Settings) { onSelectTab(RootConfig.Settings) }
         }
 
@@ -303,7 +303,7 @@ private fun ExpandedSidebar(
         ) {
             NavItem("Now Playing", Icons.Default.PlayArrow, active == RootConfig.Player) { onSelectTab(RootConfig.Player) }
             NavItem("Library", Icons.Default.Home, active == RootConfig.Library) { onSelectTab(RootConfig.Library) }
-            NavItem("Zones", Icons.Default.List, active == RootConfig.Zones) { onSelectTab(RootConfig.Zones) }
+            NavItem("Zones", Icons.AutoMirrored.Filled.List, active == RootConfig.Zones) { onSelectTab(RootConfig.Zones) }
             NavItem("Settings", Icons.Default.Settings, active == RootConfig.Settings) { onSelectTab(RootConfig.Settings) }
         }
 
