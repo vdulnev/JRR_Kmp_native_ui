@@ -20,7 +20,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -30,7 +30,7 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
 import com.jrr.jrrkmp_native_ui.presentation.components.InfoDialog
@@ -387,7 +387,7 @@ fun ArtistsTab(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(selectedArtist, style = AppTypography.subScreenTitle)
             }
@@ -461,7 +461,7 @@ fun ArtistsTab(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Compilations", style = AppTypography.subScreenTitle)
             }
@@ -930,7 +930,7 @@ fun BrowseTab(
         ) {
             if (stack.size > 1) {
                 IconButton(onClick = onBackClick, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
             }
@@ -1370,7 +1370,7 @@ fun DownloadsTab(
                                 .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(firstTrack?.album ?: "Unknown Album", style = AppTypography.subScreenTitle)
                         }
@@ -1435,7 +1435,7 @@ fun DownloadsTab(
                                 .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppColors.accent)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(selectedArtist ?: "", style = AppTypography.subScreenTitle)
                         }
@@ -1651,7 +1651,7 @@ fun AlbumHeaderItem(
         trailing?.invoke()
         if (collapsed != null) {
             Icon(
-                imageVector = if (collapsed) Icons.Default.KeyboardArrowRight else Icons.Default.KeyboardArrowDown,
+                imageVector = if (collapsed) Icons.AutoMirrored.Filled.KeyboardArrowRight else Icons.Default.KeyboardArrowDown,
                 contentDescription = if (collapsed) "Expand album" else "Collapse album",
                 tint = AppColors.text3,
                 modifier = Modifier.size(24.dp)

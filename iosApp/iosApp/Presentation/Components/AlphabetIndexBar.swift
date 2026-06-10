@@ -35,9 +35,12 @@ func orderedSectionLetters(_ labels: [String]) -> [Character] {
 /// `bottomInset` keeps that many points clear at the bottom so the strip
 /// doesn't run behind the floating mini player.
 struct AlphabetIndexBar: View {
+    // `onSelect` is declared last so it is the final memberwise-init parameter:
+    // call sites pass it as a trailing closure, and Swift deprecates "backward"
+    // trailing-closure matching against a non-final parameter.
     let letters: [Character]
-    let onSelect: (Character) -> Void
     var bottomInset: CGFloat = 0
+    let onSelect: (Character) -> Void
 
     /// Minimum points per label; the strip decimates so it never packs labels
     /// tighter than this.

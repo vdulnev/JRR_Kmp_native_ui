@@ -4,7 +4,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.arkivanov.decompose.DefaultComponentContext
@@ -103,7 +104,16 @@ fun main() = application {
             exitApplication()
         },
         title = "JRR Desktop",
-        icon = painterResource("jrr_icon.png"),
+        // Classpath icon decoded directly: `painterResource(String)` and
+        // `useResource` are deprecated in favor of the Compose resources
+        // library, which this module doesn't use — the window icon is its
+        // only resource.
+        icon = remember {
+            val bytes = checkNotNull(
+                Thread.currentThread().contextClassLoader.getResourceAsStream("jrr_icon.png"),
+            ) { "jrr_icon.png missing from desktop resources" }.use { it.readAllBytes() }
+            BitmapPainter(org.jetbrains.skia.Image.makeFromEncoded(bytes).toComposeImageBitmap())
+        },
     ) {
         JrrTheme {
             CompositionLocalProvider(

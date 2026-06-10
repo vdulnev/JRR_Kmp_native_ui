@@ -5,7 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.animation.animateColorAsState
@@ -245,7 +245,7 @@ private fun PhoneShell(
                         val tabs = listOf(
                             Triple("Player", Icons.Default.PlayArrow, RootConfig.Player),
                             Triple("Library", Icons.Default.Home, RootConfig.Library),
-                            Triple("Zones", Icons.Default.List, RootConfig.Zones),
+                            Triple("Zones", Icons.AutoMirrored.Filled.List, RootConfig.Zones),
                             Triple("Settings", Icons.Default.Settings, RootConfig.Settings)
                         )
 

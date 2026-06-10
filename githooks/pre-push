@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Pre-push hook that runs all Gradle verification checks (tests and linting)
+# and verifies iOS compilation to catch any failures or warnings before pushing.
+# Warnings are treated as errors on both sides:
+#  - Kotlin: -PstrictWarnings flips allWarningsAsErrors on (see root build.gradle.kts)
+#  - Swift:  SWIFT/GCC_TREAT_WARNINGS_AS_ERRORS on the xcodebuild invocation
+
+echo "========================================="
+echo "Running pre-push verification checks..."
+echo "========================================="
+
+# 1. Run Android & KMP checking (including tests and linting), warnings fatal
+echo "Step 1: Running Kotlin & Android checks and unit tests (warnings as errors)..."
+./gradlew check -PstrictWarnings
+if [ $? -ne 0 ]; then
+    echo "❌ Kotlin/Android checks, unit tests, or compiler warnings failed! Aborting push."
+    exit 1
+fi
+
+# 2. Run Swift formatting check using swiftformat
+echo "Step 2: Checking iOS/Swift code formatting..."
+swiftformat --lint iosApp/
+if [ $? -ne 0 ]; then
+    echo "❌ iOS formatting check failed! Please run 'swiftformat iosApp/' to fix formatting before pushing."
+    exit 1
+fi
+
+# 3. Run iOS compilation check; Swift warnings are fatal
+echo "Step 3: Verifying iOS compilation (warnings as errors)..."
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator -destination "generic/platform=iOS Simulator" clean build -quiet SWIFT_TREAT_WARNINGS_AS_ERRORS=YES GCC_TREAT_WARNINGS_AS_ERRORS=YES
+if [ $? -ne 0 ]; then
+    echo "❌ iOS compilation failed (or emitted warnings)! Aborting push."
+    exit 1
+fi
+
+echo "✅ All pre-push checks passed successfully!"
+exit 0

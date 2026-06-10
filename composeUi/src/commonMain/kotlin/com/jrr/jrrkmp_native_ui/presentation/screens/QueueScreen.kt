@@ -10,7 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -90,7 +90,7 @@ fun QueueScreen(
             } else {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = AppColors.text
                     )
@@ -154,6 +154,11 @@ fun QueueScreen(
                     val isActive = index == activeIndex
                     val currentTrackKey = track.fileKey
 
+                    // confirmValueChange is deprecated without a drop-in
+                    // replacement — the suggested rework is dynamic anchored-
+                    // draggable anchors, which would restructure this whole
+                    // swipe-to-remove row. Suppress until that rework.
+                    @Suppress("DEPRECATION")
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = { dismissValue ->
                             if (dismissValue == SwipeToDismissBoxValue.StartToEnd || dismissValue == SwipeToDismissBoxValue.EndToStart) {

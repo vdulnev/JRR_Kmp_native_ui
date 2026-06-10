@@ -6,7 +6,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,7 +57,7 @@ fun SettingsScreen(
         ) {
             IconButton(onClick = onBackClick) {
                 Icon(
-                    imageVector = Icons.Default.ArrowBack,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
                     tint = AppColors.text
                 )
@@ -418,7 +418,7 @@ fun SettingsScreen(
                                             if (job.state == "DOWNLOADING" && job.bytesTotal > 0) {
                                                 Spacer(modifier = Modifier.height(6.dp))
                                                 LinearProgressIndicator(
-                                                    progress = job.bytesDownloaded.toFloat() / job.bytesTotal.toFloat(),
+                                                    progress = { job.bytesDownloaded.toFloat() / job.bytesTotal.toFloat() },
                                                     color = AppColors.accent,
                                                     trackColor = AppColors.bg3,
                                                     modifier = Modifier
