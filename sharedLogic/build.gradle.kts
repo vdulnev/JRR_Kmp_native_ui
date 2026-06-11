@@ -88,6 +88,10 @@ kotlin {
             // explicit Kermit dep of their own — the logging conventions live
             // in commonMain so the deps should travel with them.
             api(libs.kermit)
+            // `api` because :composeUi folds Either results from ServerRepository.
+            // Arrow types never cross the SKIE boundary (see docs/arrow-adoption-plan.md);
+            // the Either-returning members are @HiddenFromObjC.
+            api(libs.arrow.core)
             implementation(libs.atomicfu)
             // `api` so app modules (and the iOS framework via SKIE) can name
             // Value, ChildStack, ComponentContext without re-declaring the dep.
@@ -111,6 +115,8 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+            // Drives the typed MCWS calls against canned HTTP responses.
+            implementation(libs.ktor.client.mock)
         }
     }
 }

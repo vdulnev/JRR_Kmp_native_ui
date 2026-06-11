@@ -1,17 +1,16 @@
 package com.jrr.jrrkmp_native_ui.data.repository
 
+import arrow.core.Either
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.redact
+import com.jrr.jrrkmp_native_ui.data.api.McwsError
 import com.jrr.jrrkmp_native_ui.data.api.WebPlayLookupResult
-import com.jrr.jrrkmp_native_ui.data.api.parseMcwsResponse
+import com.jrr.jrrkmp_native_ui.data.api.mcwsAuthenticate
+import com.jrr.jrrkmp_native_ui.data.api.mcwsCheckAlive
 import com.jrr.jrrkmp_native_ui.data.api.webPlayLookup
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.SavedServerEntity
 import io.ktor.client.HttpClient
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.util.encodeBase64
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +19,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.experimental.ExperimentalObjCRefinement
+import kotlin.native.HiddenFromObjC
 
 private val log = Logger.withTag("repo:Server")
 
@@ -98,11 +99,39 @@ class ServerRepository(
         if (host.isEmpty()) _activeServerId.value = ""
     }
 
-    suspend fun lookupAccessKey(key: String): WebPlayLookupResult? = withContext(Dispatchers.IO) {
-        log.i { "lookupAccessKey(key=${key.redact()})" }
-        webPlayLookup(httpClient, key)
+    // The Either-returning members are the primary API for Kotlin callers
+    // (ViewModels, composeUi) so they can tell "wrong password" from "server
+    // unreachable". They are @HiddenFromObjC: Arrow generics erase at the
+    // ObjC bridge, so Swift keeps the nullable wrappers below instead.
+
+    /** Typed access-key lookup; see [McwsError] for the failure modes. */
+    @OptIn(ExperimentalObjCRefinement::class)
+    @HiddenFromObjC
+    suspend fun lookupAccessKeyTyped(key: String): Either<McwsError, WebPlayLookupResult> =
+        withContext(Dispatchers.IO) {
+            log.d { "lookupAccessKeyTyped(key=${key.redact()})" }
+            webPlayLookup(httpClient, key)
+        }
+
+    /** SKIE-facing variant: Swift sees a nullable result, never Either. */
+    suspend fun lookupAccessKey(key: String): WebPlayLookupResult? =
+        lookupAccessKeyTyped(key).getOrNull()
+
+    /** Typed authenticate; Right = session token. */
+    @OptIn(ExperimentalObjCRefinement::class)
+    @HiddenFromObjC
+    suspend fun authenticateTyped(
+        host: String,
+        port: Int,
+        useSsl: Boolean,
+        sslPort: Int,
+        username: String,
+        passwordVal: String
+    ): Either<McwsError, String> = withContext(Dispatchers.IO) {
+        mcwsAuthenticate(httpClient, host, port, useSsl, sslPort, username, passwordVal)
     }
 
+    /** SKIE-facing variant: Swift sees a nullable token, never Either. */
     suspend fun authenticate(
         host: String,
         port: Int,
@@ -110,78 +139,29 @@ class ServerRepository(
         sslPort: Int,
         username: String,
         passwordVal: String
-    ): String? = withContext(Dispatchers.IO) {
-        val scheme = if (useSsl) "https" else "http"
-        val actualPort = if (useSsl) sslPort else port
-        val url = "$scheme://$host:$actualPort/MCWS/v1/Authenticate"
-        log.i { "authenticate(host=$host port=$actualPort ssl=$useSsl user=$username)" }
+    ): String? = authenticateTyped(host, port, useSsl, sslPort, username, passwordVal).getOrNull()
 
-        try {
-            val authValue = "$username:$passwordVal"
-            val credential = "Basic ${authValue.encodeBase64()}"
-            val response: HttpResponse = httpClient.get(url) {
-                header("Authorization", credential)
-                header("No-Auth", "true")
-            }
-            if (response.status.value in 200..299) {
-                val body = response.bodyAsText()
-                val xmlResponse = parseMcwsResponse(body)
-                if (xmlResponse.status == "OK") {
-                    val token = xmlResponse.items["Token"]
-                    log.i { "authenticate ok host=$host token=${token.redact()}" }
-                    token
-                } else {
-                    log.w { "authenticate: MCWS responded status=${xmlResponse.status} host=$host" }
-                    null
-                }
-            } else {
-                log.w { "authenticate: HTTP ${response.status.value} host=$host" }
-                null
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            log.e(e) { "authenticate failed host=$host" }
-            null
-        }
+    /** Typed alive check; Right = the server's FriendlyName. */
+    @OptIn(ExperimentalObjCRefinement::class)
+    @HiddenFromObjC
+    suspend fun checkAliveTyped(
+        host: String,
+        port: Int,
+        useSsl: Boolean,
+        sslPort: Int,
+        token: String
+    ): Either<McwsError, String> = withContext(Dispatchers.IO) {
+        mcwsCheckAlive(httpClient, host, port, useSsl, sslPort, token)
     }
 
+    /** SKIE-facing variant: Swift sees a nullable name, never Either. */
     suspend fun checkAlive(
         host: String,
         port: Int,
         useSsl: Boolean,
         sslPort: Int,
         token: String
-    ): String? = withContext(Dispatchers.IO) {
-        val scheme = if (useSsl) "https" else "http"
-        val actualPort = if (useSsl) sslPort else port
-        val url = "$scheme://$host:$actualPort/MCWS/v1/Alive?Token=$token"
-        log.d { "checkAlive(host=$host port=$actualPort ssl=$useSsl)" }
-
-        try {
-            val response: HttpResponse = httpClient.get(url) {
-                header("No-Auth", "true")
-            }
-            if (response.status.value in 200..299) {
-                val body = response.bodyAsText()
-                val xmlResponse = parseMcwsResponse(body)
-                if (xmlResponse.status == "OK") {
-                    val friendly = xmlResponse.items["FriendlyName"] ?: "JRiver Server"
-                    log.d { "checkAlive ok host=$host friendlyName=$friendly" }
-                    friendly
-                } else {
-                    log.w { "checkAlive: MCWS responded status=${xmlResponse.status} host=$host" }
-                    null
-                }
-            } else {
-                log.w { "checkAlive: HTTP ${response.status.value} host=$host" }
-                null
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            log.e(e) { "checkAlive failed host=$host" }
-            null
-        }
-    }
+    ): String? = checkAliveTyped(host, port, useSsl, sslPort, token).getOrNull()
 
     suspend fun getAllServers(): List<SavedServerEntity> = withContext(Dispatchers.IO) {
         serverDao.getAllServers().also { log.d { "getAllServers → ${it.size}" } }
