@@ -28,6 +28,7 @@ import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
 import com.jrr.jrrkmp_native_ui.core.theme.outlinedTextFieldColors
+import com.jrr.jrrkmp_native_ui.data.api.toUserMessage
 import com.jrr.jrrkmp_native_ui.data.db.entity.SavedServerEntity
 import com.jrr.jrrkmp_native_ui.data.repository.ServerGroup
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
@@ -71,41 +72,43 @@ fun ServerManagerScreen(
         isConnecting = true
         scope.launch {
             try {
-                val token = serverRepository.authenticate(h, p, ssl, sp, u, pass)
-                if (token != null) {
-                    // Check alive to get friendly name
-                    val finalName = serverRepository.checkAlive(h, p, ssl, sp, token) ?: friendly ?: "JRiver Server"
-                    // Save server profiles
-                    // Opaque id for a *new* server; dedup is by host/port via
-                    // `existing` below, so the exact scheme is not significant.
-                    val id = kotlin.uuid.Uuid.random().toString()
-                    val existing = serverRepository.getAllServers().find { it.host == h && it.port == p }
-                    val entity = SavedServerEntity(
-                        id = existing?.id ?: id,
-                        host = h,
-                        port = p,
-                        username = u,
-                        passwordKey = pass,
-                        friendlyName = finalName,
-                        lastUsedAt = com.jrr.jrrkmp_native_ui.presentation.nowEpochMillis(),
-                        authToken = token,
-                        useSsl = ssl,
-                        sslPort = sp,
-                        // Preserve identity so reconnecting keeps the same server.
-                        serverId = existing?.serverId ?: ""
-                    )
-                    // saveServer resolves/mints the real-server identity; scope
-                    // favorites to it.
-                    val serverId = serverRepository.saveServer(entity)
-                    serverRepository.setActiveServerId(serverId)
-                    // Set active connection on facade
-                    facade.setServerConnection(h, p, ssl, sp, token)
-                    
-                    platformUi.showToast("Connected to $finalName")
-                    onConnectSuccess()
-                } else {
-                    platformUi.showToast("Authentication Failed")
-                }
+                // Typed errors so the toast can say "wrong password" vs
+                // "server unreachable" instead of a blanket failure.
+                serverRepository.authenticateTyped(h, p, ssl, sp, u, pass).fold(
+                    ifLeft = { err -> platformUi.showToast(err.toUserMessage()) },
+                    ifRight = { token ->
+                        // Check alive to get friendly name
+                        val finalName = serverRepository.checkAlive(h, p, ssl, sp, token) ?: friendly ?: "JRiver Server"
+                        // Save server profiles
+                        // Opaque id for a *new* server; dedup is by host/port via
+                        // `existing` below, so the exact scheme is not significant.
+                        val id = kotlin.uuid.Uuid.random().toString()
+                        val existing = serverRepository.getAllServers().find { it.host == h && it.port == p }
+                        val entity = SavedServerEntity(
+                            id = existing?.id ?: id,
+                            host = h,
+                            port = p,
+                            username = u,
+                            passwordKey = pass,
+                            friendlyName = finalName,
+                            lastUsedAt = com.jrr.jrrkmp_native_ui.presentation.nowEpochMillis(),
+                            authToken = token,
+                            useSsl = ssl,
+                            sslPort = sp,
+                            // Preserve identity so reconnecting keeps the same server.
+                            serverId = existing?.serverId ?: ""
+                        )
+                        // saveServer resolves/mints the real-server identity; scope
+                        // favorites to it.
+                        val serverId = serverRepository.saveServer(entity)
+                        serverRepository.setActiveServerId(serverId)
+                        // Set active connection on facade
+                        facade.setServerConnection(h, p, ssl, sp, token)
+
+                        platformUi.showToast("Connected to $finalName")
+                        onConnectSuccess()
+                    },
+                )
             } catch (e: Exception) {
                 platformUi.showToast("Error: ${e.localizedMessage}")
             } finally {
@@ -247,15 +250,17 @@ fun ServerManagerScreen(
                             }
                             isConnecting = true
                             scope.launch {
-                                val lookup = serverRepository.lookupAccessKey(accessKey)
-                                if (lookup != null) {
-                                     val resolvedHost = lookup.localIpList.firstOrNull() ?: lookup.ip
-                                     val resolvedPort = (if (useSsl) lookup.httpsPort else lookup.port) ?: (if (useSsl) 52200 else 52199)
-                                     connectAction(resolvedHost, resolvedPort, useSsl, resolvedPort, username, password, "Server ($accessKey)")
-                                } else {
-                                    platformUi.showToast("Lookup failed for $accessKey")
-                                    isConnecting = false
-                                }
+                                serverRepository.lookupAccessKeyTyped(accessKey).fold(
+                                    ifLeft = { err ->
+                                        platformUi.showToast(err.toUserMessage())
+                                        isConnecting = false
+                                    },
+                                    ifRight = { lookup ->
+                                        val resolvedHost = lookup.localIpList.firstOrNull() ?: lookup.ip
+                                        val resolvedPort = (if (useSsl) lookup.httpsPort else lookup.port) ?: (if (useSsl) 52200 else 52199)
+                                        connectAction(resolvedHost, resolvedPort, useSsl, resolvedPort, username, password, "Server ($accessKey)")
+                                    },
+                                )
                             }
                         } else {
                             if (host.isEmpty()) {

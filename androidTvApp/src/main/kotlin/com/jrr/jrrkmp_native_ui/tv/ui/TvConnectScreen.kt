@@ -28,8 +28,10 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.jrr.jrrkmp_native_ui.data.api.toUserMessage
 import com.jrr.jrrkmp_native_ui.data.db.entity.SavedServerEntity
 import com.jrr.jrrkmp_native_ui.data.repository.ServerGroup
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.TvConnectResult
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.TvConnectViewModel
 import com.jrr.jrrkmp_native_ui.tv.ui.components.TvTextField
 import com.jrr.jrrkmp_native_ui.tv.ui.components.jrrButtonColors
@@ -65,8 +67,10 @@ fun TvConnectScreen(
         busy = true
         status = ""
         scope.launch {
-            val ok = vm.connectSaved(server)
-            if (ok) onConnected() else status = "Connection failed — server may be offline."
+            when (val result = vm.connectSaved(server)) {
+                TvConnectResult.Connected -> onConnected()
+                is TvConnectResult.Failed -> status = result.error.toUserMessage()
+            }
             busy = false
         }
     }
@@ -76,16 +80,15 @@ fun TvConnectScreen(
         busy = true
         status = ""
         scope.launch {
-            val ok = vm.connect(
+            val result = vm.connect(
                 host = host,
                 port = port.toIntOrNull() ?: 52199,
                 username = username,
                 password = password,
             )
-            if (ok) {
-                onConnected()
-            } else {
-                status = "Connection failed — check host, port, and credentials."
+            when (result) {
+                TvConnectResult.Connected -> onConnected()
+                is TvConnectResult.Failed -> status = result.error.toUserMessage()
             }
             busy = false
         }

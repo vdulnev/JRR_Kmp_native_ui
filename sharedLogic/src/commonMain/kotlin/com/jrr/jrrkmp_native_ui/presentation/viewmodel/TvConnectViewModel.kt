@@ -1,7 +1,10 @@
 package com.jrr.jrrkmp_native_ui.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
+import arrow.core.getOrElse
 import co.touchlab.kermit.Logger
+import com.jrr.jrrkmp_native_ui.data.api.McwsError
+import com.jrr.jrrkmp_native_ui.data.api.logSummary
 import com.jrr.jrrkmp_native_ui.data.db.entity.SavedServerEntity
 import com.jrr.jrrkmp_native_ui.data.repository.ServerGroup
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
@@ -9,6 +12,16 @@ import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import io.ktor.util.date.getTimeMillis
 
 private val log = Logger.withTag("vm:TvConnect")
+
+/**
+ * Outcome of a connect attempt. Carries the typed [McwsError] (a plain sealed
+ * interface — no Arrow at this boundary) so the connect screen can say "wrong
+ * password" vs "server unreachable" instead of a generic failure line.
+ */
+sealed interface TvConnectResult {
+    data object Connected : TvConnectResult
+    data class Failed(val error: McwsError) : TvConnectResult
+}
 
 /**
  * Connection flow for the Android TV app (form connect + launch restore). Keeps
@@ -23,8 +36,9 @@ class TvConnectViewModel(
 
     /**
      * Authenticate, bring the app online via the facade (which switches the zone
-     * Offline → Local), and persist the server for restore. Returns true on
-     * success, false on bad credentials / unreachable server.
+     * Offline → Local), and persist the server for restore. Returns
+     * [TvConnectResult.Failed] with the typed error on bad credentials /
+     * unreachable server.
      */
     suspend fun connect(
         host: String,
@@ -33,11 +47,13 @@ class TvConnectViewModel(
         password: String,
         useSsl: Boolean = false,
         sslPort: Int = 52200,
-    ): Boolean {
+    ): TvConnectResult {
         log.i { "connect(host=$host port=$port ssl=$useSsl)" }
-        val token = runCatching {
-            serverRepository.authenticate(host, port, useSsl, sslPort, username, password)
-        }.getOrNull() ?: return false
+        val token = serverRepository.authenticateTyped(host, port, useSsl, sslPort, username, password)
+            .getOrElse { err ->
+                log.w { "connect failed: ${err.logSummary()}" }
+                return TvConnectResult.Failed(err)
+            }
         facade.setServerConnection(host, port, useSsl, sslPort, token)
         val serverId = serverRepository.saveServer(
             SavedServerEntity(
@@ -54,7 +70,7 @@ class TvConnectViewModel(
             ),
         )
         serverRepository.setActiveServerId(serverId)
-        return true
+        return TvConnectResult.Connected
     }
 
     /**
@@ -68,11 +84,11 @@ class TvConnectViewModel(
                 log.i { "restore: no saved server" }
                 return false
             }
-        val fresh = runCatching {
-            serverRepository.authenticate(
-                last.host, last.port, last.useSsl, last.sslPort, last.username, last.passwordKey,
-            )
-        }.getOrNull()
+        // Failure detail (unreachable vs rejected) is logged at the net layer;
+        // restore quietly falls back to the stored token either way.
+        val fresh = serverRepository.authenticateTyped(
+            last.host, last.port, last.useSsl, last.sslPort, last.username, last.passwordKey,
+        ).getOrNull()
         val token = fresh ?: last.authToken
         if (token.isNullOrEmpty()) {
             log.w { "restore: no usable token for host=${last.host}" }
@@ -97,7 +113,7 @@ class TvConnectViewModel(
     suspend fun savedServers(): List<ServerGroup> = serverRepository.getServerGroups()
 
     /** Connect to a previously-saved profile (re-auth with its stored creds). */
-    suspend fun connectSaved(server: SavedServerEntity): Boolean =
+    suspend fun connectSaved(server: SavedServerEntity): TvConnectResult =
         connect(server.host, server.port, server.username, server.passwordKey, server.useSsl, server.sslPort)
 
     /** Remove a single saved profile. */
