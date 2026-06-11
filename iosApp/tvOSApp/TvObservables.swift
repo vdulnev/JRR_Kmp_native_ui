@@ -23,11 +23,20 @@ final class NowPlayingObservable {
     init(viewModel: NowPlayingViewModel) {
         self.viewModel = viewModel
         sync(viewModel.state.value)
+        sync(position: viewModel.position.value)
     }
 
     func observe() async {
         for await state in viewModel.state {
             sync(state)
+        }
+    }
+
+    /// Hot playback-position ticks (500ms–1s); separate from `observe()` so
+    /// the main state stays change-only. Start from its own `.task`.
+    func observePosition() async {
+        for await position in viewModel.position {
+            sync(position: position)
         }
     }
 
@@ -39,11 +48,14 @@ final class NowPlayingObservable {
         activeZoneName = state.activeZoneName
         hasTrack = state.trackTitle != "Idle"
         imageUrl = state.imageUrl
-        positionMs = state.positionMs
-        durationMs = state.durationMs
         // `mcwsMode` ("Off"/"On"/…) avoids depending on SKIE enum case names.
         shuffleOn = state.shuffleMode.mcwsMode != "Off"
         repeatLabel = state.repeatMode.mcwsMode
+    }
+
+    private func sync(position: PlaybackPosition) {
+        if positionMs != position.positionMs { positionMs = position.positionMs }
+        if durationMs != position.durationMs { durationMs = position.durationMs }
     }
 
     var progress: Double {

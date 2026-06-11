@@ -20,6 +20,7 @@ struct TvNowPlayingDetailView: View {
         .padding(80)
         .navigationTitle("Now Playing")
         .task { await model.observe() }
+        .task { await model.observePosition() }
         .task { await queue.observe() }
     }
 

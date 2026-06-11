@@ -48,20 +48,7 @@ fun NowPlayingScreen(
         }
     }
 
-    var isScrubbing by remember { mutableStateOf(false) }
-    var scrubProgress by remember { mutableStateOf(0f) }
-
     val isPlaying = state.isPlaying
-    val currentPosition = state.positionMs
-    val duration = state.durationMs
-
-    val displayProgress = if (isScrubbing) {
-        scrubProgress
-    } else if (duration > 0) {
-        currentPosition.toFloat() / duration.toFloat()
-    } else {
-        0f
-    }
 
     Column(
         modifier = modifier
@@ -162,46 +149,7 @@ fun NowPlayingScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Progress bar and times
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Slider(
-                value = displayProgress,
-                onValueChange = {
-                    isScrubbing = true
-                    scrubProgress = it
-                },
-                onValueChangeFinished = {
-                    isScrubbing = false
-                    if (duration > 0) {
-                        viewModel.seekTo((scrubProgress * duration).toLong())
-                    }
-                },
-                colors = SliderDefaults.colors(
-                    thumbColor = AppColors.accent,
-                    activeTrackColor = AppColors.accent,
-                    inactiveTrackColor = AppColors.line2
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                val currentSecs = if (isScrubbing) (scrubProgress * duration / 1000).toLong() else currentPosition / 1000
-                val totalSecs = duration / 1000
-                Text(
-                    text = formatTime(currentSecs),
-                    style = AppTypography.monoLabel,
-                    color = AppColors.text2
-                )
-                Text(
-                    text = formatTime(totalSecs),
-                    style = AppTypography.monoLabel,
-                    color = AppColors.text2
-                )
-            }
-        }
+        ProgressSection(viewModel)
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -324,6 +272,69 @@ fun NowPlayingScreen(
     }
 }
 
+
+/**
+ * Progress slider + time labels. The only part of the screen that observes
+ * [NowPlayingViewModel.position], so the 500ms–1s playback ticks recompose
+ * just this section — the header, sleeve, metadata and transport rows only
+ * react to the change-only [NowPlayingViewModel.state].
+ */
+@Composable
+private fun ProgressSection(viewModel: NowPlayingViewModel) {
+    val position by viewModel.position.collectAsStateWithLifecycle()
+
+    var isScrubbing by remember { mutableStateOf(false) }
+    var scrubProgress by remember { mutableStateOf(0f) }
+
+    val duration = position.durationMs
+    val displayProgress = if (isScrubbing) {
+        scrubProgress
+    } else if (duration > 0) {
+        position.positionMs.toFloat() / duration.toFloat()
+    } else {
+        0f
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Slider(
+            value = displayProgress,
+            onValueChange = {
+                isScrubbing = true
+                scrubProgress = it
+            },
+            onValueChangeFinished = {
+                isScrubbing = false
+                if (duration > 0) {
+                    viewModel.seekTo((scrubProgress * duration).toLong())
+                }
+            },
+            colors = SliderDefaults.colors(
+                thumbColor = AppColors.accent,
+                activeTrackColor = AppColors.accent,
+                inactiveTrackColor = AppColors.line2
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            val currentSecs = if (isScrubbing) (scrubProgress * duration / 1000).toLong() else position.positionMs / 1000
+            val totalSecs = duration / 1000
+            Text(
+                text = formatTime(currentSecs),
+                style = AppTypography.monoLabel,
+                color = AppColors.text2
+            )
+            Text(
+                text = formatTime(totalSecs),
+                style = AppTypography.monoLabel,
+                color = AppColors.text2
+            )
+        }
+    }
+}
 
 fun formatTime(seconds: Long): String {
     val m = seconds / 60

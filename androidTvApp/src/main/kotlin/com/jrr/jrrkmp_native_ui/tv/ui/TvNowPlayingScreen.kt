@@ -64,7 +64,7 @@ fun TvNowPlayingScreen(vm: NowPlayingViewModel, queueVm: QueueViewModel) {
             Text(s.albumTitle, color = JrrMuted, style = MaterialTheme.typography.bodyMedium)
 
             Spacer(Modifier.height(12.dp))
-            ProgressBar(positionMs = s.positionMs, durationMs = s.durationMs)
+            ProgressBar(vm)
 
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -109,8 +109,15 @@ fun TvNowPlayingScreen(vm: NowPlayingViewModel, queueVm: QueueViewModel) {
     }
 }
 
+/**
+ * Observes [NowPlayingViewModel.position] locally so the per-second playback
+ * ticks recompose only this bar, not the whole now-playing layout.
+ */
 @Composable
-private fun ProgressBar(positionMs: Long, durationMs: Long) {
+private fun ProgressBar(vm: NowPlayingViewModel) {
+    val position by vm.position.collectAsStateWithLifecycle()
+    val positionMs = position.positionMs
+    val durationMs = position.durationMs
     val fraction = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
     Column {
         Box(
