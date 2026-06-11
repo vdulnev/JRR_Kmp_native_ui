@@ -1,12 +1,16 @@
 package com.jrr.jrrkmp_native_ui.data.api
 
+import arrow.core.Either
+import arrow.core.raise.catch
+import arrow.core.raise.either
+import arrow.core.raise.ensure
+import arrow.core.raise.ensureNotNull
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.redact
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
-import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 
 private val log = Logger.withTag("net:WebPlay")
@@ -21,52 +25,43 @@ data class WebPlayLookupResult(
 
 /**
  * Resolves a 6-digit JRiver "Access Key" to a server IP/port via JRiver's
- * webplay lookup endpoint.
+ * webplay lookup endpoint. Each failure mode maps to a distinct [McwsError];
+ * `internal` because callers go through `ServerRepository` (Arrow stays out
+ * of the SKIE surface).
  */
-suspend fun webPlayLookup(httpClient: HttpClient, accessKey: String): WebPlayLookupResult? {
+internal suspend fun webPlayLookup(
+    httpClient: HttpClient,
+    accessKey: String,
+): Either<McwsError, WebPlayLookupResult> = either<McwsError, WebPlayLookupResult> {
     log.i { "webPlayLookup(key=${accessKey.redact()})" }
     // HTTPS: this is a public JRiver service, and iOS/macOS App Transport
     // Security blocks plaintext to non-local hosts. The endpoint serves the
     // same response over TLS.
     val url = "https://webplay.jriver.com/libraryserver/lookup?id=$accessKey"
-    val xml = try {
+    val (code, xml) = catch({
         val response: HttpResponse = httpClient.get(url)
-        if (response.status.value in 200..299) {
-            response.bodyAsText()
-        } else {
-            log.w { "webPlayLookup: HTTP ${response.status.value}" }
-            return null
-        }
-    } catch (e: Exception) {
-        if (e is CancellationException) throw e
-        log.e(e) { "webPlayLookup HTTP failed" }
-        return null
+        response.status.value to response.bodyAsText()
+    }) { e -> raise(McwsError.Unreachable("webplay.jriver.com", e)) }
+    ensure(code in 200..299) { McwsError.HttpError(code) }
+    val parsed = catch({ parseMcwsWebPlayLookup(xml) }) { e -> raise(McwsError.ParseError(e)) }
+
+    val ip = ensureNotNull(parsed["ip"]) {
+        McwsError.ParseError(IllegalStateException("lookup response missing 'ip' field"))
     }
+    val port = parsed["port"]?.toIntOrNull()
+    val httpsPort = parsed["httpsport"]?.toIntOrNull()
+    val localIpList = parsed["localiplist"]
+        ?.split(",")
+        ?.map { it.trim() }
+        ?.filter { it.isNotEmpty() }
+        ?: emptyList()
 
-    return try {
-        val parsed = parseMcwsWebPlayLookup(xml)
-
-        val ip = parsed["ip"] ?: run {
-            log.w { "webPlayLookup: response missing 'ip' field" }
-            return null
-        }
-        val port = parsed["port"]?.toIntOrNull()
-        val httpsPort = parsed["httpsport"]?.toIntOrNull()
-        val localIpList = parsed["localiplist"]
-            ?.split(",")
-            ?.map { it.trim() }
-            ?.filter { it.isNotEmpty() }
-            ?: emptyList()
-
-        log.i { "webPlayLookup → ip=$ip port=$port httpsPort=$httpsPort localIps=${localIpList.size}" }
-        WebPlayLookupResult(
-            ip = ip,
-            port = port,
-            httpsPort = httpsPort,
-            localIpList = localIpList
-        )
-    } catch (e: Exception) {
-        log.e(e) { "webPlayLookup: failed to parse response" }
-        null
-    }
+    WebPlayLookupResult(
+        ip = ip,
+        port = port,
+        httpsPort = httpsPort,
+        localIpList = localIpList
+    )
 }
+    .onRight { log.i { "webPlayLookup → ip=${it.ip} port=${it.port} httpsPort=${it.httpsPort} localIps=${it.localIpList.size}" } }
+    .onLeft { err -> log.w { "webPlayLookup failed: ${err.logSummary()}" } }
