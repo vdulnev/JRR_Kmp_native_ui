@@ -77,6 +77,14 @@ class AudioPlayerFacade(
 
     private val coroutineScope = CoroutineScope(mainDispatcher + SupervisorJob())
 
+    /**
+     * Platform hook fired after a disconnect has been handled centrally —
+     * Android cancels the WorkManager download jobs here, iOS cancels its
+     * URLSession download tasks. The shared cleanup (zone switch, polling
+     * stop, download-job rows) has already run when this is invoked.
+     */
+    var onDownloadsCancelled: (() -> Unit)? = null
+
     val currentServerHost: String?
         get() = serverRepository?.activeServer?.value?.host
 
@@ -266,6 +274,53 @@ class AudioPlayerFacade(
                     }
                 }
             }
+        }
+
+        // Central disconnect enforcement: every path that clears the active
+        // server (phone Disconnect, TV Disconnect, anything future) flows
+        // through serverRepository.activeServer, so reacting here guarantees
+        // ALL online activity stops on disconnect regardless of which UI
+        // triggered it. Only the connected → disconnected transition fires;
+        // the initial not-yet-recovered state does not.
+        if (serverRepository != null) {
+            coroutineScope.launch {
+                var wasConnected = false
+                serverRepository.activeServer.collect { server ->
+                    val connected = !server?.host.isNullOrEmpty()
+                    if (wasConnected && !connected) {
+                        handleServerDisconnected()
+                    }
+                    wasConnected = connected
+                }
+            }
+        }
+    }
+
+    /**
+     * Stop all online activity after the active server was cleared:
+     * - switch to the Offline zone (stops server streaming and remote-zone
+     *   control, loads the downloaded-only queue; local playback continues)
+     * - polling stops as part of the zone switch
+     * - delete unfinished download jobs, then let the platform cancel its
+     *   download transport (WorkManager / URLSession) via [onDownloadsCancelled]
+     */
+    private fun handleServerDisconnected() {
+        log.i { "active server cleared → stopping online activity" }
+        if (!_activeZone.value.isOffline) {
+            setZone(Zone.Offline)
+        } else {
+            // Already offline-zoned: still make sure remote polling is dead.
+            pollingJob?.cancel()
+            pollingJob = null
+        }
+        coroutineScope.launch(ioDispatcher) {
+            try {
+                val removed = database?.downloadJobDao()?.deleteUnfinishedJobs() ?: 0
+                log.i { "disconnect: removed $removed unfinished download jobs" }
+            } catch (e: Exception) {
+                log.e(e) { "disconnect: failed to clear download jobs" }
+            }
+            onDownloadsCancelled?.invoke()
         }
     }
 

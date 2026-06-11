@@ -27,8 +27,28 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
             self?.triggerDownload(track: track, jobId: jobId.int32Value)
         }
 
-        // Resume pending downloads
+        // Disconnect cancels all online activity. The shared facade has
+        // already removed the unfinished download-job rows; this kills the
+        // URLSession transport so in-flight transfers stop too.
+        facade.onDownloadsCancelled = { [weak self] in
+            self?.cancelAllDownloadTasks()
+        }
+
+        // Resume pending downloads (no-op while disconnected; the facade's
+        // disconnect cleanup has cleared the queue anyway).
         resumePendingDownloads()
+    }
+
+    /// Cancel every running download task and forget the bookkeeping. The
+    /// delegate's didCompleteWithError fires with NSURLErrorCancelled for each
+    /// task; the job rows are already deleted, so those callbacks no-op.
+    private func cancelAllDownloadTasks() {
+        log.i("Disconnect: cancelling all download tasks")
+        queue.async { [weak self] in
+            guard let self else { return }
+            activeDownloads.keys.forEach { $0.cancel() }
+            activeDownloads.removeAll()
+        }
     }
 
     func recreateSession(wifiOnly: Bool) {
@@ -43,6 +63,13 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
     }
 
     func resumePendingDownloads() {
+        // Online activity must not start while disconnected — pending jobs
+        // resume on the next connect instead (they are cleared on disconnect,
+        // so anything still QUEUED here predates an app kill while connected).
+        guard let host = facade.currentServerHost, !host.isEmpty else {
+            log.i("resumePendingDownloads skipped: not connected")
+            return
+        }
         Task {
             do {
                 let jobs = try await database.downloadJobDao().getAllJobs()

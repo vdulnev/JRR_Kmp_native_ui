@@ -138,6 +138,34 @@ debug builds can flip the floor at runtime without a rebuild. `isDebugBuild`
 is passed into `SettingsViewModel` from each platform's AppContainer
 (Android: `ApplicationInfo.FLAG_DEBUGGABLE`; iOS: `#if DEBUG`).
 
+## Connection lifecycle
+
+**Disconnecting from the MC server stops ALL online activity.** This is
+enforced centrally, not by the disconnect buttons:
+
+- `ServerRepository.activeServer` is the single source of truth for "connected".
+  A disconnect is *clearing the active server* (empty host) — nothing more.
+  Every disconnect UI (phone `MainShellViewModel.disconnect`, Android TV
+  `TvConnectViewModel.disconnect`, tvOS `TvContainer.disconnect`) just does that.
+- `AudioPlayerFacade` observes the flow and, on the connected → disconnected
+  transition, runs `handleServerDisconnected()`: switches to the Offline zone
+  (stops server streaming and remote-zone control, kills polling; local
+  playback of downloaded files continues), deletes all unfinished download
+  jobs (`DownloadJobDao.deleteUnfinishedJobs`), then fires the
+  `onDownloadsCancelled` platform hook.
+- Platform transports cancel in that hook: Android cancels the WorkManager
+  jobs tagged `jrr-download` (AppContainer); iOS cancels its URLSession tasks
+  (`DownloadManager.cancelAllDownloadTasks`).
+- MCWS requests self-guard: `McwsClient` returns null/empty with no active
+  server, and `AudioPlayerFacade.streamUrl`/`artworkUrl` return `""`.
+
+When adding any new online activity (sync, prefetch, sockets, …), hook its
+shutdown into this central path — observe `facade.activeServerId` /
+`serverRepository.activeServer` or extend `handleServerDisconnected` — never
+into an individual disconnect button. Starting online work must be gated on a
+connected server (see `DownloadManager.resumePendingDownloads` for the
+pattern).
+
 ## Commit style
 
 - Conventional Commits: `feat|fix|chore|docs|refactor|test(<scope>): <description>`

@@ -13,7 +13,7 @@ The core application serves as a full-featured remote control and media player f
 - **Queue Management**: Viewing, modifying, and syncing the playback queue.
 - **Multi-Zone Control**: Selecting and controlling different JRiver playback zones.
 - **Server Management**: Discovering, connecting to, and saving multiple servers.
-- **Offline Mode**: Downloading tracks to local storage (via Room DB) for offline playback.
+- **Offline Mode**: Downloading tracks to local storage (via Room DB) for offline playback. Disconnecting from the server stops all online activity — in-flight and queued downloads are cancelled, server streaming stops, and playback falls back to the downloaded library.
 - **System Integration**: Background audio playback, media session integration (Now Playing system UI), and lock-screen controls.
 
 ## 2. What Functionality is Shared?

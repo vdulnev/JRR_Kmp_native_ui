@@ -159,8 +159,10 @@ class MainShellViewModel(
 
     fun disconnect() {
         log.i { "disconnect()" }
+        // Clearing the active server is enough: the facade observes it and
+        // centrally stops all online activity (zone → Offline, polling,
+        // download cancellation) — same path the TV apps' disconnect takes.
         facade.setServerConnection("", 0, false, 0, null)
-        facade.setZone(Zone.Offline)
         // Stay in the app on the Player/offline tab rather than returning to
         // the Server screen — the user can reach the server screen via Settings.
         _state.update { it.copy(activeTab = 2) }
