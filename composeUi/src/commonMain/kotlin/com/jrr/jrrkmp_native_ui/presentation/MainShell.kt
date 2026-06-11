@@ -35,15 +35,15 @@ import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.presentation.components.MiniPlayer
 import com.jrr.jrrkmp_native_ui.presentation.navigation.LibraryComponent
-import com.jrr.jrrkmp_native_ui.presentation.viewmodel.MiniPlayerState
-import com.jrr.jrrkmp_native_ui.presentation.viewmodel.PlaybackPosition
-import kotlinx.coroutines.flow.StateFlow
 import com.jrr.jrrkmp_native_ui.presentation.navigation.PlayerComponent
 import com.jrr.jrrkmp_native_ui.presentation.navigation.RootComponent
 import com.jrr.jrrkmp_native_ui.presentation.navigation.RootConfig
 import com.jrr.jrrkmp_native_ui.presentation.screens.*
 import com.jrr.jrrkmp_native_ui.presentation.shell.LargeScreenShell
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.MainShellViewModel
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.MiniPlayerState
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.PlaybackPosition
+import kotlinx.coroutines.flow.StateFlow
 
 /** Maps the legacy connect-flow tab index onto a typed [RootConfig]. */
 private fun tabConfig(tab: Int): RootConfig = when (tab) {

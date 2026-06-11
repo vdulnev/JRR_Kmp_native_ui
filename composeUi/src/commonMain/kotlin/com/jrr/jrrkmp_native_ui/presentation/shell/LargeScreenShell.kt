@@ -1,9 +1,5 @@
 package com.jrr.jrrkmp_native_ui.presentation.shell
 
-import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.jrr.jrrkmp_native_ui.presentation.viewmodel.PlaybackPosition
-import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,6 +34,7 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,12 +53,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.presentation.components.MiniPlayer
 import com.jrr.jrrkmp_native_ui.presentation.components.VuMeter
 import com.jrr.jrrkmp_native_ui.presentation.navigation.RootConfig
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.PlaybackPosition
+import kotlinx.coroutines.flow.StateFlow
 
 private val SIDEBAR_WIDTH = 256.dp
 private val RAIL_WIDTH = 88.dp
