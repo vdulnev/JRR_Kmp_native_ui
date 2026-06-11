@@ -1,10 +1,20 @@
-# Plan: Arrow adoption in JRR (review draft)
+# Plan: Arrow adoption in JRR
 
-Adopting [Arrow](https://arrow-kt.io) (v2.2.3) in the shared KMP module.
+Adopting [Arrow](https://arrow-kt.io) (v2.2.2) in the shared KMP module.
 Arrow publishes artifacts for every target `sharedLogic` builds (android,
 jvm, iosArm64, iosSimulatorArm64, macosArm64, tvosArm64, tvosSimulatorArm64),
 so there is no target friction — adoption is a design question, not a build
 question.
+
+**Status:** Phases 1–3 implemented (branches `arrow-phase1-typed-errors`,
+`arrow-phase2-resilience`, `arrow-phase3-parallel-loads`, stacked in that
+order). Phase 4 (optics) remains deferred.
+
+**Version note:** pinned to 2.2.2, not 2.2.3 — the 2.2.3 *native* klibs are
+built with the Kotlin 2.4.0 compiler (klib ABI 2.4.0), which our Kotlin
+2.3.21 toolchain cannot consume. JVM/Android artifacts don't care, so a
+plain `./gradlew check` passes on 2.2.3 and the breakage only shows up when
+linking an Apple framework. Bump Arrow together with the Kotlin upgrade.
 
 ## Ground rules (apply to every phase)
 
@@ -149,11 +159,30 @@ earns its place.
 | 3. Parallel loads | `arrow-fx-coroutines` | 3–4 files | Low |
 | 4. Optics | `arrow-optics` + KSP | wide but mechanical | Defer |
 
-## Open review questions
+## Review decisions (2026-06-11)
 
-1. **Boundary rule** — keep Arrow out of the SKIE surface, or should Swift
-   see typed errors too (possible, but means hand-written bridging enums)?
-2. **Phase 2 backoff** — acceptable that polling slows down while the
-   server is unreachable (vs today's constant 1s hammering)?
-3. **Approval scope** — start with Phase 1 only, or approve 1–3 as a
-   sequence?
+1. **Boundary rule** — Arrow stays out of the SKIE surface. Implementation:
+   the Either-returning `ServerRepository` members (`authenticateTyped`,
+   `checkAliveTyped`, `lookupAccessKeyTyped`) are `@HiddenFromObjC`; Swift
+   keeps the original nullable wrappers. `McwsError` itself is a plain
+   sealed interface and *is* exported, so Swift could branch on it later.
+2. **Phase 2 backoff** — approved. Polling cadence degrades while the
+   server fails (1s → exponential → steady 30s probe) and resets on the
+   first successful poll.
+3. **Approval scope** — all of Phases 1–3, one branch/PR per phase.
+
+## Implementation notes (what differed from the draft)
+
+- `ServerRepository` is called directly from Swift (TvConnectView,
+  TvRootView, ServerManagerView), so the nullable functions stayed as the
+  SKIE-facing API and the typed variants were added alongside, rather than
+  replacing them.
+- `McwsClient.getPlaybackInfo` returns null on *all* failures (transport
+  errors are swallowed in `getRaw`), so the poll loop converts null into a
+  `PollUnavailableException` to drive the backoff `Schedule`.
+- Phase 3 shrank to one call site: `AlbumDetailViewModel` (network tracks
+  ∥ DB favorite). The TV screens the draft flagged already load via
+  separate `LaunchedEffect`s (concurrent), and `getBrowseNode`'s
+  children-then-files sequence is deliberate — `Browse/Files` on a
+  non-leaf node could pull an entire subtree, so it must stay the
+  fallback, not a parallel prefetch.

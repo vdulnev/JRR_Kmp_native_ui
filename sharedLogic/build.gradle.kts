@@ -94,6 +94,8 @@ kotlin {
             api(libs.arrow.core)
             // Schedule-based retry/backoff stays internal to the facade.
             implementation(libs.arrow.resilience)
+            // parZip stays internal to ViewModel load paths.
+            implementation(libs.arrow.fx.coroutines)
             implementation(libs.atomicfu)
             // `api` so app modules (and the iOS framework via SKIE) can name
             // Value, ChildStack, ComponentContext without re-declaring the dep.

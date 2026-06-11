@@ -2,6 +2,7 @@ package com.jrr.jrrkmp_native_ui.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import arrow.fx.coroutines.parZip
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.logged
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
@@ -121,14 +122,18 @@ class AlbumDetailViewModel(
             log.d { "refreshTracksAndFavorite()" }
             _state.update { it.copy(contentState = AlbumDetailContentState.Loading) }
             try {
-                // Fetch tracks from repository
-                val albumTracks = libraryRepository.getAlbumTracks(album)
-                log.d { "loaded ${albumTracks.size} tracks" }
+                // Tracks come from the network, the favorite flag from the
+                // local DB — independent, so load them concurrently. If one
+                // leg fails the other is cancelled and we land in the catch.
+                val (albumTracks, favorite) = parZip(
+                    { libraryRepository.getAlbumTracks(album) },
+                    {
+                        database.favoriteDao()
+                            .getFavorite(facade.activeServerId.value, "album", album.albumGroupId) != null
+                    },
+                ) { tracks, fav -> tracks to fav }
+                log.d { "loaded ${albumTracks.size} tracks (favorite=$favorite)" }
                 tracksFlow.value = albumTracks
-
-                // Check favorite status in DB
-                val identifier = album.albumGroupId
-                val favorite = database.favoriteDao().getFavorite(facade.activeServerId.value, "album", identifier) != null
                 favoriteFlow.value = favorite
             } catch (e: Exception) {
                 log.e(e) { "refreshTracksAndFavorite failed" }
