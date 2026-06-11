@@ -17,7 +17,6 @@ private fun NowPlayingViewState.summary(): String = buildString {
     append("'$trackTitle'")
     append(" by '$artistName'")
     append(" playing=$isPlaying")
-    append(" ${positionMs / 1000}s/${durationMs / 1000}s")
     append(" zone='$activeZoneName'")
     if (shuffleMode != ShuffleMode.OFF) append(" shuffle=$shuffleMode")
     if (repeatMode != RepeatMode.OFF) append(" repeat=$repeatMode")
@@ -25,13 +24,23 @@ private fun NowPlayingViewState.summary(): String = buildString {
     if (transientError != null) append(" err=$transientError")
 }
 
+/**
+ * Hot playback progress, deliberately kept OUT of [NowPlayingViewState]: the
+ * facade ticks position every 500ms–1s, and folding it into the main state
+ * made every consumer recompose/re-render per tick. UIs collect this flow
+ * only in the leaf that draws the progress bar; everything else observes the
+ * (now change-only) [NowPlayingViewModel.state].
+ */
+data class PlaybackPosition(
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L
+)
+
 data class NowPlayingViewState(
     val trackTitle: String = "Idle",
     val artistName: String = "Unknown Artist",
     val albumTitle: String = "Unknown Album",
     val isPlaying: Boolean = false,
-    val positionMs: Long = 0L,
-    val durationMs: Long = 0L,
     val volume: Float = 0.5f,
     val isMuted: Boolean = false,
     val shuffleMode: ShuffleMode = ShuffleMode.OFF,
@@ -50,9 +59,21 @@ class NowPlayingViewModel(
     private val _state = MutableStateFlow(NowPlayingViewState())
     val state: StateFlow<NowPlayingViewState> = _state.asStateFlow()
 
+    // Hot path: position ticks land here, not in [state]. MutableStateFlow
+    // dedupes equal values, so [state] now only emits on real changes
+    // (track switch, play/pause, volume, …).
+    private val _position = MutableStateFlow(PlaybackPosition())
+    val position: StateFlow<PlaybackPosition> = _position.asStateFlow()
+
     init {
         log.d { "init" }
         state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
+        facade.playerStatus.onEach { status ->
+            _position.value = PlaybackPosition(
+                positionMs = status?.positionMs ?: 0L,
+                durationMs = status?.durationMs ?: 0L,
+            )
+        }.launchIn(viewModelScope)
         // Observe facade state and update ViewModel state
         combine(
             facade.playerStatus,
@@ -65,8 +86,6 @@ class NowPlayingViewModel(
                     artistName = status.trackArtist.ifEmpty { "Unknown Artist" },
                     albumTitle = status.trackAlbum.ifEmpty { "Unknown Album" },
                     isPlaying = status.state == PlaybackState.PLAYING,
-                    positionMs = status.positionMs,
-                    durationMs = status.durationMs,
                     volume = status.volume,
                     isMuted = status.isMuted,
                     shuffleMode = status.shuffleMode,

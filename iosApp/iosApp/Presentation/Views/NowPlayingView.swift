@@ -33,6 +33,7 @@ class NowPlayingObservable {
         // init/deinit ~1/sec. The real subscription now runs from the view's
         // `.task` (see `observe()`), which fires once per view *identity*.
         sync(state: viewModel.state.value)
+        sync(position: viewModel.position.value)
     }
 
     /// Drives the live state subscription. Call from the owning view's `.task`
@@ -46,6 +47,22 @@ class NowPlayingObservable {
         }
     }
 
+    /// Drives the hot playback-position subscription (ticks every 500ms–1s
+    /// during playback). Kept separate from `observe()` so the main state
+    /// stays change-only; start it from its own `.task` alongside `observe()`.
+    func observePosition() async {
+        log.d("observePosition: start")
+        defer { log.d("observePosition: end") }
+        for await position in viewModel.position {
+            sync(position: position)
+        }
+    }
+
+    private func sync(position: PlaybackPosition) {
+        if positionMs != position.positionMs { positionMs = position.positionMs }
+        if durationMs != position.durationMs { durationMs = position.durationMs }
+    }
+
     private func sync(state: NowPlayingViewState) {
         // Only assign when the value actually changed. The `@Observable` macro's
         // generated setter fires an invalidation on EVERY assignment (it does
@@ -53,14 +70,12 @@ class NowPlayingObservable {
         // ~1/sec state tick would invalidate every view that reads any field —
         // even stable ones like `trackTitle`. That re-evaluates the whole shell
         // (and churns its child observables) once per second during playback.
-        // Position/duration/isPlaying still change every tick and correctly
-        // re-render only the leaf views that read them.
+        // Position/duration live in the separate `position` flow (see
+        // `observePosition()`), so this sync only sees real changes.
         if trackTitle != state.trackTitle { trackTitle = state.trackTitle }
         if artistName != state.artistName { artistName = state.artistName }
         if albumTitle != state.albumTitle { albumTitle = state.albumTitle }
         if isPlaying != state.isPlaying { isPlaying = state.isPlaying }
-        if positionMs != state.positionMs { positionMs = state.positionMs }
-        if durationMs != state.durationMs { durationMs = state.durationMs }
         if volume != state.volume { volume = state.volume }
         if isMuted != state.isMuted { isMuted = state.isMuted }
         if shuffleMode != state.shuffleMode { shuffleMode = state.shuffleMode }
@@ -357,6 +372,7 @@ struct NowPlayingView: View {
         }
         .background(Color.bg1.ignoresSafeArea())
         .task { await observable.observe() }
+        .task { await observable.observePosition() }
     }
 
     private func formatTime(seconds: Int64) -> String {

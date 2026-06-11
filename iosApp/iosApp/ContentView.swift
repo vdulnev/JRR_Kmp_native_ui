@@ -504,6 +504,10 @@ struct ContentView: View {
             // Mini-player's observable subscribes here (init no longer does).
             await nowPlayingObservable.observe()
         }
+        .task {
+            // Hot position ticks feed the mini-player progress bar.
+            await nowPlayingObservable.observePosition()
+        }
         // Bridge connect-driven tab changes (auto-connect success → Player,
         // failure/cancel/disconnect → Server) into the component tree. Manual
         // tab taps don't touch mainShellObservable, so this only fires for
