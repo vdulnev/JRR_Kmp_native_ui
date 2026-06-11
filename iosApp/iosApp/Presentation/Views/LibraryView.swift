@@ -198,15 +198,20 @@ class LibraryObservable {
 /// Driven by the per-sample scroll *delta* — the same model as the Android
 /// `NestedScrollConnection` (`onPreScroll` dy). This is deliberately not based
 /// on the absolute offset: collapsing the chrome changes the mini-player inset
-/// and container/content size, which moves `contentOffset` on its own. Treating
-/// that self-induced shift as a scroll is what made the mini-player pop in and
+/// and container size, which moves `contentOffset` on its own. Treating that
+/// self-induced shift as a scroll is what made the mini-player pop in and
 /// out — worst with a non-empty filter, where the shorter list amplifies the
-/// layout jump. So any sample where `maxOffset` changed (a relayout, not a
-/// gesture) or where we're in rubber-band overscroll is ignored. With no
-/// absolute zones it behaves identically for any list length.
+/// layout jump. So any sample where the *container* height changed (a chrome
+/// relayout, not a gesture) or where we're in rubber-band overscroll is
+/// ignored. Content-size changes are deliberately not a relayout signal:
+/// LazyVStack re-estimates its total height continuously while scrolling a
+/// long list (thousands of rows), so gating on `maxOffset` ate nearly every
+/// sample and the chrome stopped collapsing. With no absolute zones it
+/// behaves identically for any list length.
 private struct HidesChromeOnScroll: ViewModifier {
     private struct Metrics: Equatable {
         let offset: CGFloat
+        let containerH: CGFloat
         let maxOffset: CGFloat
     }
 
@@ -227,13 +232,19 @@ private struct HidesChromeOnScroll: ViewModifier {
             content.onScrollGeometryChange(for: Metrics.self) { geo in
                 Metrics(
                     offset: geo.contentOffset.y,
+                    containerH: geo.containerSize.height,
                     maxOffset: max(0, geo.contentSize.height - geo.containerSize.height),
                 )
             } action: { old, new in
                 let offset = new.offset
-                // A relayout (chrome toggled → inset / container size changed) moves
-                // the offset without any gesture. Resync and ignore.
-                if new.maxOffset != old.maxOffset {
+                // A chrome relayout (header/filter collapse, mini-player inset)
+                // resizes the *container* and moves contentOffset without any
+                // gesture — resync and ignore those samples. Content-size drift
+                // is deliberately NOT ignored: LazyVStack re-estimates its total
+                // height continuously on long lists (thousands of rows), so
+                // gating on maxOffset starved the accumulator and the chrome
+                // never collapsed.
+                if new.containerH != old.containerH {
                     lastOffset = offset
                     return
                 }
