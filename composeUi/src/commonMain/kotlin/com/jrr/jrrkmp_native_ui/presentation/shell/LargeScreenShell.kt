@@ -1,5 +1,9 @@
 package com.jrr.jrrkmp_native_ui.presentation.shell
 
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.PlaybackPosition
+import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -84,7 +88,7 @@ fun LargeScreenShell(
     trackArtist: String?,
     trackImageUrl: String?,
     isPlaying: Boolean,
-    progress: Float,
+    positionFlow: StateFlow<PlaybackPosition>,
     activeZoneName: String,
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
@@ -132,7 +136,7 @@ fun LargeScreenShell(
                 trackArtist = trackArtist,
                 trackImageUrl = trackImageUrl,
                 isPlaying = isPlaying,
-                progress = progress,
+                positionFlow = positionFlow,
                 activeZoneName = activeZoneName,
                 onPlayPauseClick = onPlayPauseClick,
                 onNextClick = onNextClick,
@@ -151,6 +155,8 @@ fun LargeScreenShell(
                 }
                 if (active != RootConfig.Player && !trackName.isNullOrEmpty() && !chromeCollapsed) {
                     Box(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 4.dp)) {
+                        val position by positionFlow.collectAsStateWithLifecycle()
+                        val progress = if (position.durationMs > 0) position.positionMs.toFloat() / position.durationMs else 0f
                         MiniPlayer(
                             title = trackName,
                             artist = trackArtist ?: "",
@@ -251,7 +257,7 @@ private fun ExpandedSidebar(
     trackArtist: String?,
     trackImageUrl: String?,
     isPlaying: Boolean,
-    progress: Float,
+    positionFlow: StateFlow<PlaybackPosition>,
     activeZoneName: String,
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
@@ -311,6 +317,8 @@ private fun ExpandedSidebar(
 
         // Docked now-playing cell
         if (!trackName.isNullOrEmpty()) {
+            val position by positionFlow.collectAsStateWithLifecycle()
+            val progress = if (position.durationMs > 0) position.positionMs.toFloat() / position.durationMs else 0f
             DockedNowPlaying(
                 trackName = trackName,
                 trackArtist = trackArtist ?: "",

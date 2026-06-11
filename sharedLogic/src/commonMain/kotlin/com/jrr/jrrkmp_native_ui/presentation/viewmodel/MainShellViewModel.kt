@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.logged
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
+import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,19 @@ interface MainShellSettings {
 }
 
 /**
+ * Static mini-player data: track metadata, play state, zone name.
+ * Position ticks live in [MainShellViewModel.position] so shell chrome only
+ * recomposes on real track/state changes, not every 500ms.
+ */
+data class MiniPlayerState(
+    val trackName: String? = null,
+    val artistName: String = "",
+    val imageUrl: String? = null,
+    val isPlaying: Boolean = false,
+    val activeZoneName: String = "No Zone",
+)
+
+/**
  * Connection-flow state. Navigation proper lives in the Decompose component
  * tree; [activeTab] survives only as a *bridge signal* — the connect flow flips
  * it (Server = 1, Player = 2) and each host forwards that to `root.selectTab`.
@@ -51,6 +65,14 @@ class MainShellViewModel(
     private val _state = MutableStateFlow(MainShellState())
     val state: StateFlow<MainShellState> = _state.asStateFlow()
 
+    private val _miniPlayer = MutableStateFlow(MiniPlayerState())
+    val miniPlayer: StateFlow<MiniPlayerState> = _miniPlayer.asStateFlow()
+
+    /** Position ticks (500ms–1s during playback). Collected at the mini-player
+     *  composable site so only the progress bar recomposes, not the whole shell. */
+    private val _position = MutableStateFlow(PlaybackPosition())
+    val position: StateFlow<PlaybackPosition> = _position.asStateFlow()
+
     private var autoConnectJob: Job? = null
     private var toastDismissJob: Job? = null
 
@@ -62,6 +84,25 @@ class MainShellViewModel(
         log.d { "init lastZone=$lastActiveZoneId hasSavedServers=$hasSavedServers" }
         _state.value = MainShellState(activeTab = 2)
         state.logged(log, "state") { it.summary() }.launchIn(viewModelScope)
+
+        // Mini-player static state — combines track + zone, no position ticks.
+        combine(facade.playerStatus, facade.activeZone) { status, zone ->
+            MiniPlayerState(
+                trackName = status?.trackName?.takeIf { it.isNotEmpty() },
+                artistName = status?.trackArtist ?: "",
+                imageUrl = status?.trackFileKey?.takeIf { it.isNotEmpty() }
+                    ?.let { facade.artworkUrl(it) }
+                    ?.takeIf { it.isNotEmpty() },
+                isPlaying = status?.state == PlaybackState.PLAYING,
+                activeZoneName = if (zone.isOffline) "No Zone" else zone.name,
+            )
+        }.onEach { _miniPlayer.value = it }.launchIn(viewModelScope)
+
+        // Position ticks separated so the shell body does not recompose on them.
+        facade.playerStatus.onEach { status ->
+            val new = PlaybackPosition(status?.positionMs ?: 0L, status?.durationMs ?: 0L)
+            if (_position.value != new) _position.value = new
+        }.launchIn(viewModelScope)
     }
 
     fun performAutoConnect() {
@@ -155,6 +196,22 @@ class MainShellViewModel(
     fun clearToast() {
         toastDismissJob?.cancel()
         _state.update { it.copy(toastMessage = null) }
+    }
+
+    fun playPause() {
+        if (_miniPlayer.value.isPlaying) facade.pause() else facade.play()
+    }
+
+    fun next() { facade.next() }
+
+    fun previous() { facade.previous() }
+
+    fun volumeUp() {
+        facade.setVolume(((facade.playerStatus.value?.volume ?: 0.5f) + 0.05f).coerceIn(0f, 1f))
+    }
+
+    fun volumeDown() {
+        facade.setVolume(((facade.playerStatus.value?.volume ?: 0.5f) - 0.05f).coerceIn(0f, 1f))
     }
 
     fun disconnect() {

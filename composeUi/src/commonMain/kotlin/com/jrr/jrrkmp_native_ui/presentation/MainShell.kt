@@ -29,14 +29,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.arkivanov.decompose.extensions.compose.subscribeAsState
-import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
-import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import com.jrr.jrrkmp_native_ui.presentation.components.MiniPlayer
 import com.jrr.jrrkmp_native_ui.presentation.navigation.LibraryComponent
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.MiniPlayerState
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.PlaybackPosition
+import kotlinx.coroutines.flow.StateFlow
 import com.jrr.jrrkmp_native_ui.presentation.navigation.PlayerComponent
 import com.jrr.jrrkmp_native_ui.presentation.navigation.RootComponent
 import com.jrr.jrrkmp_native_ui.presentation.navigation.RootConfig
@@ -71,13 +72,12 @@ fun MainShell(
     windowWidthDp: Int,
 ) {
     val platformUi = LocalPlatformUi.current
-    val mcwsClient = LocalMcwsClient.current
 
     val stack by root.stack.subscribeAsState()
     val active = stack.active.configuration
 
-    val playerStatus by facade.playerStatus.collectAsState()
     val shellState by connectViewModel.state.collectAsState()
+    val miniPlayer by connectViewModel.miniPlayer.collectAsState()
 
     // Scroll-to-hide chrome: a scrolling list collapses the header, the in-list
     // filter, and the mini-player to maximise the scroll area. Reset whenever
@@ -102,19 +102,6 @@ fun MainShell(
             connectViewModel.clearToast()
         }
     }
-
-    val trackName = playerStatus?.trackName
-    val trackArtist = playerStatus?.trackArtist
-    val trackImageUrl = playerStatus?.trackFileKey
-        ?.takeIf { it.isNotEmpty() }
-        ?.let { mcwsClient.buildImageUrl(it) }
-        ?.takeIf { it.isNotEmpty() }
-    val isPlaying = playerStatus?.state == PlaybackState.PLAYING
-    val duration = playerStatus?.durationMs ?: 0L
-    val position = playerStatus?.positionMs ?: 0L
-    val progress = if (duration > 0) position.toFloat() / duration.toFloat() else 0f
-
-    val activeZone by facade.activeZone.collectAsState()
 
     // Large-screen (tablet / desktop) layout swaps the bottom tab bar for a
     // persistent left sidebar. Phones (incl. landscape) and narrow multi-window
@@ -145,17 +132,17 @@ fun MainShell(
             expanded = isExpanded,
             active = active,
             onSelectTab = { root.selectTab(it) },
-            trackName = trackName,
-            trackArtist = trackArtist,
-            trackImageUrl = trackImageUrl,
-            isPlaying = isPlaying,
-            progress = progress,
-            activeZoneName = if (activeZone.isOffline) "No Zone" else activeZone.name,
-            onPlayPauseClick = { if (isPlaying) facade.pause() else facade.play() },
-            onNextClick = { facade.next() },
-            onPrevClick = { facade.previous() },
-            onVolumeUp = { facade.setVolume(((playerStatus?.volume ?: 0.5f) + 0.05f).coerceIn(0f, 1f)) },
-            onVolumeDown = { facade.setVolume(((playerStatus?.volume ?: 0.5f) - 0.05f).coerceIn(0f, 1f)) },
+            trackName = miniPlayer.trackName,
+            trackArtist = miniPlayer.artistName,
+            trackImageUrl = miniPlayer.imageUrl,
+            isPlaying = miniPlayer.isPlaying,
+            positionFlow = connectViewModel.position,
+            activeZoneName = miniPlayer.activeZoneName,
+            onPlayPauseClick = { connectViewModel.playPause() },
+            onNextClick = { connectViewModel.next() },
+            onPrevClick = { connectViewModel.previous() },
+            onVolumeUp = { connectViewModel.volumeUp() },
+            onVolumeDown = { connectViewModel.volumeDown() },
             chromeCollapsed = chromeCollapsed,
             content = content,
         )
@@ -163,12 +150,12 @@ fun MainShell(
         PhoneShell(
             active = active,
             root = root,
-            facade = facade,
-            trackName = trackName,
-            trackArtist = trackArtist,
-            trackImageUrl = trackImageUrl,
-            isPlaying = isPlaying,
-            progress = progress,
+            miniPlayer = miniPlayer,
+            positionFlow = connectViewModel.position,
+            onPlayPauseClick = { connectViewModel.playPause() },
+            onNextClick = { connectViewModel.next() },
+            onPrevClick = { connectViewModel.previous() },
+            onBodyClick = { root.selectTab(RootConfig.Player) },
             chromeCollapsed = chromeCollapsed,
             content = content,
         )
@@ -186,12 +173,12 @@ fun MainShell(
 private fun PhoneShell(
     active: RootConfig,
     root: RootComponent,
-    facade: AudioPlayerFacade,
-    trackName: String?,
-    trackArtist: String?,
-    trackImageUrl: String?,
-    isPlaying: Boolean,
-    progress: Float,
+    miniPlayer: MiniPlayerState,
+    positionFlow: StateFlow<PlaybackPosition>,
+    onPlayPauseClick: () -> Unit,
+    onNextClick: () -> Unit,
+    onPrevClick: () -> Unit,
+    onBodyClick: () -> Unit,
     chromeCollapsed: Boolean,
     content: @Composable () -> Unit,
 ) {
@@ -202,26 +189,19 @@ private fun PhoneShell(
                     // Mini Player: above the tab bar, on every tab except Player,
                     // and only when a track is active/loaded. Hidden while a list
                     // is scrolled (chrome collapsed) to maximise the scroll area.
-                    if (active != RootConfig.Player && !trackName.isNullOrEmpty() && !chromeCollapsed) {
+                    if (active != RootConfig.Player && !miniPlayer.trackName.isNullOrEmpty() && !chromeCollapsed) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(start = 8.dp, end = 8.dp, bottom = 4.dp)
                         ) {
-                            MiniPlayer(
-                                title = trackName,
-                                artist = trackArtist ?: "",
-                                imageUrl = trackImageUrl,
-                                isPlaying = isPlaying,
-                                progress = progress,
-                                onPlayPauseClick = {
-                                    if (isPlaying) facade.pause() else facade.play()
-                                },
-                                onNextClick = { facade.next() },
-                                onPrevClick = { facade.previous() },
-                                onBodyClick = {
-                                    root.selectTab(RootConfig.Player)
-                                }
+                            MiniPlayerWithProgress(
+                                miniPlayer = miniPlayer,
+                                positionFlow = positionFlow,
+                                onPlayPauseClick = onPlayPauseClick,
+                                onNextClick = onNextClick,
+                                onPrevClick = onPrevClick,
+                                onBodyClick = onBodyClick,
                             )
                         }
                     }
@@ -382,6 +362,31 @@ private fun MainContent(
             }
         )
     }
+}
+
+/** Collects [positionFlow] locally so only the progress bar recomposes on ticks. */
+@Composable
+private fun MiniPlayerWithProgress(
+    miniPlayer: MiniPlayerState,
+    positionFlow: StateFlow<PlaybackPosition>,
+    onPlayPauseClick: () -> Unit,
+    onNextClick: () -> Unit,
+    onPrevClick: () -> Unit,
+    onBodyClick: () -> Unit,
+) {
+    val position by positionFlow.collectAsState()
+    val progress = if (position.durationMs > 0) position.positionMs.toFloat() / position.durationMs else 0f
+    MiniPlayer(
+        title = miniPlayer.trackName ?: return,
+        artist = miniPlayer.artistName,
+        imageUrl = miniPlayer.imageUrl,
+        isPlaying = miniPlayer.isPlaying,
+        progress = progress,
+        onPlayPauseClick = onPlayPauseClick,
+        onNextClick = onNextClick,
+        onPrevClick = onPrevClick,
+        onBodyClick = onBodyClick,
+    )
 }
 
 @Composable
