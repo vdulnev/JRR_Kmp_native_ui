@@ -203,6 +203,10 @@ class DownloadWorker(
 
                 return Result.success()
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // WorkManager cancelled the worker (e.g. disconnect cancels all
+            // downloads) — propagate; the job row is already gone.
+            throw e
         } catch (e: Exception) {
             log.e(e) { "doWork failed fileKey=$fileKey jobId=$jobId" }
             val currentJob = jobDao.getJobById(jobId)

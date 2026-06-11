@@ -137,5 +137,10 @@ interface DownloadJobDao {
 
     @Query("SELECT * FROM download_jobs ORDER BY enqueued_at ASC")
     fun getAllJobsFlow(): Flow<List<DownloadJobEntity>>
+
+    /** Drop every job that hasn't finished — used when the server connection
+     *  is cleared, so no download outlives the disconnect. */
+    @Query("DELETE FROM download_jobs WHERE state IN ('QUEUED', 'DOWNLOADING')")
+    suspend fun deleteUnfinishedJobs(): Int
 }
 

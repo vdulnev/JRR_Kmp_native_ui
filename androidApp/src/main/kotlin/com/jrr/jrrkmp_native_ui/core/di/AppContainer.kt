@@ -86,7 +86,16 @@ class AppContainer(context: Context) {
             loadLocalAudioQuality = {
                 prefs.getString("local_audio_quality", null)
             },
-        )
+        ).apply {
+            // Disconnect cancels all online activity: the facade has already
+            // cleared the unfinished download-job rows; this kills the
+            // WorkManager workers (queued AND in-flight) that would otherwise
+            // keep downloading from the still-reachable server.
+            onDownloadsCancelled = {
+                androidx.work.WorkManager.getInstance(appContext)
+                    .cancelAllWorkByTag(DOWNLOAD_WORK_TAG)
+            }
+        }
     }
 
     val libraryRepository: LibraryRepository by lazy {
@@ -102,10 +111,17 @@ class AppContainer(context: Context) {
                         "file_key" to track.fileKey,
                         "job_id" to jobId
                     ))
+                    // Tagged so a disconnect can cancel every download at once
+                    // (see facade.onDownloadsCancelled above).
+                    .addTag(DOWNLOAD_WORK_TAG)
                     .build()
                 androidx.work.WorkManager.getInstance(appContext).enqueue(workRequest)
             }
         }
+    }
+
+    private companion object {
+        const val DOWNLOAD_WORK_TAG = "jrr-download"
     }
 }
 
