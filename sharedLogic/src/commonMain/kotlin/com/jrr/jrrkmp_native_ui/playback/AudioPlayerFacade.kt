@@ -1,5 +1,7 @@
 package com.jrr.jrrkmp_native_ui.playback
 
+import arrow.resilience.Schedule
+import arrow.resilience.retry
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.redact
 import com.jrr.jrrkmp_native_ui.core.logging.runCatchingLogged
@@ -15,6 +17,7 @@ import com.jrr.jrrkmp_native_ui.domain.model.RepeatMode
 import com.jrr.jrrkmp_native_ui.domain.model.ShuffleMode
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,8 +34,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 private val log = Logger.withTag("playback:Facade")
+
+/**
+ * One remote-status poll came back empty: transport failure or MCWS rejection
+ * (detail already logged by McwsClient). Drives the poll backoff [Schedule].
+ */
+private class PollUnavailableException(zoneId: String) :
+    Exception("playback info unavailable zone=$zoneId")
 
 class AudioPlayerFacade(
     private val database: JrrDatabase?,
@@ -265,14 +277,32 @@ class AudioPlayerFacade(
             setZone(Zone.Offline)
         }
 
-        // Asynchronously restore last active server connection if it is not already set
+        // Asynchronously restore last active server connection if it is not
+        // already set. Retried with jittered exponential backoff so one
+        // flaky-WiFi moment at app start doesn't leave the app disconnected
+        // (recoverActiveServer itself gives up after a single round-trip).
         if (serverRepository != null && currentServerHost.isNullOrEmpty()) {
             coroutineScope.launch(ioDispatcher) {
-                serverRepository.recoverActiveServer { host, port, useSsl, sslPort, token ->
-                    withContext(mainDispatcher) {
-                        setServerConnection(host, port, useSsl, sslPort, token)
+                val recoverySchedule = Schedule.exponential<Throwable>(500.milliseconds)
+                    .jittered()
+                    .and(Schedule.recurs(4))
+                    .log { _, _ -> log.i { "server recovery attempt failed; retrying" } }
+                val recovered = try {
+                    recoverySchedule.retry {
+                        val ok = serverRepository.recoverActiveServer { host, port, useSsl, sslPort, token ->
+                            withContext(mainDispatcher) {
+                                setServerConnection(host, port, useSsl, sslPort, token)
+                            }
+                        }
+                        check(ok) { "recovery attempt failed" }
                     }
+                    true
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    false
                 }
+                if (!recovered) log.w { "server recovery gave up after retries" }
             }
         }
 
@@ -439,22 +469,30 @@ class AudioPlayerFacade(
             return
         }
         log.d { "startPolling zone=${zone.id}" }
+        // While the server answers, poll at a fixed 1s cadence. While it
+        // fails, back off exponentially (1s → 2s → 4s …) and settle on a 30s
+        // probe instead of hammering a down server every second. The first
+        // successful poll resets the cadence to 1s.
+        val backoff = Schedule.exponential<Throwable>(1.seconds)
+            .doWhile { _, duration -> duration < 30.seconds }
+            .andThen(Schedule.spaced(30.seconds))
+            .log { error, _ -> log.w { "poll failed zone=${zone.id} (${error.message}); backing off" } }
         pollingJob = coroutineScope.launch(ioDispatcher) {
             while (isActive) {
-                if (isPollingEnabled) {
-                    try {
-                        val status = remoteHandler.getPlaybackInfo(zone.id)
-                        if (status != null) {
-                            log.v { "poll → state=${status.state} pos=${status.positionMs}ms" }
-                            _playerStatus.value = status
-                        }
-                    } catch (e: Exception) {
-                        log.w(e) { "poll failed zone=${zone.id}" }
-                    }
-                }
+                backoff.retry { pollOnce(zone) }
                 delay(1000L)
             }
         }
+    }
+
+    /** One poll tick; throws [PollUnavailableException] so [startPolling]'s
+     *  backoff schedule can react (the client returns null on all failures). */
+    private suspend fun pollOnce(zone: Zone) {
+        if (!isPollingEnabled) return
+        val status = remoteHandler.getPlaybackInfo(zone.id)
+            ?: throw PollUnavailableException(zone.id)
+        log.v { "poll → state=${status.state} pos=${status.positionMs}ms" }
+        _playerStatus.value = status
     }
 
     private fun startLocalProgressPolling() {

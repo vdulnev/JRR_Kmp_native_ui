@@ -92,6 +92,8 @@ kotlin {
             // Arrow types never cross the SKIE boundary (see docs/arrow-adoption-plan.md);
             // the Either-returning members are @HiddenFromObjC.
             api(libs.arrow.core)
+            // Schedule-based retry/backoff stays internal to the facade.
+            implementation(libs.arrow.resilience)
             implementation(libs.atomicfu)
             // `api` so app modules (and the iOS framework via SKIE) can name
             // Value, ChildStack, ComponentContext without re-declaring the dep.

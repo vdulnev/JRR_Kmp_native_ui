@@ -69,6 +69,8 @@ ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "k
 ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 # Typed errors (Either/Raise) inside sharedLogic — see docs/arrow-adoption-plan.md.
 arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrow" }
+# Schedule (retry/backoff) for polling + connection recovery.
+arrow-resilience = { module = "io.arrow-kt:arrow-resilience", version.ref = "arrow" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
