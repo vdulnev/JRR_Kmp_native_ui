@@ -30,9 +30,11 @@ import kotlin.random.Random
  * + app-managed queue). On natural track end, [onTrackFinished] advances the
  * index according to repeat/shuffle.
  *
- * Requires a system VLC install — libvlc is discovered at runtime by VLCJ. If it
- * is missing, [component] is null and the engine degrades to a no-op (remote
- * MCWS zone control is unaffected); a single Error is logged explaining the fix.
+ * Requires libvlc — either bundled into the app image (`syncVlcNatives` Gradle
+ * task, see [configureBundledNatives]) or a system VLC install discovered at
+ * runtime by VLCJ. If neither is present, [component] is null and the engine
+ * degrades to a no-op (remote MCWS zone control is unaffected); a single Error
+ * is logged explaining the fix.
  *
  * Threading: libvlc fires events on a native callback thread, and re-entering
  * the player from that thread can deadlock. State writes (plain `StateFlow`
@@ -124,18 +126,34 @@ class DesktopPlayerEngine(
      * the `syncVlcNatives` Gradle task under `<resources>/vlc/`). When running
      * unpackaged (no `compose.application.resources.dir`, or natives not staged),
      * this is a no-op and VLCJ falls back to discovering a system VLC install.
-     * libvlc locates its `plugins/` relative to the DLL on Windows, so no plugin
-     * path needs to be set explicitly.
+     *
+     * Per-OS bundle layout (must match `syncVlcNatives`):
+     *  - Windows: DLLs at `vlc/` root; libvlc locates `plugins/` relative to the
+     *    DLL, so no plugin path needs to be set explicitly.
+     *  - macOS: VLC.app layout — dylibs under `vlc/lib`, `vlc/plugins` beside it.
+     *    vlcj's discovery (OsxNativeDiscoveryStrategy) finds the lib dir through
+     *    `jna.library.path` and sets VLC_PLUGIN_PATH to `<libdir>/../plugins`,
+     *    which libvlc requires on macOS.
      */
     private fun configureBundledNatives() {
         val resourcesDir = System.getProperty("compose.application.resources.dir") ?: return
         val vlcDir = File(resourcesDir, "vlc")
-        if (File(vlcDir, "libvlc.dll").exists()) {
-            log.i { "using bundled libvlc at ${vlcDir.absolutePath}" }
-            NativeLibrary.addSearchPath("libvlc", vlcDir.absolutePath)
-            NativeLibrary.addSearchPath("libvlccore", vlcDir.absolutePath)
-            System.setProperty("jna.library.path", vlcDir.absolutePath)
+        val libDir = when {
+            File(vlcDir, "libvlc.dll").exists() -> vlcDir
+            File(vlcDir, "lib/libvlc.dylib").exists() -> File(vlcDir, "lib")
+            else -> return
         }
+        log.i { "using bundled libvlc at ${libDir.absolutePath}" }
+        // JNA library names differ per OS ("libvlc"/"libvlccore" on Windows,
+        // "vlc"/"vlccore" elsewhere — RuntimeUtil.getLibVlc*LibraryName); register
+        // the search path under both spellings.
+        NativeLibrary.addSearchPath("libvlc", libDir.absolutePath)
+        NativeLibrary.addSearchPath("libvlccore", libDir.absolutePath)
+        NativeLibrary.addSearchPath("vlc", libDir.absolutePath)
+        NativeLibrary.addSearchPath("vlccore", libDir.absolutePath)
+        // vlcj's NativeDiscovery scans this property (JnaLibraryPathDirectoryProvider);
+        // on macOS that discovery hit is what triggers the VLC_PLUGIN_PATH setup.
+        System.setProperty("jna.library.path", libDir.absolutePath)
     }
 
     // --- Stream URL ---------------------------------------------------------

@@ -47,45 +47,112 @@ kotlin {
 
 // --- libvlc native bundling -------------------------------------------------
 //
-// The libvlc binaries (libvlc.dll, libvlccore.dll, and the ~130MB `plugins/`
-// tree) are NOT on Maven and are too large to vendor in git, so they are staged
-// at build time from a local VLC install into the Compose app-resources dir.
-// They are then discovered at runtime via `compose.application.resources.dir`
-// (see DesktopPlayerEngine.configureBundledNatives) — no system VLC required by
-// the end user.
+// The libvlc binaries (core libs and the ~100MB `plugins/` tree) are NOT on
+// Maven and are too large to vendor in git, so they are staged at build time
+// from a local VLC install into the Compose app-resources dir. They are then
+// discovered at runtime via `compose.application.resources.dir` (see
+// DesktopPlayerEngine.configureBundledNatives) — no system VLC required by the
+// end user.
 //
-// Source VLC install resolution order: -PvlcHome=… > VLC_HOME env > default
-// Windows install path. If none is found the task is skipped and the app falls
-// back to discovering a system VLC at runtime.
+// Source VLC install resolution order: -PvlcHome=… > VLC_HOME env > the
+// platform default install path. If none is found the task is skipped and the
+// app falls back to discovering a system VLC at runtime.
+//
+// Per-OS layout inside the staged `vlc/` folder:
+//  - Windows: libvlc.dll + libvlccore.dll at the root, plugins/ beside them
+//    (libvlc finds its plugins relative to the DLL).
+//  - macOS: VLC.app's own layout — lib/*.dylib with plugins/ as a sibling.
+//    vlcj's OsxNativeDiscoveryStrategy derives VLC_PLUGIN_PATH as
+//    `<libdir>/../plugins`, and the dylibs resolve each other via @rpath in
+//    the same dir, so the layout must be preserved verbatim.
+val hostOsName: String = System.getProperty("os.name").lowercase()
+val isMacHost: Boolean = hostOsName.contains("mac")
+val isWindowsHost: Boolean = hostOsName.contains("windows")
+val hostArch: String =
+    if (System.getProperty("os.arch") in setOf("aarch64", "arm64")) "arm64" else "x64"
+
+// Compose copies appResourcesRootDir/<os>-<arch>/** into the runtime resources
+// dir for that target.
+val composeResourcesOsDir: String = when {
+    isMacHost -> "macos-$hostArch"
+    isWindowsHost -> "windows-x64"
+    else -> "linux-$hostArch"
+}
+
 val vlcHome: String = (project.findProperty("vlcHome") as String?)
     ?: System.getenv("VLC_HOME")
-    ?: "C:/Program Files/VideoLAN/VLC"
+    ?: when {
+        isMacHost -> "/Applications/VLC.app/Contents/MacOS"
+        isWindowsHost -> "C:/Program Files/VideoLAN/VLC"
+        else -> "/usr/lib/vlc"
+    }
 
 val vlcResourcesDir = layout.buildDirectory.dir("vlcResources")
 
 val syncVlcNatives by tasks.registering(Copy::class) {
     group = "compose desktop"
-    description = "Stages libvlc natives (DLLs + plugins) from a VLC install into the app resources for bundling."
+    description =
+        "Stages libvlc natives (core libs + plugins) from a VLC install into the app resources for bundling."
 
+    // Local copies of the top-level script vals: task closures (onlyIf, the
+    // `into` provider) must not capture the script object — the configuration
+    // cache cannot serialize it.
     val home = file(vlcHome)
+    val macHost = isMacHost
+    val osDirName = composeResourcesOsDir
+    val libvlc = if (macHost) home.resolve("lib/libvlc.dylib") else home.resolve("libvlc.dll")
+    val wantedArch = if (hostArch == "arm64") "arm64" else "x86_64"
     onlyIf {
-        val present = home.resolve("libvlc.dll").exists()
-        if (!present) {
+        // Architectures baked into a Mach-O binary, via `lipo -archs` (e.g.
+        // `[x86_64]`, `[arm64, x86_64]` for universal). Empty means "unknown"
+        // (lipo unavailable), which is treated as a pass, not a mismatch.
+        // Local fun: top-level script helpers can't be captured by task
+        // closures under the configuration cache.
+        fun machOArchs(binary: File): Set<String> = try {
+            val process = ProcessBuilder("lipo", "-archs", binary.absolutePath)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText().trim()
+            if (process.waitFor() == 0) output.split(Regex("\\s+")).toSet() else emptySet()
+        } catch (_: Exception) {
+            emptySet()
+        }
+
+        if (!libvlc.exists()) {
             logger.warn(
-                "syncVlcNatives: no libvlc.dll under '$home'. Set -PvlcHome=<VLC dir> or " +
+                "syncVlcNatives: no ${libvlc.name} under '$home'. Set -PvlcHome=<VLC dir> or " +
                     "VLC_HOME. The packaged app will fall back to a system VLC install at runtime."
             )
+            return@onlyIf false
         }
-        present
+        // VLC for macOS ships separate Intel/Apple Silicon builds; bundling the
+        // wrong one would fail to load into this host's JVM at runtime.
+        if (macHost) {
+            val archs = machOArchs(libvlc)
+            if (archs.isNotEmpty() && wantedArch !in archs) {
+                logger.warn(
+                    "syncVlcNatives: VLC at '$home' is built for $archs but this host is " +
+                        "$wantedArch. Install the matching VLC build (videolan.org ships " +
+                        "separate Intel/Apple Silicon dmgs) or point -PvlcHome/VLC_HOME at one. " +
+                        "Skipping — the app will fall back to a system VLC at runtime."
+                )
+                return@onlyIf false
+            }
+        }
+        true
     }
 
-    // libvlc finds its plugins relative to the DLL on Windows, so place the two
-    // core DLLs and the plugins/ tree together under a `vlc/` folder.
-    from(home) { include("libvlc.dll", "libvlccore.dll") }
-    from(home.resolve("plugins")) { into("plugins") }
-    // Compose copies appResourcesRootDir/<os>-<arch>/** into the runtime
-    // resources dir for that target.
-    into(vlcResourcesDir.map { it.dir("windows-x64/vlc") })
+    if (macHost) {
+        from(home.resolve("lib")) {
+            include("*.dylib")
+            into("lib")
+        }
+        from(home.resolve("plugins")) { into("plugins") }
+    } else {
+        from(home) { include("libvlc.dll", "libvlccore.dll") }
+        from(home.resolve("plugins")) { into("plugins") }
+    }
+    into(vlcResourcesDir.map { it.dir("$osDirName/vlc") })
 }
 
 // Ensure the natives are staged before Compose collects app resources (for both
@@ -98,7 +165,7 @@ compose.desktop {
     application {
         mainClass = "com.jrr.jrrkmp_native_ui.desktop.MainKt"
         nativeDistributions {
-            targetFormats(TargetFormat.Msi, TargetFormat.Exe)
+            targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Dmg)
             packageName = "JRRDesktop"
             packageVersion = "1.0.0"
             description = "JRiver Media Center remote & local player"
