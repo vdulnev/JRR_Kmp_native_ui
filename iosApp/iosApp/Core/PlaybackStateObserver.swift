@@ -50,10 +50,24 @@ class PlaybackStateObserver: ObservableObject {
                 guard let self else { return }
                 playerStatus = status
 
-                // Update lock screen controls when playing on local/offline zone
+                // Update system now-playing/remote controls.
+                //
+                // iOS: only for local/offline playback — the device plays the
+                // audio, so the lock screen should control it. For remote zones
+                // there is no audio session, so the system would ignore the
+                // registration anyway.
+                //
+                // macOS: for every zone with a loaded track. The app is a remote
+                // control; without this the system has no Now Playing app while
+                // a *server* zone plays, so the keyboard's play/pause media key
+                // launches Music.app instead of controlling JRR.
                 if let status {
-                    let isActiveZoneLocalOrOffline = activeZone.isLocal || activeZone.isOffline
-                    if isActiveZoneLocalOrOffline {
+                    #if os(macOS)
+                        let publishNowPlaying = !status.trackName.isEmpty
+                    #else
+                        let publishNowPlaying = activeZone.isLocal || activeZone.isOffline
+                    #endif
+                    if publishNowPlaying {
                         let artworkUrl = status.trackFileKey.isEmpty
                             ? nil
                             : mcwsClient.buildImageUrl(fileKey: status.trackFileKey)

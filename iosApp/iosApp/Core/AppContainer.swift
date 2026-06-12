@@ -84,6 +84,13 @@ final class AppContainer {
         nowPlayingCoordinator.configure(
             playHandler: { facade.play() },
             pauseHandler: { facade.pause() },
+            toggleHandler: {
+                if facade.playerStatus.value?.state == .playing {
+                    facade.pause()
+                } else {
+                    facade.play()
+                }
+            },
             nextHandler: { facade.next() },
             prevHandler: { facade.previous() },
             seekHandler: { pos in facade.seekTo(positionMs: pos) },

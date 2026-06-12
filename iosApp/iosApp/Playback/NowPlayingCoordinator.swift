@@ -11,6 +11,7 @@ private let log = SwiftLog("playback:NowPlayingCoordinator")
 class NowPlayingCoordinator {
     private var playHandler: (() -> Void)?
     private var pauseHandler: (() -> Void)?
+    private var toggleHandler: (() -> Void)?
     private var nextHandler: (() -> Void)?
     private var prevHandler: (() -> Void)?
     private var seekHandler: ((Int64) -> Void)?
@@ -27,12 +28,14 @@ class NowPlayingCoordinator {
     func configure(
         playHandler: @escaping () -> Void,
         pauseHandler: @escaping () -> Void,
+        toggleHandler: @escaping () -> Void,
         nextHandler: @escaping () -> Void,
         prevHandler: @escaping () -> Void,
         seekHandler: @escaping (Int64) -> Void,
     ) {
         self.playHandler = playHandler
         self.pauseHandler = pauseHandler
+        self.toggleHandler = toggleHandler
         self.nextHandler = nextHandler
         self.prevHandler = prevHandler
         self.seekHandler = seekHandler
@@ -50,6 +53,16 @@ class NowPlayingCoordinator {
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget { [weak self] _ in
             self?.pauseHandler?()
+            return .success
+        }
+
+        // The macOS play/pause media key (F8) and single-tap headphone buttons
+        // arrive as togglePlayPause, not separate play/pause commands — without
+        // this handler the hardware key does nothing (or launches Music.app).
+        commandCenter.togglePlayPauseCommand.isEnabled = true
+        commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
+            log.d("remote command: togglePlayPause")
+            self?.toggleHandler?()
             return .success
         }
 
@@ -75,6 +88,16 @@ class NowPlayingCoordinator {
             return .commandFailed
         }
     }
+
+    #if canImport(AppKit)
+        /// macOS only routes the hardware play/pause key to an app after
+        /// MediaRemote has accepted it as a Now Playing client — and an app
+        /// that has only ever claimed `.paused` never gets accepted, so the
+        /// key falls through to the system default and launches Music.app.
+        /// See the first-update priming in [updateNowPlaying].
+        private var didPrimeMediaKeys = false
+        private var lastIsPlaying = false
+    #endif
 
     func updateNowPlaying(
         title: String?,
@@ -109,7 +132,27 @@ class NowPlayingCoordinator {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         // CarPlay / lock screen drive the play-pause button off `playbackState`,
         // not just the rate — set it explicitly so the control reflects reality.
-        MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
+        #if canImport(AppKit)
+            lastIsPlaying = isPlaying
+            if !didPrimeMediaKeys {
+                // First publish must pass through `.playing` for MediaRemote to
+                // accept the app as the media-key target (a synchronous flip to
+                // `.paused` would be coalesced away, hence the delayed settle).
+                didPrimeMediaKeys = true
+                log.d("priming macOS media-key routing")
+                MPNowPlayingInfoCenter.default().playbackState = .playing
+                if !isPlaying {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                        guard let self else { return }
+                        MPNowPlayingInfoCenter.default().playbackState = lastIsPlaying ? .playing : .paused
+                    }
+                }
+            } else {
+                MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
+            }
+        #else
+            MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
+        #endif
 
         // Fetch artwork only when the track (URL) actually changes.
         if let artworkUrl, artworkUrl != lastArtworkUrl, let url = URL(string: artworkUrl) {
