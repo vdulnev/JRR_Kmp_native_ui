@@ -41,6 +41,12 @@ kotlin {
             // natives themselves are bundled into the app image — see
             // `syncVlcNatives` below.
             implementation(libs.vlcj)
+            // Coil 3 ships no network fetcher in its core artifact (which is
+            // all :composeUi brings in). The OkHttp fetcher is registered with
+            // a trust-all client in ImageLoading.kt so artwork loads from
+            // JRiver's self-signed HTTPS port — same setup as the Android apps.
+            implementation(libs.coil3.compose)
+            implementation(libs.coil3.network.okhttp)
         }
     }
 }

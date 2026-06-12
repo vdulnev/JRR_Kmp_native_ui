@@ -37,7 +37,16 @@ import com.jrr.jrrkmp_native_ui.presentation.viewmodel.ZonesViewModel
  * on-device audio is still the [DesktopPlayerEngine] stub (remote MCWS zone
  * control is fully functional); VLCJ playback lands in Phase 4.
  */
-fun main() = application {
+fun main() {
+    // Coil has no network fetcher by default on the JVM — install the OkHttp
+    // one (trust-all TLS for JRiver's self-signed cert) before the UI
+    // composes, or no remote artwork loads. See ImageLoading.kt.
+    configureImageLoader()
+
+    runJrrDesktopApp()
+}
+
+private fun runJrrDesktopApp() = application {
     // Decompose's "main thread" on desktop is the AWT event-dispatch thread, NOT
     // the JVM `main` thread. Compose Desktop runs composition on the EDT, so the
     // container + component tree are built here inside `remember` (first
