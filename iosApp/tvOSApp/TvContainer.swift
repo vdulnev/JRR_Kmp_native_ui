@@ -58,6 +58,13 @@ final class TvContainer {
         nowPlayingCoordinator.configure(
             playHandler: { [facade] in facade.play() },
             pauseHandler: { [facade] in facade.pause() },
+            toggleHandler: { [facade] in
+                if facade.playerStatus.value?.state == .playing {
+                    facade.pause()
+                } else {
+                    facade.play()
+                }
+            },
             nextHandler: { [facade] in facade.next() },
             prevHandler: { [facade] in facade.previous() },
             seekHandler: { [facade] in facade.seekTo(positionMs: $0) },
