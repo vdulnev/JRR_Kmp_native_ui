@@ -13,6 +13,7 @@ import com.arkivanov.essenty.lifecycle.LifecycleRegistry
 import com.arkivanov.essenty.lifecycle.resume
 import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.theme.JrrTheme
+import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.presentation.ArtworkResolver
 import com.jrr.jrrkmp_native_ui.presentation.LocalArtworkResolver
 import com.jrr.jrrkmp_native_ui.presentation.LocalDatabase
@@ -53,6 +54,26 @@ private fun runJrrDesktopApp() = application {
     // composition) to satisfy Decompose's main-thread check.
     val settings = remember { DesktopSettings() }
     val container = remember { DesktopAppContainer(settings) }
+
+    // Windows hardware media keys (Play/Pause, Next, Previous). No-op on other
+    // OSes. Play/Pause toggles off the current playback state, mirroring the iOS
+    // togglePlayPause remote command.
+    val mediaKeys = remember {
+        WindowsMediaKeys().also { keys ->
+            val facade = container.facade
+            keys.start(
+                onPlayPause = {
+                    if (facade.playerStatus.value?.state == PlaybackState.PLAYING) {
+                        facade.pause()
+                    } else {
+                        facade.play()
+                    }
+                },
+                onNext = { facade.next() },
+                onPrevious = { facade.previous() },
+            )
+        }
+    }
 
     val root = remember {
         val facade = container.facade
@@ -108,7 +129,9 @@ private fun runJrrDesktopApp() = application {
 
     Window(
         onCloseRequest = {
-            // Release libvlc (no-op if playback never started) before quitting.
+            // Remove the global media-key hook, then release libvlc (no-op if
+            // playback never started) before quitting.
+            mediaKeys.stop()
             container.localPlayerEngine.release()
             exitApplication()
         },
