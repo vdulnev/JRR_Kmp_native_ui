@@ -390,8 +390,8 @@ gain a common/desktop path first: **Coil 2** (6 files), **`android.widget.Toast`
 ### Phase 5 — Packaging ✅ COMPLETE
 
 - jpackage config ✓ — `nativeDistributions` sets `packageName`/`version`/
-  `description`/`vendor`/`copyright`, `targetFormats(Msi, Exe)`, and Windows
-  metadata (`menuGroup`, start-menu + desktop shortcut, `perUserInstall`, a fixed
+  `description`/`vendor`/`copyright`, `targetFormats(Msi, Exe, Dmg, Deb, Rpm)`,
+  and Windows metadata (`menuGroup`, start-menu + desktop shortcut, `perUserInstall`, a fixed
   `upgradeUuid` for in-place upgrades). `includeAllModules = true` so JNA/VLCJ
   reflection + Room + Skiko all resolve without hand-enumerating JDK modules.
   (Branded `.ico` is a TODO — the DSL line is stubbed in; jpackage uses a default
@@ -425,9 +425,15 @@ gain a common/desktop path first: **Coil 2** (6 files), **`android.widget.Toast`
 ./gradlew :desktopApp:createDistributable   # unpacked app image (fast, for testing)
 ```
 
-Remaining polish (non-blocking): add a branded `.ico`, trim `includeAllModules`
-to a `modules(...)` allowlist to shrink the image, and add macOS/Linux native
-sources to `syncVlcNatives` if those targets are packaged later.
+**Linux** (`.deb`/`.rpm`) and **macOS** (`.dmg`) packaging are also implemented:
+`syncVlcNatives` stages the platform's libvlc (`.so`/`.dylib` + plugins) when a
+VLC install is found, and `targetFormats` covers all five. See
+[desktop-linux.md](desktop-linux.md) for the Linux build/run/package guide
+(incl. running under WSL); the native macOS path is in
+[macos-target-plan.md](macos-target-plan.md).
+
+Remaining polish (non-blocking): add a branded `.ico`, and trim
+`includeAllModules` to a `modules(...)` allowlist to shrink the image.
 
 ---
 
