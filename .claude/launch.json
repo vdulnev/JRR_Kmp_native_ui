@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "desktopApp (Compose Desktop)",
+      "runtimeExecutable": "gradlew.bat",
+      "runtimeArgs": [":desktopApp:run"]
+    },
+    {
+      "name": "androidApp (install debug on connected device)",
+      "runtimeExecutable": "gradlew.bat",
+      "runtimeArgs": [":androidApp:installDebug"]
+    }
+  ]
+}
