@@ -2040,7 +2040,7 @@ struct LibraryView: View {
 
             Spacer()
 
-            if track.numberPlays > 0 {
+            if (stateObserver.playCounts[track.fileKey] ?? track.numberPlays) > 0 {
                 Image(systemName: "headphones")
                     .font(.system(size: 12))
                     .foregroundColor(.textTertiary)
@@ -2116,7 +2116,7 @@ struct LibraryView: View {
                     .padding(.trailing, 4)
             }
 
-            if track.numberPlays > 0 {
+            if (stateObserver.playCounts[track.fileKey] ?? track.numberPlays) > 0 {
                 Image(systemName: "headphones")
                     .font(.system(size: 12))
                     .foregroundColor(.textTertiary)

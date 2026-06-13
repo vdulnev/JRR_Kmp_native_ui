@@ -29,6 +29,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -188,6 +191,17 @@ class AudioPlayerFacade(
 
     val localQueue: StateFlow<List<Track>> = localPlayerEngine.queue
 
+    /**
+     * Live "played" overlay: `fileKey → latest server [Number Plays]`. A track's
+     * count is re-queried from MCWS when it finishes (the now-playing key
+     * advances off it), so every list's played icon updates without a full
+     * library re-fetch. The server is the source of truth; the map is merged
+     * with each [Track]'s baked `numberPlays` at render time. Per-server, so it
+     * is cleared whenever the active server changes (see init).
+     */
+    private val _playCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val playCounts: StateFlow<Map<String, Int>> = _playCounts
+
     private var isPollingEnabled = true
     private var pollingJob: Job? = null
     private var localProgressJob: Job? = null
@@ -322,6 +336,38 @@ class AudioPlayerFacade(
                     }
                     wasConnected = connected
                 }
+            }
+        }
+
+        // Live "played" overlay. When the now-playing track advances off a key,
+        // that track just finished and the server has incremented its
+        // [Number Plays] — re-query the authoritative value and publish it so
+        // every visible played icon for that track updates. The key transitions
+        // to "" when the last queued track ends, so that one is covered too.
+        coroutineScope.launch {
+            var previousKey = ""
+            playerStatus
+                .map { it?.trackFileKey ?: "" }
+                .distinctUntilChanged()
+                .collect { currentKey ->
+                    val finishedKey = previousKey
+                    previousKey = currentKey
+                    if (finishedKey.isNotEmpty()) {
+                        coroutineScope.launch(ioDispatcher) {
+                            val plays = mcwsClient.getTrackByKey(finishedKey)?.numberPlays ?: return@launch
+                            _playCounts.update { it + (finishedKey to plays) }
+                        }
+                    }
+                }
+        }
+
+        // Play counts are per server; drop them whenever the active server
+        // changes (connect, disconnect, or switch) so stale counts never bleed
+        // across libraries.
+        coroutineScope.launch {
+            // activeServerId is a StateFlow, so it already emits only on change.
+            activeServerId.collect {
+                _playCounts.value = emptyMap()
             }
         }
     }

@@ -12,6 +12,11 @@ class PlaybackStateObserver: ObservableObject {
     @Published var downloadJobs: [DownloadJobEntity] = []
     @Published var favorites: [FavoriteEntity] = []
 
+    /// Live server play counts (`fileKey → [Number Plays]`) from
+    /// `facade.playCounts`. Track rows merge this with each track's baked
+    /// `numberPlays` so the played icon updates the moment a track finishes.
+    @Published var playCounts: [String: Int32] = [:]
+
     private let database: JrrDatabase
     private let facade: AudioPlayerFacade
     private let nowPlayingCoordinator: NowPlayingCoordinator
@@ -100,6 +105,14 @@ class PlaybackStateObserver: ObservableObject {
         observationTasks.insert(Task { @MainActor [weak self] in
             for await list in database.downloadJobDao().getAllJobsFlow() {
                 self?.downloadJobs = list
+            }
+        })
+
+        // Live "played" overlay. Kotlin Int surfaces as a boxed KotlinInt in the
+        // bridged map, so unbox to Int32 to match Track.numberPlays at the rows.
+        observationTasks.insert(Task { @MainActor [weak self] in
+            for await counts in facade.playCounts {
+                self?.playCounts = counts.mapValues { $0.int32Value }
             }
         })
 

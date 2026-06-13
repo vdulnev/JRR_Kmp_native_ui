@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.arkivanov.decompose.extensions.compose.subscribeAsState
+import com.jrr.jrrkmp_native_ui.core.di.LocalPlayCounts
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
@@ -111,20 +112,27 @@ fun MainShell(
     val isLargeScreen = windowWidthDp >= 840
     val isExpanded = windowWidthDp >= 1200
 
+    // Live "played" overlay from the facade, provided to every track-list
+    // screen so their played icons update the moment a track finishes. Scoped
+    // to the content (not the surrounding chrome) so only track rows recompose.
+    val playCounts by facade.playCounts.collectAsState()
+
     val content: @Composable () -> Unit = {
-        MainContent(
-            stack = stack,
-            root = root,
-            facade = facade,
-            serverRepository = serverRepository,
-            connectViewModel = connectViewModel,
-            // Split-pane content (master/detail, queue rail, two-column album,
-            // two-column login) is only used on the expanded tier; medium uses
-            // the phone single-column layouts inside the rail shell.
-            isLargeScreen = isExpanded,
-            chromeCollapsed = chromeCollapsed,
-            onChromeCollapsedChange = { chromeCollapsed = it },
-        )
+        CompositionLocalProvider(LocalPlayCounts provides playCounts) {
+            MainContent(
+                stack = stack,
+                root = root,
+                facade = facade,
+                serverRepository = serverRepository,
+                connectViewModel = connectViewModel,
+                // Split-pane content (master/detail, queue rail, two-column album,
+                // two-column login) is only used on the expanded tier; medium uses
+                // the phone single-column layouts inside the rail shell.
+                isLargeScreen = isExpanded,
+                chromeCollapsed = chromeCollapsed,
+                onChromeCollapsedChange = { chromeCollapsed = it },
+            )
+        }
     }
 
     if (isLargeScreen && active != RootConfig.Server) {

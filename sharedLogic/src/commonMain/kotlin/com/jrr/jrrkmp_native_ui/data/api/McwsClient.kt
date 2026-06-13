@@ -203,6 +203,19 @@ class McwsClient(
         return tracks
     }
 
+    /**
+     * Re-fetch a single track's current fields by file key. Used to refresh the
+     * authoritative `[Number Plays]` after a track finishes (see
+     * `AudioPlayerFacade.playCounts`). Returns null with no active server.
+     */
+    suspend fun getTrackByKey(fileKey: String): Track? {
+        if (fileKey.isEmpty()) return null
+        val json = getMcwsJson("Files/Search", mapOf("Query" to "[Key]=$fileKey", "Fields" to "Calculated"))
+        val track = parseMcwsTracksJson(json).firstOrNull()
+        log.d { "getTrackByKey($fileKey) → plays=${track?.numberPlays}" }
+        return track
+    }
+
     suspend fun getZones(): List<Zone> {
         log.d { "getZones()" }
         val xml = getMcwsXml("Playback/Zones") ?: return emptyList()

@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
+import com.jrr.jrrkmp_native_ui.core.di.LocalPlayCounts
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
@@ -1725,10 +1726,11 @@ fun GroupedTrackRowItem(
             Spacer(modifier = Modifier.width(8.dp))
         }
 
-        if (track.numberPlays > 0) {
+        val plays = LocalPlayCounts.current[track.fileKey] ?: track.numberPlays
+        if (plays > 0) {
             Icon(
                 imageVector = Icons.Default.Headphones,
-                contentDescription = "${track.numberPlays} plays",
+                contentDescription = "$plays plays",
                 tint = AppColors.text3,
                 modifier = Modifier.size(16.dp)
             )
@@ -2057,10 +2059,11 @@ fun TrackRowItem(
             Spacer(modifier = Modifier.width(8.dp))
         }
 
-        if (track.numberPlays > 0) {
+        val plays = LocalPlayCounts.current[track.fileKey] ?: track.numberPlays
+        if (plays > 0) {
             Icon(
                 imageVector = Icons.Default.Headphones,
-                contentDescription = "${track.numberPlays} plays",
+                contentDescription = "$plays plays",
                 tint = AppColors.text3,
                 modifier = Modifier.size(16.dp)
             )
