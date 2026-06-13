@@ -1,5 +1,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.nio.file.Files
+import java.nio.file.Paths
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -71,6 +73,10 @@ kotlin {
 //    vlcj's OsxNativeDiscoveryStrategy derives VLC_PLUGIN_PATH as
 //    `<libdir>/../plugins`, and the dylibs resolve each other via @rpath in
 //    the same dir, so the layout must be preserved verbatim.
+//  - Linux: libvlc.so* + libvlccore.so* at the root, plugins/ beside them.
+//    vlcj's LinuxNativeDiscoveryStrategy derives VLC_PLUGIN_PATH as
+//    `<libdir>/plugins`. JNA loads the unversioned soname, so the task also
+//    adds libvlc.so / libvlccore.so symlinks next to the versioned files.
 val hostOsName: String = System.getProperty("os.name").lowercase()
 val isMacHost: Boolean = hostOsName.contains("mac")
 val isWindowsHost: Boolean = hostOsName.contains("windows")
@@ -105,8 +111,8 @@ val syncVlcNatives by tasks.registering(Copy::class) {
     // cache cannot serialize it.
     val home = file(vlcHome)
     val macHost = isMacHost
+    val winHost = isWindowsHost
     val osDirName = composeResourcesOsDir
-    val libvlc = if (macHost) home.resolve("lib/libvlc.dylib") else home.resolve("libvlc.dll")
     val wantedArch = if (hostArch == "arm64") "arm64" else "x86_64"
     onlyIf {
         // Architectures baked into a Mach-O binary, via `lipo -archs` (e.g.
@@ -124,9 +130,16 @@ val syncVlcNatives by tasks.registering(Copy::class) {
             emptySet()
         }
 
-        if (!libvlc.exists()) {
+        // The marker whose presence means "a usable VLC install is here". Linux
+        // ships versioned sonames (libvlc.so.5), so match those by prefix.
+        val libvlc: File? = when {
+            macHost -> home.resolve("lib/libvlc.dylib")
+            winHost -> home.resolve("libvlc.dll")
+            else -> home.listFiles { f -> f.name.startsWith("libvlc.so") }?.firstOrNull()
+        }
+        if (libvlc == null || !libvlc.exists()) {
             logger.warn(
-                "syncVlcNatives: no ${libvlc.name} under '$home'. Set -PvlcHome=<VLC dir> or " +
+                "syncVlcNatives: no libvlc found under '$home'. Set -PvlcHome=<VLC dir> or " +
                     "VLC_HOME. The packaged app will fall back to a system VLC install at runtime."
             )
             return@onlyIf false
@@ -148,17 +161,53 @@ val syncVlcNatives by tasks.registering(Copy::class) {
         true
     }
 
-    if (macHost) {
-        from(home.resolve("lib")) {
-            include("*.dylib")
-            into("lib")
+    when {
+        macHost -> {
+            from(home.resolve("lib")) {
+                include("*.dylib")
+                into("lib")
+            }
+            from(home.resolve("plugins")) { into("plugins") }
         }
-        from(home.resolve("plugins")) { into("plugins") }
-    } else {
-        from(home) { include("libvlc.dll", "libvlccore.dll") }
-        from(home.resolve("plugins")) { into("plugins") }
+        winHost -> {
+            from(home) { include("libvlc.dll", "libvlccore.dll") }
+            from(home.resolve("plugins")) { into("plugins") }
+        }
+        else -> {
+            // Linux: versioned core libs at the root. Plugin location varies by
+            // distro — Debian/Ubuntu keep them under <libdir>/vlc/plugins, others
+            // under <home>/plugins; copy whichever exists (the absent `from` is a
+            // no-op). Both land at the staged `plugins/`, which vlcj resolves via
+            // its first plugin-path format `%s/plugins`.
+            from(home) { include("libvlc.so*", "libvlccore.so*") }
+            from(home.resolve("plugins")) { into("plugins") }
+            from(home.resolve("vlc/plugins")) { into("plugins") }
+        }
     }
     into(vlcResourcesDir.map { it.dir("$osDirName/vlc") })
+
+    // Linux: JNA loads the unversioned soname (libvlc.so), but runtime VLC
+    // installs ship only versioned files (libvlc.so.5). Add unversioned
+    // symlinks beside the copied libs so Native.load("vlc"/"vlccore") resolves;
+    // the versioned names are kept so the libs resolve each other by soname.
+    if (!macHost && !winHost) {
+        val stagedVlcDir = vlcResourcesDir.map { it.dir("$osDirName/vlc").asFile }
+        doLast {
+            val dir = stagedVlcDir.get()
+            listOf("libvlc", "libvlccore").forEach { base ->
+                val versioned = dir.listFiles { f -> f.name.startsWith("$base.so.") }
+                    ?.minByOrNull { it.name.length }
+                val link = File(dir, "$base.so")
+                if (versioned != null && !link.exists()) {
+                    try {
+                        Files.createSymbolicLink(link.toPath(), Paths.get(versioned.name))
+                    } catch (_: Exception) {
+                        versioned.copyTo(link, overwrite = true)
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Ensure the natives are staged before Compose collects app resources (for both
@@ -171,7 +220,11 @@ compose.desktop {
     application {
         mainClass = "com.jrr.jrrkmp_native_ui.desktop.MainKt"
         nativeDistributions {
-            targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Dmg)
+            targetFormats(
+                TargetFormat.Msi, TargetFormat.Exe, // Windows
+                TargetFormat.Dmg,                    // macOS
+                TargetFormat.Deb, TargetFormat.Rpm,  // Linux
+            )
             packageName = "JRRDesktop"
             packageVersion = "1.0.0"
             description = "JRiver Media Center remote & local player"

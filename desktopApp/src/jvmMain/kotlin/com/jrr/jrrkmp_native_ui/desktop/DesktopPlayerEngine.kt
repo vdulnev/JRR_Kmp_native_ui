@@ -134,6 +134,9 @@ class DesktopPlayerEngine(
      *    vlcj's discovery (OsxNativeDiscoveryStrategy) finds the lib dir through
      *    `jna.library.path` and sets VLC_PLUGIN_PATH to `<libdir>/../plugins`,
      *    which libvlc requires on macOS.
+     *  - Linux: libvlc.so* at `vlc/` root, `vlc/plugins` beside them. vlcj's
+     *    LinuxNativeDiscoveryStrategy finds the lib dir via `jna.library.path`
+     *    and sets VLC_PLUGIN_PATH to `<libdir>/plugins`, which libvlc requires.
      */
     private fun configureBundledNatives() {
         val resourcesDir = System.getProperty("compose.application.resources.dir") ?: return
@@ -141,6 +144,7 @@ class DesktopPlayerEngine(
         val libDir = when {
             File(vlcDir, "libvlc.dll").exists() -> vlcDir
             File(vlcDir, "lib/libvlc.dylib").exists() -> File(vlcDir, "lib")
+            vlcDir.listFiles { f -> f.name.startsWith("libvlc.so") }?.isNotEmpty() == true -> vlcDir
             else -> return
         }
         log.i { "using bundled libvlc at ${libDir.absolutePath}" }
