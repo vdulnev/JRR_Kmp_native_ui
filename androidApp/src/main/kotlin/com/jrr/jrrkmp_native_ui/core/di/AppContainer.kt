@@ -9,6 +9,7 @@ import com.jrr.jrrkmp_native_ui.data.api.McwsCore
 import com.jrr.jrrkmp_native_ui.data.db.DatabaseBuilder
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.createDatabase
+import com.jrr.jrrkmp_native_ui.data.repository.ArtistInfoRepository
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.domain.model.Zone
@@ -118,6 +119,16 @@ class AppContainer(context: Context) {
                 androidx.work.WorkManager.getInstance(appContext).enqueue(workRequest)
             }
         }
+    }
+
+    val artistInfoRepository: ArtistInfoRepository by lazy {
+        log.d { "lazy: artistInfoRepository" }
+        ArtistInfoRepository(
+            loadProvider = { prefs.getString("artist_info_provider", null) },
+            loadOpenAiApiKey = { prefs.getString("openai_api_key", null) },
+            loadOllamaBaseUrl = { prefs.getString("ollama_base_url", null) },
+            loadOllamaModel = { prefs.getString("ollama_model", null) },
+        )
     }
 
     private companion object {

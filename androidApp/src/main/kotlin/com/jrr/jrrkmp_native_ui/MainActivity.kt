@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
         val facade = container.facade
         val serverRepository = container.serverRepository
         val libraryRepository = container.libraryRepository
+        val artistInfoRepository = container.artistInfoRepository
         val mcwsClient = container.mcwsClient
         val database = container.database
 
@@ -50,9 +51,9 @@ class MainActivity : ComponentActivity() {
         // retained in Essenty's InstanceKeeper (survives rotation, deterministic
         // onCleared). The host only supplies the factory lambdas.
         val deps = AppDeps(
-            libraryViewModel = { LibraryViewModel(libraryRepository, facade, database) },
+            libraryViewModel = { LibraryViewModel(libraryRepository, facade, database, artistInfoRepository) },
             albumDetailViewModel = { album ->
-                AlbumDetailViewModel(album, libraryRepository, facade, database)
+                AlbumDetailViewModel(album, libraryRepository, facade, database, artistInfoRepository)
             },
             nowPlayingViewModel = { NowPlayingViewModel(facade, mcwsClient) },
             queueViewModel = { QueueViewModel(facade, libraryRepository, database) },
@@ -63,6 +64,22 @@ class MainActivity : ComponentActivity() {
                     database = database,
                     clearPhysicalDownloads = clearPhysicalDownloads,
                     isDebugBuild = isDebug,
+                    saveArtistInfoProvider = { provider ->
+                        prefs.edit().putString("artist_info_provider", provider).apply()
+                    },
+                    loadArtistInfoProvider = { prefs.getString("artist_info_provider", null) },
+                    saveOpenAiApiKey = { key ->
+                        prefs.edit().putString("openai_api_key", key).apply()
+                    },
+                    loadOpenAiApiKey = { prefs.getString("openai_api_key", null) },
+                    saveOllamaBaseUrl = { baseUrl ->
+                        prefs.edit().putString("ollama_base_url", baseUrl).apply()
+                    },
+                    loadOllamaBaseUrl = { prefs.getString("ollama_base_url", null) },
+                    saveOllamaModel = { model ->
+                        prefs.edit().putString("ollama_model", model).apply()
+                    },
+                    loadOllamaModel = { prefs.getString("ollama_model", null) },
                 )
             },
         )

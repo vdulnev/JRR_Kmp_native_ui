@@ -13,12 +13,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.touchlab.kermit.Severity
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
+import com.jrr.jrrkmp_native_ui.data.repository.ARTIST_INFO_PROVIDER_OLLAMA
+import com.jrr.jrrkmp_native_ui.data.repository.ARTIST_INFO_PROVIDER_OPENAI
 import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.SettingsViewModel
 
@@ -271,6 +274,155 @@ fun SettingsScreen(
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // AI Section — provider settings used for artist lookup cards.
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "AI".uppercase(),
+                        style = AppTypography.sectionHeading,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = AppColors.bg2),
+                        border = BoxBorder(AppColors.line),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "ARTIST INFO PROVIDER",
+                                style = AppTypography.monoLabel,
+                                color = AppColors.text3
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp, bottom = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                listOf(
+                                    ARTIST_INFO_PROVIDER_OPENAI to "OPENAI",
+                                    ARTIST_INFO_PROVIDER_OLLAMA to "OLLAMA",
+                                ).forEach { (provider, label) ->
+                                    val selected = state.artistInfoProvider == provider
+                                    Row(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .selectable(
+                                                selected = selected,
+                                                onClick = { viewModel.setArtistInfoProvider(provider) },
+                                                role = Role.RadioButton
+                                            )
+                                            .background(if (selected) AppColors.accent.copy(alpha = 0.12f) else AppColors.bg0)
+                                            .padding(horizontal = 10.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = selected,
+                                            onClick = null,
+                                            colors = RadioButtonDefaults.colors(
+                                                selectedColor = AppColors.accent,
+                                                unselectedColor = AppColors.text3
+                                            )
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = label,
+                                            style = AppTypography.chipMono,
+                                            color = if (selected) AppColors.accent else AppColors.text
+                                        )
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text = "OPENAI API KEY",
+                                style = AppTypography.monoLabel,
+                                color = AppColors.text3
+                            )
+                            Text(
+                                text = "Used only when you request artist information.",
+                                style = AppTypography.itemSubtitle,
+                                color = AppColors.text2,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                            )
+                            OutlinedTextField(
+                                value = state.openAiApiKey,
+                                onValueChange = { viewModel.setOpenAiApiKey(it) },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                textStyle = AppTypography.itemTitle,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AppColors.accent,
+                                    unfocusedBorderColor = AppColors.line2,
+                                    focusedTextColor = AppColors.text,
+                                    unfocusedTextColor = AppColors.text,
+                                    cursorColor = AppColors.accent,
+                                    focusedContainerColor = AppColors.bg0,
+                                    unfocusedContainerColor = AppColors.bg0
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Text(
+                                text = "OLLAMA URL",
+                                style = AppTypography.monoLabel,
+                                color = AppColors.text3,
+                                modifier = Modifier.padding(top = 16.dp)
+                            )
+                            OutlinedTextField(
+                                value = state.ollamaBaseUrl,
+                                onValueChange = { viewModel.setOllamaBaseUrl(it) },
+                                singleLine = true,
+                                textStyle = AppTypography.itemTitle,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AppColors.accent,
+                                    unfocusedBorderColor = AppColors.line2,
+                                    focusedTextColor = AppColors.text,
+                                    unfocusedTextColor = AppColors.text,
+                                    cursorColor = AppColors.accent,
+                                    focusedContainerColor = AppColors.bg0,
+                                    unfocusedContainerColor = AppColors.bg0
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp)
+                            )
+
+                            Text(
+                                text = "OLLAMA MODEL",
+                                style = AppTypography.monoLabel,
+                                color = AppColors.text3,
+                                modifier = Modifier.padding(top = 16.dp)
+                            )
+                            OutlinedTextField(
+                                value = state.ollamaModel,
+                                onValueChange = { viewModel.setOllamaModel(it) },
+                                singleLine = true,
+                                textStyle = AppTypography.itemTitle,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AppColors.accent,
+                                    unfocusedBorderColor = AppColors.line2,
+                                    focusedTextColor = AppColors.text,
+                                    unfocusedTextColor = AppColors.text,
+                                    cursorColor = AppColors.accent,
+                                    focusedContainerColor = AppColors.bg0,
+                                    unfocusedContainerColor = AppColors.bg0
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp)
+                            )
                         }
                     }
                 }

@@ -80,11 +80,12 @@ private fun runJrrDesktopApp() = application {
         val database = container.database
         val mcwsClient = container.mcwsClient
         val libraryRepository = container.libraryRepository
+        val artistInfoRepository = container.artistInfoRepository
 
         val deps = AppDeps(
-            libraryViewModel = { LibraryViewModel(libraryRepository, facade, database) },
+            libraryViewModel = { LibraryViewModel(libraryRepository, facade, database, artistInfoRepository) },
             albumDetailViewModel = { album ->
-                AlbumDetailViewModel(album, libraryRepository, facade, database)
+                AlbumDetailViewModel(album, libraryRepository, facade, database, artistInfoRepository)
             },
             nowPlayingViewModel = { NowPlayingViewModel(facade, mcwsClient) },
             queueViewModel = { QueueViewModel(facade, libraryRepository, database) },
@@ -95,6 +96,14 @@ private fun runJrrDesktopApp() = application {
                     database = database,
                     clearPhysicalDownloads = { /* no desktop download cache yet */ },
                     isDebugBuild = true,
+                    saveArtistInfoProvider = { settings.setArtistInfoProvider(it) },
+                    loadArtistInfoProvider = { settings.getArtistInfoProvider() },
+                    saveOpenAiApiKey = { settings.setOpenAiApiKey(it) },
+                    loadOpenAiApiKey = { settings.getOpenAiApiKey() },
+                    saveOllamaBaseUrl = { settings.setOllamaBaseUrl(it) },
+                    loadOllamaBaseUrl = { settings.getOllamaBaseUrl() },
+                    saveOllamaModel = { settings.setOllamaModel(it) },
+                    loadOllamaModel = { settings.getOllamaModel() },
                 )
             },
         )

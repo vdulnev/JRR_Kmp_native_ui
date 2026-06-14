@@ -114,6 +114,10 @@ class TvAppContainer(context: Context) {
         database = database,
         clearPhysicalDownloads = {},
         isDebugBuild = isDebugBuild,
+        saveOpenAiApiKey = { key ->
+            prefs.edit().putString("openai_api_key", key).apply()
+        },
+        loadOpenAiApiKey = { prefs.getString("openai_api_key", null) },
     )
 
 }

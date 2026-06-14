@@ -17,6 +17,7 @@ final class AppContainer {
     let serverRepository: ServerRepository
     let mcwsClient: McwsClient
     let libraryRepository: LibraryRepository
+    let artistInfoRepository: ArtistInfoRepository
     let localPlayerEngine: IosLocalPlayerEngine
     let corePlayer: CorePlayer
     let facade: AudioPlayerFacade
@@ -80,6 +81,22 @@ final class AppContainer {
         )
         self.libraryRepository = libraryRepository
 
+        let artistInfoRepository = ArtistInfoRepository(
+            loadProvider: {
+                UserDefaults.standard.string(forKey: "artist_info_provider")
+            },
+            loadOpenAiApiKey: {
+                UserDefaults.standard.string(forKey: "openai_api_key")
+            },
+            loadOllamaBaseUrl: {
+                UserDefaults.standard.string(forKey: "ollama_base_url")
+            },
+            loadOllamaModel: {
+                UserDefaults.standard.string(forKey: "ollama_model")
+            },
+        )
+        self.artistInfoRepository = artistInfoRepository
+
         let nowPlayingCoordinator = NowPlayingCoordinator()
         nowPlayingCoordinator.configure(
             playHandler: { facade.play() },
@@ -141,7 +158,12 @@ final class AppContainer {
         let mcwsClient = mcwsCore.mcwsClient
         let deps = AppDeps(
             libraryViewModel: {
-                LibraryViewModel(libraryRepository: libraryRepository, facade: facade, database: database)
+                LibraryViewModel(
+                    libraryRepository: libraryRepository,
+                    facade: facade,
+                    database: database,
+                    artistInfoRepository: artistInfoRepository,
+                )
             },
             albumDetailViewModel: { album in
                 AlbumDetailViewModel(
@@ -149,6 +171,7 @@ final class AppContainer {
                     libraryRepository: libraryRepository,
                     facade: facade,
                     database: database,
+                    artistInfoRepository: artistInfoRepository,
                 )
             },
             nowPlayingViewModel: {
@@ -166,6 +189,46 @@ final class AppContainer {
                     database: database,
                     clearPhysicalDownloads: clearPhysicalDownloads,
                     isDebugBuild: isDebugBuild,
+                    saveArtistInfoProvider: { provider in
+                        if let provider {
+                            UserDefaults.standard.set(provider, forKey: "artist_info_provider")
+                        } else {
+                            UserDefaults.standard.removeObject(forKey: "artist_info_provider")
+                        }
+                    },
+                    loadArtistInfoProvider: {
+                        UserDefaults.standard.string(forKey: "artist_info_provider")
+                    },
+                    saveOpenAiApiKey: { apiKey in
+                        if let apiKey {
+                            UserDefaults.standard.set(apiKey, forKey: "openai_api_key")
+                        } else {
+                            UserDefaults.standard.removeObject(forKey: "openai_api_key")
+                        }
+                    },
+                    loadOpenAiApiKey: {
+                        UserDefaults.standard.string(forKey: "openai_api_key")
+                    },
+                    saveOllamaBaseUrl: { baseUrl in
+                        if let baseUrl {
+                            UserDefaults.standard.set(baseUrl, forKey: "ollama_base_url")
+                        } else {
+                            UserDefaults.standard.removeObject(forKey: "ollama_base_url")
+                        }
+                    },
+                    loadOllamaBaseUrl: {
+                        UserDefaults.standard.string(forKey: "ollama_base_url")
+                    },
+                    saveOllamaModel: { model in
+                        if let model {
+                            UserDefaults.standard.set(model, forKey: "ollama_model")
+                        } else {
+                            UserDefaults.standard.removeObject(forKey: "ollama_model")
+                        }
+                    },
+                    loadOllamaModel: {
+                        UserDefaults.standard.string(forKey: "ollama_model")
+                    },
                 )
             },
         )

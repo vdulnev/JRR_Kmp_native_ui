@@ -187,14 +187,14 @@ fun AlbumDetailScreen(
                                 .padding(horizontal = 36.dp, vertical = 32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            AlbumArtBlock(
-                                album = viewModel.album,
-                                tracks = tracks,
-                                artworkUrl = artworkUrl,
-                                isLarge = true,
-                                onPlay = { viewModel.playAlbum() },
-                                onShuffle = { viewModel.shuffleAlbum() }
-                            )
+                                AlbumArtBlock(
+                                    album = viewModel.album,
+                                    tracks = tracks,
+                                    artworkUrl = artworkUrl,
+                                    isLarge = true,
+                                    onPlay = { viewModel.playAlbum() },
+                                    onShuffle = { viewModel.shuffleAlbum() }
+                                )
                         }
                         Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(AppColors.line))
                         LazyColumn(
@@ -247,6 +247,15 @@ fun AlbumDetailScreen(
             title = album.name,
             fields = album.toInfoFields(),
             onDismiss = { infoAlbum = null }
+        )
+    }
+
+    state.artistInfoDialogArtist?.let { artist ->
+        ArtistInfoDialog(
+            artistName = artist,
+            artistInfoState = state.artistInfoDialogState,
+            onLoad = { viewModel.reloadArtistInfoDialog() },
+            onDismiss = { viewModel.dismissArtistInfoDialog() },
         )
     }
 }
@@ -459,6 +468,13 @@ private fun LazyListScope.albumTrackItems(
                             onClick = {
                                 showMenu = false
                                 onInfoTrack(track)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Artist Info", style = AppTypography.itemTitle) },
+                            onClick = {
+                                showMenu = false
+                                viewModel.showArtistInfoForTrack(track)
                             }
                         )
                         DropdownMenuItem(

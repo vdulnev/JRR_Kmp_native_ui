@@ -104,6 +104,16 @@ final class TvContainer {
             database: database,
             clearPhysicalDownloads: {},
             isDebugBuild: true,
+            saveOpenAiApiKey: { apiKey in
+                if let apiKey {
+                    UserDefaults.standard.set(apiKey, forKey: "openai_api_key")
+                } else {
+                    UserDefaults.standard.removeObject(forKey: "openai_api_key")
+                }
+            },
+            loadOpenAiApiKey: {
+                UserDefaults.standard.string(forKey: "openai_api_key")
+            },
         )
     }
 
