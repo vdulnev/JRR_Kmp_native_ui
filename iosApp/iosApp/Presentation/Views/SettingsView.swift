@@ -18,6 +18,10 @@ class SettingsObservable {
     var isDebugBuild: Bool = false
     var logSeverity: Kermit_coreSeverity = .info
     var localAudioQuality: LocalAudioQuality = .lossless
+    var artistInfoProvider: String = "openai"
+    var openAiApiKey: String = ""
+    var ollamaBaseUrl: String = "http://localhost:11434"
+    var ollamaModel: String = "llama3.1"
     var transientError: String?
 
     init(viewModel: SettingsViewModel) {
@@ -52,6 +56,10 @@ class SettingsObservable {
         isDebugBuild = state.isDebugBuild
         logSeverity = state.logSeverity
         localAudioQuality = state.localAudioQuality
+        artistInfoProvider = state.artistInfoProvider
+        openAiApiKey = state.openAiApiKey
+        ollamaBaseUrl = state.ollamaBaseUrl
+        ollamaModel = state.ollamaModel
         transientError = state.transientError
     }
 
@@ -69,6 +77,22 @@ class SettingsObservable {
 
     func setLocalAudioQuality(_ quality: LocalAudioQuality) {
         viewModel.setLocalAudioQuality(quality: quality)
+    }
+
+    func setOpenAiApiKey(_ apiKey: String) {
+        viewModel.setOpenAiApiKey(apiKey: apiKey)
+    }
+
+    func setArtistInfoProvider(_ provider: String) {
+        viewModel.setArtistInfoProvider(provider: provider)
+    }
+
+    func setOllamaBaseUrl(_ baseUrl: String) {
+        viewModel.setOllamaBaseUrl(baseUrl: baseUrl)
+    }
+
+    func setOllamaModel(_ model: String) {
+        viewModel.setOllamaModel(model: model)
     }
 
     func exportLogText() -> String {
@@ -259,7 +283,75 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Color.bg2)
 
-                // Section 4: Logging — share log + (debug-only) severity selector
+                // Section 4: AI
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("ARTIST INFO PROVIDER")
+                            .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                            .foregroundColor(.textTertiary)
+
+                        Picker("Artist info provider", selection: Binding(
+                            get: { observable.artistInfoProvider },
+                            set: { observable.setArtistInfoProvider($0) },
+                        )) {
+                            Text("OpenAI").tag("openai")
+                            Text("Ollama").tag("ollama")
+                        }
+                        .pickerStyle(.segmented)
+
+                        Text("OPENAI API KEY")
+                            .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                            .foregroundColor(.textTertiary)
+
+                        Text("Used only when you request artist information.")
+                            .font(AppFont.inter(size: 13, weight: .regular))
+                            .foregroundColor(.textSecondary)
+
+                        SecureField("API key", text: Binding(
+                            get: { observable.openAiApiKey },
+                            set: { observable.setOpenAiApiKey($0) },
+                        ))
+                        .autocorrectionDisabled()
+                        .font(AppFont.inter(size: 15, weight: .regular))
+                        .foregroundColor(.textPrimary)
+
+                        Text("OLLAMA URL")
+                            .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                            .foregroundColor(.textTertiary)
+                            .padding(.top, 8)
+
+                        TextField("http://localhost:11434", text: Binding(
+                            get: { observable.ollamaBaseUrl },
+                            set: { observable.setOllamaBaseUrl($0) },
+                        ))
+                        .noAutocapitalization()
+                        .autocorrectionDisabled()
+                        .font(AppFont.inter(size: 15, weight: .regular))
+                        .foregroundColor(.textPrimary)
+
+                        Text("OLLAMA MODEL")
+                            .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                            .foregroundColor(.textTertiary)
+                            .padding(.top, 8)
+
+                        TextField("llama3.1", text: Binding(
+                            get: { observable.ollamaModel },
+                            set: { observable.setOllamaModel($0) },
+                        ))
+                        .noAutocapitalization()
+                        .autocorrectionDisabled()
+                        .font(AppFont.inter(size: 15, weight: .regular))
+                        .foregroundColor(.textPrimary)
+                    }
+                    .padding(.vertical, 8)
+                } header: {
+                    Text("AI")
+                        .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
+                        .foregroundColor(.textTertiary)
+                }
+                .listRowBackground(Color.bg2)
+
+                // Section 5: Logging — share log + (debug-only) severity selector
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("DEBUG LOG")
@@ -329,7 +421,7 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Color.bg2)
 
-                // Section 4: Active Downloads
+                // Section 6: Active Downloads
                 if !observable.downloadJobs.isEmpty {
                     Section {
                         VStack(alignment: .leading, spacing: 12) {

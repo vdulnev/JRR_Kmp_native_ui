@@ -8,6 +8,7 @@ import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
 import com.jrr.jrrkmp_native_ui.data.api.BrowseNode
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity
+import com.jrr.jrrkmp_native_ui.data.repository.ArtistInfoRepository
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.data.repository.MULTIPLE_ARTISTS_SENTINEL
 import com.jrr.jrrkmp_native_ui.domain.model.Album
@@ -62,6 +63,9 @@ data class LibraryViewState(
     val browseTracks: List<Track> = emptyList(),
     val downloadedTracks: List<Track> = emptyList(),
     val favorites: List<FavoriteEntity> = emptyList(),
+    val artistInfoState: ArtistInfoState = ArtistInfoState.Idle,
+    val artistInfoDialogArtist: String? = null,
+    val artistInfoDialogState: ArtistInfoState = ArtistInfoState.Idle,
     val isOffline: Boolean = false,
     val isLoading: Boolean = false,
     val isTabLoading: Boolean = false,
@@ -71,7 +75,8 @@ data class LibraryViewState(
 class LibraryViewModel(
     private val libraryRepository: LibraryRepository,
     private val facade: AudioPlayerFacade,
-    private val database: JrrDatabase? = null
+    private val database: JrrDatabase? = null,
+    private val artistInfoRepository: ArtistInfoRepository? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LibraryViewState())
@@ -110,6 +115,7 @@ class LibraryViewModel(
                         // visible after going offline and fails to play.
                         selectedArtist = if (offlineFlipped) null else it.selectedArtist,
                         artistAlbums = if (offlineFlipped) emptyList() else it.artistAlbums,
+                        artistInfoState = if (offlineFlipped) ArtistInfoState.Idle else it.artistInfoState,
                         compilationMode = if (offlineFlipped) false else it.compilationMode,
                         compilationArtists = if (offlineFlipped) emptyList() else it.compilationArtists,
                         artistsFilter = if (offlineFlipped) "" else it.artistsFilter,
@@ -148,6 +154,7 @@ class LibraryViewModel(
                 currentTab = tab,
                 selectedArtist = null,
                 artistAlbums = emptyList(),
+                artistInfoState = ArtistInfoState.Idle,
                 compilationMode = false,
                 compilationArtists = emptyList(),
                 artistsFilter = "",
@@ -172,7 +179,13 @@ class LibraryViewModel(
             artistName == null -> artistsBack()
             artistName.equals(MULTIPLE_ARTISTS_SENTINEL, ignoreCase = true) -> openCompilations()
             else -> {
-                _state.update { it.copy(selectedArtist = artistName, artistsFilter = "") }
+                _state.update {
+                    it.copy(
+                        selectedArtist = artistName,
+                        artistInfoState = ArtistInfoState.Idle,
+                        artistsFilter = "",
+                    )
+                }
                 loadArtistAlbums { libraryRepository.getAlbumsByArtist(artistName) }
             }
         }
@@ -215,7 +228,11 @@ class LibraryViewModel(
     fun selectCompilationArtist(artistName: String?) {
         log.d { "selectCompilationArtist($artistName)" }
         _state.update {
-            it.copy(selectedArtist = artistName ?: MULTIPLE_ARTISTS_SENTINEL, artistsFilter = "")
+            it.copy(
+                selectedArtist = artistName ?: MULTIPLE_ARTISTS_SENTINEL,
+                artistInfoState = ArtistInfoState.Idle,
+                artistsFilter = "",
+            )
         }
         loadArtistAlbums {
             if (artistName == null) {
@@ -231,7 +248,12 @@ class LibraryViewModel(
         _state.update {
             when {
                 it.compilationMode && it.selectedArtist != null ->
-                    it.copy(selectedArtist = null, artistAlbums = emptyList(), artistsFilter = "")
+                    it.copy(
+                        selectedArtist = null,
+                        artistAlbums = emptyList(),
+                        artistInfoState = ArtistInfoState.Idle,
+                        artistsFilter = "",
+                    )
                 it.compilationMode ->
                     it.copy(
                         compilationMode = false,
@@ -239,8 +261,118 @@ class LibraryViewModel(
                         artistsFilter = "",
                     )
                 else ->
-                    it.copy(selectedArtist = null, artistAlbums = emptyList(), artistsFilter = "")
+                    it.copy(
+                        selectedArtist = null,
+                        artistAlbums = emptyList(),
+                        artistInfoState = ArtistInfoState.Idle,
+                        artistsFilter = "",
+                    )
             }
+        }
+    }
+
+    fun loadArtistInfo() {
+        val artist = _state.value.selectedArtist
+        log.d { "loadArtistInfo(artist=$artist)" }
+        if (artist.isNullOrBlank() || artist == MULTIPLE_ARTISTS_SENTINEL) {
+            _state.update {
+                it.copy(artistInfoState = ArtistInfoState.Error("Select a single artist first"))
+            }
+            return
+        }
+        val repository = artistInfoRepository
+        if (repository == null) {
+            _state.update {
+                it.copy(artistInfoState = ArtistInfoState.Error("AI artist info is not available on this platform"))
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _state.update { it.copy(artistInfoState = ArtistInfoState.Loading) }
+            try {
+                val info = repository.getArtistInfo(artist)
+                _state.update { it.copy(artistInfoState = ArtistInfoState.Success(info)) }
+            } catch (e: Exception) {
+                log.e(e) { "loadArtistInfo failed artist=$artist" }
+                _state.update {
+                    it.copy(
+                        artistInfoState = ArtistInfoState.Error(
+                            e.message ?: "Failed to load artist info",
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    fun showArtistInfoForTrack(track: Track) {
+        val artist = track.artist.trim()
+        log.d { "showArtistInfoForTrack(fileKey=${track.fileKey}, artist=$artist)" }
+        if (artist.isBlank()) {
+            _state.update {
+                it.copy(
+                    artistInfoDialogArtist = "Unknown artist",
+                    artistInfoDialogState = ArtistInfoState.Error("Track artist is missing"),
+                )
+            }
+            return
+        }
+        showArtistInfoForArtist(artist)
+    }
+
+    fun reloadArtistInfoDialog() {
+        _state.value.artistInfoDialogArtist?.let { artist ->
+            if (artist != "Unknown artist") showArtistInfoForArtist(artist)
+        }
+    }
+
+    private fun showArtistInfoForArtist(artist: String) {
+        val repository = artistInfoRepository
+        if (repository == null) {
+            _state.update {
+                it.copy(
+                    artistInfoDialogArtist = artist,
+                    artistInfoDialogState = ArtistInfoState.Error("AI artist info is not available on this platform"),
+                )
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    artistInfoDialogArtist = artist,
+                    artistInfoDialogState = ArtistInfoState.Loading,
+                )
+            }
+            try {
+                val info = repository.getArtistInfo(artist)
+                _state.update {
+                    it.copy(
+                        artistInfoDialogArtist = artist,
+                        artistInfoDialogState = ArtistInfoState.Success(info),
+                    )
+                }
+            } catch (e: Exception) {
+                log.e(e) { "showArtistInfoForTrack failed artist=$artist" }
+                _state.update {
+                    it.copy(
+                        artistInfoDialogArtist = artist,
+                        artistInfoDialogState = ArtistInfoState.Error(e.message ?: "Failed to load artist info"),
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissArtistInfoDialog() {
+        log.d { "dismissArtistInfoDialog()" }
+        _state.update {
+            it.copy(
+                artistInfoDialogArtist = null,
+                artistInfoDialogState = ArtistInfoState.Idle,
+            )
         }
     }
 

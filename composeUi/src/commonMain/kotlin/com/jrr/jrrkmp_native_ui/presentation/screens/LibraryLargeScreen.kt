@@ -179,6 +179,7 @@ fun LibraryLargeScreen(
                     onDownloadBrowseItem = { viewModel.downloadBrowseItem(it) },
                     isOffline = state.isOffline,
                     onTrackInfoClick = { infoTrack = it },
+                    onTrackArtistInfoClick = { viewModel.showArtistInfoForTrack(it) },
                     grouped = browseGrouped,
                     onGroupedChange = { browseGrouped = it },
                     notPlayedOnly = browseNotPlayedOnly,
@@ -208,7 +209,8 @@ fun LibraryLargeScreen(
                     onPlayTracksShuffled = { viewModel.playTracksShuffled(it) },
                     onPlayTracksNext = { viewModel.playTracksNext(it) },
                     onAddTracksToQueue = { viewModel.addTracksToQueue(it) },
-                    onTrackInfoClick = {},
+                    onTrackInfoClick = { infoTrack = it },
+                    onTrackArtistInfoClick = { viewModel.showArtistInfoForTrack(it) },
                     onAlbumInfoClick = { infoAlbum = it },
                     favorites = state.favorites,
                     onToggleFavoriteTrack = { viewModel.toggleFavoriteTrack(it) }
@@ -238,6 +240,7 @@ fun LibraryLargeScreen(
                     onDownloadTrack = { viewModel.downloadTrack(it) },
                     onToggleFavoriteTrack = { viewModel.toggleFavoriteTrack(it) },
                     onTrackInfoClick = { infoTrack = it },
+                    onTrackArtistInfoClick = { viewModel.showArtistInfoForTrack(it) },
                     onToggleFavoriteAlbum = { viewModel.toggleFavoriteAlbum(it) }
                 )
             }
@@ -250,6 +253,15 @@ fun LibraryLargeScreen(
 
     infoTrack?.let { track ->
         InfoDialog(title = track.name, fields = track.toInfoFields(), onDismiss = { infoTrack = null })
+    }
+
+    state.artistInfoDialogArtist?.let { artist ->
+        ArtistInfoDialog(
+            artistName = artist,
+            artistInfoState = state.artistInfoDialogState,
+            onLoad = { viewModel.reloadArtistInfoDialog() },
+            onDismiss = { viewModel.dismissArtistInfoDialog() },
+        )
     }
 }
 
@@ -414,12 +426,19 @@ private fun ArtistsSplit(
                         }
                     }
                     Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                        ListFilterField(
-                            value = albumFilter,
-                            onValueChange = { albumFilter = it },
-                            placeholder = "Filter albums",
-                            collapsed = false,
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ArtistInfoBlock(
+                                artistName = selected,
+                                artistInfoState = state.artistInfoState,
+                                onLoad = { viewModel.loadArtistInfo() },
+                            )
+                            ListFilterField(
+                                value = albumFilter,
+                                onValueChange = { albumFilter = it },
+                                placeholder = "Filter albums",
+                                collapsed = false,
+                            )
+                        }
                     }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),

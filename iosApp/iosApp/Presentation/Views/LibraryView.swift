@@ -25,6 +25,13 @@ class LibraryObservable {
     var isLoading: Bool = false
     var isTabLoading: Bool = false
     var transientError: String?
+    var artistInfo: ArtistInfo?
+    var artistInfoLoading: Bool = false
+    var artistInfoError: String?
+    var artistInfoDialogArtist: String?
+    var artistInfoDialog: ArtistInfo?
+    var artistInfoDialogLoading: Bool = false
+    var artistInfoDialogError: String?
 
     init(viewModel: LibraryViewModel) {
         self.viewModel = viewModel
@@ -65,6 +72,41 @@ class LibraryObservable {
         isLoading = state.isLoading
         isTabLoading = state.isTabLoading
         transientError = state.transientError
+
+        switch onEnum(of: state.artistInfoState) {
+        case .idle:
+            artistInfo = nil
+            artistInfoLoading = false
+            artistInfoError = nil
+        case .loading:
+            artistInfoLoading = true
+            artistInfoError = nil
+        case let .success(success):
+            artistInfo = success.info
+            artistInfoLoading = false
+            artistInfoError = nil
+        case let .error(error):
+            artistInfoLoading = false
+            artistInfoError = error.message
+        }
+
+        artistInfoDialogArtist = state.artistInfoDialogArtist
+        switch onEnum(of: state.artistInfoDialogState) {
+        case .idle:
+            artistInfoDialog = nil
+            artistInfoDialogLoading = false
+            artistInfoDialogError = nil
+        case .loading:
+            artistInfoDialogLoading = true
+            artistInfoDialogError = nil
+        case let .success(success):
+            artistInfoDialog = success.info
+            artistInfoDialogLoading = false
+            artistInfoDialogError = nil
+        case let .error(error):
+            artistInfoDialogLoading = false
+            artistInfoDialogError = error.message
+        }
     }
 
     func switchTab(_ tab: String) {
@@ -167,6 +209,22 @@ class LibraryObservable {
 
     func clearTransientError() {
         viewModel.clearTransientError()
+    }
+
+    func loadArtistInfo() {
+        viewModel.loadArtistInfo()
+    }
+
+    func showArtistInfoForTrack(_ track: Track) {
+        viewModel.showArtistInfoForTrack(track: track)
+    }
+
+    func reloadArtistInfoDialog() {
+        viewModel.reloadArtistInfoDialog()
+    }
+
+    func dismissArtistInfoDialog() {
+        viewModel.dismissArtistInfoDialog()
     }
 
     func playTracksShuffled(_ tracks: [Track]) {
@@ -433,7 +491,85 @@ struct LibraryView: View {
         .sheet(item: $infoAlbum) { album in
             InfoView(title: album.name, fields: album.toInfoFields())
         }
+        .sheet(
+            isPresented: Binding(
+                get: { observable.artistInfoDialogArtist != nil },
+                set: { if !$0 { observable.dismissArtistInfoDialog() } },
+            ),
+        ) {
+            artistInfoPopupSheet()
+        }
         .task { await observable.observe() }
+    }
+
+    private func artistInfoPopupSheet() -> some View {
+        NavigationStack {
+            ScrollView {
+                artistInfoPopupCard()
+                    .padding(AppSpacing.screenHorizontalMargin)
+            }
+            .background(Color.bg1.ignoresSafeArea())
+            .navigationTitle(observable.artistInfoDialogArtist ?? "Artist Info")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { observable.dismissArtistInfoDialog() }
+                }
+            }
+        }
+    }
+
+    private func artistInfoPopupCard() -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ARTIST AI")
+                .styleSectionLabel()
+                .foregroundColor(.accentColor)
+            Text(observable.artistInfoDialogArtist ?? "Artist")
+                .styleItemTitle()
+                .lineLimit(1)
+
+            if observable.artistInfoDialogLoading {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .tint(.accentColor)
+                    Text("Loading artist info")
+                        .styleItemSubtitle()
+                }
+                .padding(.top, 4)
+            } else if let error = observable.artistInfoDialogError {
+                Text(error)
+                    .styleItemSubtitle()
+                    .foregroundColor(.red)
+                    .padding(.top, 4)
+                Button("RETRY") {
+                    observable.reloadArtistInfoDialog()
+                }
+                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                .foregroundColor(.accentColor)
+            } else if let info = observable.artistInfoDialog {
+                Text(info.shortBio)
+                    .styleItemSubtitle()
+                    .padding(.top, 4)
+                Text("BEST ALBUMS")
+                    .styleSectionLabel()
+                    .foregroundColor(.textTertiary)
+                    .padding(.top, 4)
+                ForEach(info.bestAlbums, id: \.self) { album in
+                    Text(album)
+                        .styleItemTitle()
+                        .lineLimit(1)
+                }
+                Button("REFRESH") {
+                    observable.reloadArtistInfoDialog()
+                }
+                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                .foregroundColor(.accentColor)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.bg2)
+        .cornerRadius(8)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.line2, lineWidth: 1))
     }
 
     /// Tab Button Helper
@@ -574,6 +710,8 @@ struct LibraryView: View {
                         ScrollViewReader { proxy in
                             ScrollView {
                                 LazyVStack(spacing: 8) {
+                                    artistInfoCard(artist: artist)
+
                                     ForEach(displayAlbums, id: \.albumGroupId) { album in
                                         albumRowItem(album: album) {
                                             onAlbumClick(album)
@@ -759,6 +897,10 @@ struct LibraryView: View {
             .padding(.top, 22)
             .padding(.bottom, 8)
 
+            artistInfoCard(artist: artist)
+                .padding(.horizontal, AppSpacing.screenHorizontalMargin)
+                .padding(.bottom, 12)
+
             // Filter for this artist's albums (independent of the master list).
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
@@ -803,6 +945,69 @@ struct LibraryView: View {
                 }
             }
         }
+    }
+
+    private func artistInfoCard(artist: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ARTIST AI")
+                .styleSectionLabel()
+                .foregroundColor(.accentColor)
+            Text(artist)
+                .styleItemTitle()
+                .lineLimit(1)
+
+            if observable.artistInfoLoading {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .tint(.accentColor)
+                    Text("Loading artist info")
+                        .styleItemSubtitle()
+                }
+                .padding(.top, 4)
+            } else if let error = observable.artistInfoError {
+                Text(error)
+                    .styleItemSubtitle()
+                    .foregroundColor(.red)
+                    .padding(.top, 4)
+                Button("RETRY") {
+                    observable.loadArtistInfo()
+                }
+                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                .foregroundColor(.accentColor)
+            } else if let info = observable.artistInfo {
+                Text(info.shortBio)
+                    .styleItemSubtitle()
+                    .padding(.top, 4)
+                Text("BEST ALBUMS")
+                    .styleSectionLabel()
+                    .foregroundColor(.textTertiary)
+                    .padding(.top, 4)
+                ForEach(info.bestAlbums, id: \.self) { album in
+                    Text(album)
+                        .styleItemTitle()
+                        .lineLimit(1)
+                }
+                Button("REFRESH") {
+                    observable.loadArtistInfo()
+                }
+                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                .foregroundColor(.accentColor)
+            } else {
+                Text("Get a short bio and essential albums.")
+                    .styleItemSubtitle()
+                    .padding(.top, 4)
+                Button("GET INFO") {
+                    observable.loadArtistInfo()
+                }
+                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                .foregroundColor(.accentColor)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.bg2)
+        .cornerRadius(8)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.line2, lineWidth: 1))
     }
 
     // MARK: - Compilations contributing-artists list
@@ -1740,6 +1945,7 @@ struct LibraryView: View {
                                                     playNextAction: { observable.playTracksNext([track]) },
                                                     addToQueueAction: { observable.addTracksToQueue([track]) },
                                                     infoAction: { infoTrack = track },
+                                                    artistInfoAction: { observable.showArtistInfoForTrack(track) },
                                                     rotateEllipsis: true,
                                                 )
                                             }
@@ -2127,6 +2333,9 @@ struct LibraryView: View {
                 Button(action: { infoTrack = track }) {
                     Label("Info", systemImage: "info.circle")
                 }
+                Button(action: { observable.showArtistInfoForTrack(track) }) {
+                    Label("Artist Info", systemImage: "sparkles")
+                }
                 Button(action: { observable.playTrack(track) }) {
                     Label("Play", systemImage: "play.fill")
                 }
@@ -2280,6 +2489,7 @@ struct PlaybackActionMenu: View {
     let playNextAction: () -> Void
     let addToQueueAction: () -> Void
     var infoAction: (() -> Void)?
+    var artistInfoAction: (() -> Void)?
     var rotateEllipsis: Bool = false
 
     var body: some View {
@@ -2299,6 +2509,11 @@ struct PlaybackActionMenu: View {
             if let infoAction {
                 Button(action: infoAction) {
                     Label("Info", systemImage: "info.circle")
+                }
+            }
+            if let artistInfoAction {
+                Button(action: artistInfoAction) {
+                    Label("Artist Info", systemImage: "sparkles")
                 }
             }
         } label: {

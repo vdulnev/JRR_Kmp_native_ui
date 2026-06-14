@@ -6,8 +6,12 @@ import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import com.jrr.jrrkmp_native_ui.core.logging.AppLogger
 import com.jrr.jrrkmp_native_ui.core.logging.logged
+import com.jrr.jrrkmp_native_ui.core.logging.redact
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.DownloadJobEntity
+import com.jrr.jrrkmp_native_ui.data.repository.ARTIST_INFO_PROVIDER_OPENAI
+import com.jrr.jrrkmp_native_ui.data.repository.DEFAULT_OLLAMA_BASE_URL
+import com.jrr.jrrkmp_native_ui.data.repository.DEFAULT_OLLAMA_MODEL
 import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +39,9 @@ private fun SettingsViewState.summary(): String = buildString {
     append(" jobs=${downloadJobs.size}")
     append(" quality=${localAudioQuality.name}")
     append(" sev=$logSeverity")
+    append(" aiProvider=$artistInfoProvider")
+    append(" openAiKey=${openAiApiKey.redact()}")
+    append(" ollama=$ollamaBaseUrl/$ollamaModel")
     if (transientError != null) append(" err=$transientError")
 }
 
@@ -57,6 +64,14 @@ data class SettingsViewState(
     val logSeverity: Severity = Severity.Info,
     /** Server-side transcode quality applied to streaming + downloads. */
     val localAudioQuality: LocalAudioQuality = LocalAudioQuality.LOSSLESS,
+    /** AI provider used for artist-info lookups. */
+    val artistInfoProvider: String = ARTIST_INFO_PROVIDER_OPENAI,
+    /** User-provided OpenAI API key used for artist-info lookups. */
+    val openAiApiKey: String = "",
+    /** Ollama endpoint used for local artist-info lookups. */
+    val ollamaBaseUrl: String = DEFAULT_OLLAMA_BASE_URL,
+    /** Ollama model used for local artist-info lookups. */
+    val ollamaModel: String = DEFAULT_OLLAMA_MODEL,
     val transientError: String? = null,
 )
 
@@ -65,12 +80,27 @@ class SettingsViewModel(
     private val database: JrrDatabase,
     private val clearPhysicalDownloads: () -> Unit,
     isDebugBuild: Boolean = false,
+    private val saveArtistInfoProvider: (String?) -> Unit = {},
+    private val loadArtistInfoProvider: () -> String? = { null },
+    private val saveOpenAiApiKey: (String?) -> Unit = {},
+    private val loadOpenAiApiKey: () -> String? = { null },
+    private val saveOllamaBaseUrl: (String?) -> Unit = {},
+    private val loadOllamaBaseUrl: () -> String? = { null },
+    private val saveOllamaModel: (String?) -> Unit = {},
+    private val loadOllamaModel: () -> String? = { null },
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
         SettingsViewState(
             isDebugBuild = isDebugBuild,
             logSeverity = if (isDebugBuild) Severity.Verbose else Severity.Info,
+            artistInfoProvider = loadArtistInfoProvider()?.trim()?.ifEmpty { null }
+                ?: ARTIST_INFO_PROVIDER_OPENAI,
+            openAiApiKey = loadOpenAiApiKey().orEmpty(),
+            ollamaBaseUrl = loadOllamaBaseUrl()?.trim()?.ifEmpty { null }
+                ?: DEFAULT_OLLAMA_BASE_URL,
+            ollamaModel = loadOllamaModel()?.trim()?.ifEmpty { null }
+                ?: DEFAULT_OLLAMA_MODEL,
         ),
     )
     val state: StateFlow<SettingsViewState> = _state.asStateFlow()
@@ -179,6 +209,34 @@ class SettingsViewModel(
         log.i { "setLogSeverity($severity)" }
         AppLogger.setMinSeverity(severity)
         _state.update { it.copy(logSeverity = severity) }
+    }
+
+    fun setOpenAiApiKey(apiKey: String) {
+        val cleaned = apiKey.trim()
+        log.i { "setOpenAiApiKey(${cleaned.redact()})" }
+        saveOpenAiApiKey(cleaned.ifEmpty { null })
+        _state.update { it.copy(openAiApiKey = cleaned) }
+    }
+
+    fun setArtistInfoProvider(provider: String) {
+        val cleaned = provider.trim().lowercase().ifEmpty { ARTIST_INFO_PROVIDER_OPENAI }
+        log.i { "setArtistInfoProvider($cleaned)" }
+        saveArtistInfoProvider(cleaned)
+        _state.update { it.copy(artistInfoProvider = cleaned) }
+    }
+
+    fun setOllamaBaseUrl(baseUrl: String) {
+        val cleaned = baseUrl.trim()
+        log.i { "setOllamaBaseUrl($cleaned)" }
+        saveOllamaBaseUrl(cleaned.ifEmpty { null })
+        _state.update { it.copy(ollamaBaseUrl = cleaned) }
+    }
+
+    fun setOllamaModel(model: String) {
+        val cleaned = model.trim()
+        log.i { "setOllamaModel($cleaned)" }
+        saveOllamaModel(cleaned.ifEmpty { null })
+        _state.update { it.copy(ollamaModel = cleaned) }
     }
 
     /**

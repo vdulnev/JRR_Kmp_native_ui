@@ -21,6 +21,10 @@ class AlbumDetailObservable {
     var isLoading: Bool = true
     var isOffline: Bool = true
     var errorMessage: String?
+    var artistInfoDialogArtist: String?
+    var artistInfo: ArtistInfo?
+    var artistInfoLoading: Bool = false
+    var artistInfoError: String?
 
     init(viewModel: AlbumDetailViewModel) {
         self.viewModel = viewModel
@@ -75,6 +79,24 @@ class AlbumDetailObservable {
             isLoading = false
             errorMessage = error.message
         }
+
+        artistInfoDialogArtist = state.artistInfoDialogArtist
+        switch onEnum(of: state.artistInfoDialogState) {
+        case .idle:
+            artistInfo = nil
+            artistInfoLoading = false
+            artistInfoError = nil
+        case .loading:
+            artistInfoLoading = true
+            artistInfoError = nil
+        case let .success(success):
+            artistInfo = success.info
+            artistInfoLoading = false
+            artistInfoError = nil
+        case let .error(error):
+            artistInfoLoading = false
+            artistInfoError = error.message
+        }
     }
 
     func playTrack(_ track: Track) {
@@ -107,6 +129,18 @@ class AlbumDetailObservable {
 
     func playTrackNext(track: Track) {
         viewModel.playTrackNext(track: track)
+    }
+
+    func showArtistInfoForTrack(_ track: Track) {
+        viewModel.showArtistInfoForTrack(track: track)
+    }
+
+    func reloadArtistInfoDialog() {
+        viewModel.reloadArtistInfoDialog()
+    }
+
+    func dismissArtistInfoDialog() {
+        viewModel.dismissArtistInfoDialog()
     }
 
     func addAlbumToQueue() {
@@ -259,9 +293,11 @@ private struct AlbumDetailContentView: View {
                 // Two columns: art + actions (left), tracklist (right).
                 HStack(spacing: 0) {
                     ScrollView {
-                        artworkHeader(isLarge: true)
-                            .padding(.horizontal, 36)
-                            .padding(.vertical, 32)
+                        VStack(spacing: 24) {
+                            artworkHeader(isLarge: true)
+                        }
+                        .padding(.horizontal, 36)
+                        .padding(.vertical, 32)
                     }
                     .frame(width: 360)
 
@@ -293,6 +329,84 @@ private struct AlbumDetailContentView: View {
         .sheet(item: $infoAlbum) { album in
             InfoView(title: album.name, fields: album.toInfoFields())
         }
+        .sheet(
+            isPresented: Binding(
+                get: { observable.artistInfoDialogArtist != nil },
+                set: { if !$0 { observable.dismissArtistInfoDialog() } },
+            ),
+        ) {
+            artistInfoSheet()
+        }
+    }
+
+    private func artistInfoSheet() -> some View {
+        NavigationStack {
+            ScrollView {
+                artistInfoCard()
+                    .padding(AppSpacing.screenHorizontalMargin)
+            }
+            .background(Color.bg1.ignoresSafeArea())
+            .navigationTitle(observable.artistInfoDialogArtist ?? "Artist Info")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { observable.dismissArtistInfoDialog() }
+                }
+            }
+        }
+    }
+
+    private func artistInfoCard() -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ARTIST AI")
+                .styleSectionLabel()
+                .foregroundColor(.accentColor)
+            Text(observable.artistInfoDialogArtist ?? "Artist")
+                .styleItemTitle()
+                .lineLimit(1)
+
+            if observable.artistInfoLoading {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .tint(.accentColor)
+                    Text("Loading artist info")
+                        .styleItemSubtitle()
+                }
+                .padding(.top, 4)
+            } else if let error = observable.artistInfoError {
+                Text(error)
+                    .styleItemSubtitle()
+                    .foregroundColor(.red)
+                    .padding(.top, 4)
+                Button("RETRY") {
+                    observable.reloadArtistInfoDialog()
+                }
+                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                .foregroundColor(.accentColor)
+            } else if let info = observable.artistInfo {
+                Text(info.shortBio)
+                    .styleItemSubtitle()
+                    .padding(.top, 4)
+                Text("BEST ALBUMS")
+                    .styleSectionLabel()
+                    .foregroundColor(.textTertiary)
+                    .padding(.top, 4)
+                ForEach(info.bestAlbums, id: \.self) { album in
+                    Text(album)
+                        .styleItemTitle()
+                        .lineLimit(1)
+                }
+                Button("REFRESH") {
+                    observable.reloadArtistInfoDialog()
+                }
+                .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                .foregroundColor(.accentColor)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.bg2)
+        .cornerRadius(8)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.line2, lineWidth: 1))
     }
 
     /// Artwork + album meta + PLAY/SHUFFLE. Shared by the phone (header) and
@@ -459,6 +573,9 @@ private struct AlbumDetailContentView: View {
             Menu {
                 Button(action: { infoTrack = track }) {
                     Label("Info", systemImage: "info.circle")
+                }
+                Button(action: { observable.showArtistInfoForTrack(track) }) {
+                    Label("Artist Info", systemImage: "sparkles")
                 }
                 Button(action: { observable.playTrack(track) }) {
                     Label("Play", systemImage: "play.fill")

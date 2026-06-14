@@ -71,6 +71,7 @@ import com.jrr.jrrkmp_native_ui.presentation.components.AlphabetIndexBar
 import com.jrr.jrrkmp_native_ui.presentation.components.InfoDialog
 import com.jrr.jrrkmp_native_ui.presentation.components.sectionLetterFor
 import com.jrr.jrrkmp_native_ui.presentation.components.toInfoFields
+import com.jrr.jrrkmp_native_ui.presentation.viewmodel.ArtistInfoState
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.LibraryViewModel
 import kotlinx.coroutines.launch
 
@@ -200,6 +201,7 @@ fun LibraryScreen(
                     artists = state.artists,
                     selectedArtist = state.selectedArtist,
                     artistAlbums = state.artistAlbums,
+                    artistInfoState = state.artistInfoState,
                     compilationMode = state.compilationMode,
                     compilationArtists = state.compilationArtists,
                     artistsFilter = state.artistsFilter,
@@ -220,6 +222,7 @@ fun LibraryScreen(
                     isOffline = state.isOffline,
                     onAlbumInfoClick = { infoAlbum = it },
                     onBackClick = { viewModel.selectArtist(null) },
+                    onLoadArtistInfo = { viewModel.loadArtistInfo() },
                     favorites = state.favorites,
                     onToggleFavoriteAlbum = { viewModel.toggleFavoriteAlbum(it) }
                 )
@@ -263,6 +266,7 @@ fun LibraryScreen(
                     onDownloadBrowseItem = { viewModel.downloadBrowseItem(it) },
                     isOffline = state.isOffline,
                     onTrackInfoClick = { infoTrack = it },
+                    onTrackArtistInfoClick = { viewModel.showArtistInfoForTrack(it) },
                     grouped = browseGrouped,
                     onGroupedChange = { browseGrouped = it },
                     notPlayedOnly = browseNotPlayedOnly,
@@ -297,6 +301,7 @@ fun LibraryScreen(
                     onPlayTracksNext = { viewModel.playTracksNext(it) },
                     onAddTracksToQueue = { viewModel.addTracksToQueue(it) },
                     onTrackInfoClick = { infoTrack = it },
+                    onTrackArtistInfoClick = { viewModel.showArtistInfoForTrack(it) },
                     onAlbumInfoClick = { infoAlbum = it },
                     favorites = state.favorites,
                     onToggleFavoriteTrack = { viewModel.toggleFavoriteTrack(it) }
@@ -326,6 +331,7 @@ fun LibraryScreen(
                     onDownloadTrack = { viewModel.downloadTrack(it) },
                     onToggleFavoriteTrack = { viewModel.toggleFavoriteTrack(it) },
                     onTrackInfoClick = { infoTrack = it },
+                    onTrackArtistInfoClick = { viewModel.showArtistInfoForTrack(it) },
                     onToggleFavoriteAlbum = { viewModel.toggleFavoriteAlbum(it) }
                 )
             }
@@ -347,6 +353,15 @@ fun LibraryScreen(
             onDismiss = { infoAlbum = null }
         )
     }
+
+    state.artistInfoDialogArtist?.let { artist ->
+        ArtistInfoDialog(
+            artistName = artist,
+            artistInfoState = state.artistInfoDialogState,
+            onLoad = { viewModel.reloadArtistInfoDialog() },
+            onDismiss = { viewModel.dismissArtistInfoDialog() },
+        )
+    }
 }
 
 
@@ -355,6 +370,7 @@ fun ArtistsTab(
     artists: List<String>,
     selectedArtist: String?,
     artistAlbums: List<Album>,
+    artistInfoState: ArtistInfoState,
     compilationMode: Boolean,
     compilationArtists: List<String>,
     artistsFilter: String,
@@ -375,6 +391,7 @@ fun ArtistsTab(
     isOffline: Boolean,
     onAlbumInfoClick: (Album) -> Unit,
     onBackClick: () -> Unit,
+    onLoadArtistInfo: () -> Unit,
     favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>,
     onToggleFavoriteAlbum: (Album) -> Unit
 ) {
@@ -422,6 +439,13 @@ fun ArtistsTab(
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        item {
+                            ArtistInfoBlock(
+                                artistName = selectedArtist,
+                                artistInfoState = artistInfoState,
+                                onLoad = onLoadArtistInfo,
+                            )
+                        }
                         items(filteredAlbums) { album ->
                             val isFavorite = favorites.any { it.type == "album" && it.identifier == album.albumGroupId }
                             AlbumRowItem(
@@ -897,6 +921,7 @@ fun BrowseTab(
     onDownloadBrowseItem: (BrowseItem) -> Unit,
     isOffline: Boolean,
     onTrackInfoClick: (Track) -> Unit,
+    onTrackArtistInfoClick: (Track) -> Unit,
     grouped: Boolean,
     onGroupedChange: (Boolean) -> Unit,
     notPlayedOnly: Boolean,
@@ -1052,6 +1077,7 @@ fun BrowseTab(
                     onAddTrackToQueue = onAddTrackToQueue,
                     onDownloadTrack = onDownloadTrack,
                     onTrackInfoClick = onTrackInfoClick,
+                    onTrackArtistInfoClick = onTrackArtistInfoClick,
                     onPlayTracks = onPlayTracks,
                     onPlayTracksNext = onPlayTracksNext,
                     onAddTracksToQueue = onAddTracksToQueue,
@@ -1079,6 +1105,7 @@ fun BrowseTab(
                             onDownload = { onDownloadTrack(track) },
                             isOffline = isOffline,
                             onInfoClick = { onTrackInfoClick(track) },
+                            onArtistInfoClick = { onTrackArtistInfoClick(track) },
                             onClick = { onTrackClick(track, tracks) }
                         )
                     }
@@ -1108,6 +1135,7 @@ private fun BrowseGroupedTracks(
     onAddTrackToQueue: (Track) -> Unit,
     onDownloadTrack: (Track) -> Unit,
     onTrackInfoClick: (Track) -> Unit,
+    onTrackArtistInfoClick: (Track) -> Unit,
     onPlayTracks: (List<Track>) -> Unit,
     onPlayTracksNext: (List<Track>) -> Unit,
     onAddTracksToQueue: (List<Track>) -> Unit,
@@ -1194,6 +1222,7 @@ private fun BrowseGroupedTracks(
                                 onDownload = { onDownloadTrack(track) },
                                 isOffline = isOffline,
                                 onInfoClick = { onTrackInfoClick(track) },
+                                onArtistInfoClick = { onTrackArtistInfoClick(track) },
                                 onClick = { onTrackClick(track, album.tracks) }
                             )
                         }
@@ -1321,6 +1350,7 @@ fun DownloadsTab(
     onPlayTracksNext: (List<Track>) -> Unit,
     onAddTracksToQueue: (List<Track>) -> Unit,
     onTrackInfoClick: (Track) -> Unit,
+    onTrackArtistInfoClick: (Track) -> Unit,
     onAlbumInfoClick: (Album) -> Unit,
     favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity> = emptyList(),
     onToggleFavoriteTrack: (Track) -> Unit = {}
@@ -1404,7 +1434,8 @@ fun DownloadsTab(
                                     onPlayTracksShuffled = onPlayTracksShuffled,
                                     onPlayTracksNext = onPlayTracksNext,
                                     onAddTracksToQueue = onAddTracksToQueue,
-                                    onInfoClick = { onTrackInfoClick(track) }
+                                    onInfoClick = { onTrackInfoClick(track) },
+                                    onArtistInfoClick = { onTrackArtistInfoClick(track) }
                                 )
                             }
                         }
@@ -1672,6 +1703,7 @@ fun GroupedTrackRowItem(
     onPlayTracksNext: (List<Track>) -> Unit,
     onAddTracksToQueue: (List<Track>) -> Unit,
     onInfoClick: (() -> Unit)? = null,
+    onArtistInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -1744,7 +1776,8 @@ fun GroupedTrackRowItem(
             onPlayShuffle = { onPlayTracksShuffled(listOf(track)) },
             onPlayNext = { onPlayTracksNext(listOf(track)) },
             onAddToQueue = { onAddTracksToQueue(listOf(track)) },
-            onInfoClick = onInfoClick
+            onInfoClick = onInfoClick,
+            onArtistInfoClick = onArtistInfoClick,
         )
     }
 }
@@ -1758,6 +1791,7 @@ fun TrackActionMenu(
     isFavorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
     onInfoClick: (() -> Unit)? = null,
+    onArtistInfoClick: (() -> Unit)? = null,
     icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.MoreVert,
     modifier: Modifier = Modifier
 ) {
@@ -1825,6 +1859,15 @@ fun TrackActionMenu(
                     }
                 )
             }
+            onArtistInfoClick?.let {
+                DropdownMenuItem(
+                    text = { Text("Artist Info", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        it()
+                    }
+                )
+            }
         }
     }
 }
@@ -1852,6 +1895,7 @@ fun FavoritesTab(
     onDownloadTrack: (Track) -> Unit,
     onToggleFavoriteTrack: (Track) -> Unit,
     onTrackInfoClick: (Track) -> Unit,
+    onTrackArtistInfoClick: (Track) -> Unit,
     onToggleFavoriteAlbum: (Album) -> Unit
 ) {
     val favoritedAlbums = favorites.filter { it.type == "album" }
@@ -1984,6 +2028,7 @@ fun FavoritesTab(
                         onDownload = { onDownloadTrack(track) },
                         isOffline = isOffline,
                         onInfoClick = { onTrackInfoClick(track) },
+                        onArtistInfoClick = { onTrackArtistInfoClick(track) },
                         onClick = { onTrackClick(track) }
                     )
                 }
@@ -2003,6 +2048,7 @@ fun TrackRowItem(
     onDownload: () -> Unit,
     isOffline: Boolean,
     onInfoClick: (() -> Unit)? = null,
+    onArtistInfoClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -2125,16 +2171,25 @@ fun TrackRowItem(
                         }
                     )
                 }
-                onInfoClick?.let {
-                    DropdownMenuItem(
-                        text = { Text("Info", style = AppTypography.itemTitle) },
-                        onClick = {
-                            showMenu = false
-                            it()
-                        }
-                    )
-                }
+            onInfoClick?.let {
+                DropdownMenuItem(
+                    text = { Text("Info", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        it()
+                    }
+                )
             }
+            onArtistInfoClick?.let {
+                DropdownMenuItem(
+                    text = { Text("Artist Info", style = AppTypography.itemTitle) },
+                    onClick = {
+                        showMenu = false
+                        it()
+                    }
+                )
+            }
+        }
         }
     }
 }

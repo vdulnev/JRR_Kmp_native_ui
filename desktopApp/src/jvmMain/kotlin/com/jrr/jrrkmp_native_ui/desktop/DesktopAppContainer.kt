@@ -6,6 +6,7 @@ import com.jrr.jrrkmp_native_ui.data.api.McwsCore
 import com.jrr.jrrkmp_native_ui.data.db.DatabaseBuilder
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.createDatabase
+import com.jrr.jrrkmp_native_ui.data.repository.ArtistInfoRepository
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.data.repository.ServerRepository
 import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
@@ -69,6 +70,16 @@ class DesktopAppContainer(private val settings: DesktopSettings) {
             isOfflineProvider = {
                 facade.activeZone.value == Zone.Offline || facade.currentServerHost.isNullOrEmpty()
             },
+        )
+    }
+
+    val artistInfoRepository: ArtistInfoRepository by lazy {
+        log.d { "lazy: artistInfoRepository" }
+        ArtistInfoRepository(
+            loadProvider = { settings.getArtistInfoProvider() },
+            loadOpenAiApiKey = { settings.getOpenAiApiKey() },
+            loadOllamaBaseUrl = { settings.getOllamaBaseUrl() },
+            loadOllamaModel = { settings.getOllamaModel() },
         )
     }
 }

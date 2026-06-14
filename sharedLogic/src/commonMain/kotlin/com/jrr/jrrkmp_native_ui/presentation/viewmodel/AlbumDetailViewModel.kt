@@ -7,6 +7,7 @@ import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.logged
 import com.jrr.jrrkmp_native_ui.data.db.JrrDatabase
 import com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity
+import com.jrr.jrrkmp_native_ui.data.repository.ArtistInfoRepository
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
@@ -48,6 +49,8 @@ data class AlbumDetailViewState(
     val albumName: String,
     val artistName: String,
     val contentState: AlbumDetailContentState = AlbumDetailContentState.Loading,
+    val artistInfoDialogArtist: String? = null,
+    val artistInfoDialogState: ArtistInfoState = ArtistInfoState.Idle,
     val isOfflineMode: Boolean = true,
     val transientError: String? = null,
 )
@@ -56,7 +59,8 @@ class AlbumDetailViewModel(
     val album: Album,
     private val libraryRepository: LibraryRepository,
     private val facade: AudioPlayerFacade,
-    private val database: JrrDatabase
+    private val database: JrrDatabase,
+    private val artistInfoRepository: ArtistInfoRepository? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AlbumDetailViewState(album.name, album.albumArtist))
@@ -255,6 +259,76 @@ class AlbumDetailViewModel(
     fun playTrackNext(track: Track) {
         log.d { "playTrackNext(${track.fileKey} / ${track.name})" }
         facade.playNextTracks(listOf(track))
+    }
+
+    fun showArtistInfoForTrack(track: Track) {
+        val artist = track.artist.ifBlank { album.albumArtist }
+        log.d { "showArtistInfoForTrack(fileKey=${track.fileKey}, artist=$artist)" }
+        if (artist.isBlank()) {
+            _state.update {
+                it.copy(
+                    artistInfoDialogArtist = "Unknown artist",
+                    artistInfoDialogState = ArtistInfoState.Error("Track artist is missing"),
+                )
+            }
+            return
+        }
+        showArtistInfoForArtist(artist)
+    }
+
+    fun reloadArtistInfoDialog() {
+        _state.value.artistInfoDialogArtist?.let { artist ->
+            if (artist != "Unknown artist") showArtistInfoForArtist(artist)
+        }
+    }
+
+    private fun showArtistInfoForArtist(artist: String) {
+        val repository = artistInfoRepository
+        if (repository == null) {
+            _state.update {
+                it.copy(
+                    artistInfoDialogArtist = artist,
+                    artistInfoDialogState = ArtistInfoState.Error("AI artist info is not available on this platform"),
+                )
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    artistInfoDialogArtist = artist,
+                    artistInfoDialogState = ArtistInfoState.Loading,
+                )
+            }
+            try {
+                val info = repository.getArtistInfo(artist)
+                _state.update {
+                    it.copy(
+                        artistInfoDialogArtist = artist,
+                        artistInfoDialogState = ArtistInfoState.Success(info),
+                    )
+                }
+            } catch (e: Exception) {
+                log.e(e) { "showArtistInfoForTrack failed artist=$artist" }
+                _state.update {
+                    it.copy(
+                        artistInfoDialogArtist = artist,
+                        artistInfoDialogState = ArtistInfoState.Error(e.message ?: "Failed to load artist info"),
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissArtistInfoDialog() {
+        log.d { "dismissArtistInfoDialog()" }
+        _state.update {
+            it.copy(
+                artistInfoDialogArtist = null,
+                artistInfoDialogState = ArtistInfoState.Idle,
+            )
+        }
     }
 
     fun addAlbumToQueue() {
