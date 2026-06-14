@@ -76,9 +76,6 @@ class QueueObservable {
 
 struct QueueView: View {
     @State private var observable: QueueObservable
-    // Live server play counts; merged with each track's baked numberPlays so the
-    // played icon updates the moment a track finishes (see PlaybackStateObserver).
-    @EnvironmentObject private var stateObserver: PlaybackStateObserver
     let onBackClick: () -> Void
     /// Large-screen queue rail: no back button (the queue is always visible
     /// beside Now Playing); shows the track count instead.
@@ -205,7 +202,7 @@ struct QueueView: View {
                                     .foregroundColor(.accentColor)
                             }
 
-                            if (stateObserver.playCounts[track.fileKey] ?? track.numberPlays) > 0 {
+                            if track.numberPlays > 0 {
                                 Image(systemName: "headphones")
                                     .font(.system(size: 12))
                                     .foregroundColor(.textTertiary)

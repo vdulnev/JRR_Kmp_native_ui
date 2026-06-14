@@ -16,8 +16,8 @@ import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -80,7 +81,18 @@ class LibraryViewModel(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LibraryViewState())
-    val state: StateFlow<LibraryViewState> = _state.asStateFlow()
+
+    // Public state overlays the live server play counts onto every track-bearing
+    // list so the played icon stays current — while keeping all screen state on
+    // this one StateFlow (the UI never reads the facade directly). The overlay
+    // returns the same list instances when nothing changed, so this is cheap.
+    val state: StateFlow<LibraryViewState> =
+        combine(_state, facade.playCounts) { s, playCounts ->
+            s.copy(
+                browseTracks = s.browseTracks.overlayPlayCounts(playCounts),
+                downloadedTracks = s.downloadedTracks.overlayPlayCounts(playCounts),
+            )
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, _state.value)
 
     init {
         log.d { "init" }
