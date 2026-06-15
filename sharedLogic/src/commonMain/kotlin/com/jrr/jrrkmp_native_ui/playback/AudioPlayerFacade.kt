@@ -356,19 +356,45 @@ class AudioPlayerFacade(
                         coroutineScope.launch(ioDispatcher) {
                             val plays = mcwsClient.getTrackByKey(finishedKey)?.numberPlays ?: return@launch
                             _playCounts.update { it + (finishedKey to plays) }
+                            // Persist the refreshed count into the saved queue so the
+                            // played icon survives a restart (saveQueueState only runs
+                            // on queue mutations otherwise, never on a plain advance).
+                            // The persisted snapshot lives only for local-class zones.
+                            val zone = _activeZone.value
+                            if (zone.isLocal || zone.isOffline || zone.isAndroidAuto) {
+                                saveQueueState(zone.id)
+                            }
                         }
                     }
                 }
         }
 
-        // Play counts are per server; drop them whenever the active server
-        // changes (connect, disconnect, or switch) so stale counts never bleed
-        // across libraries.
+        // Keep the Playing Now queue's played indicators in sync with the live
+        // server count. Play counts are per server, so drop them when the active
+        // server changes; then (re-)query the current local queue's authoritative
+        // [Number Plays] in one batch. This is what refreshes a *restored* queue
+        // after a restart — the advance-based overlay above only ever fires once
+        // a track finishes, never for tracks that are simply sitting in the queue.
+        //
+        // Keyed on the queue's fileKey set (order-independent), so reorders don't
+        // re-query, and it self-heals the startup race where the queue is restored
+        // only after the server connects (the set transition fires the refresh).
         coroutineScope.launch {
-            // activeServerId is a StateFlow, so it already emits only on change.
-            activeServerId.collect {
-                _playCounts.value = emptyMap()
-            }
+            var lastServerId = activeServerId.value
+            combine(
+                activeServerId,
+                localQueue.map { q -> q.map { it.fileKey }.toSet() }.distinctUntilChanged(),
+            ) { serverId, keys -> serverId to keys }
+                .collect { (serverId, keys) ->
+                    if (serverId != lastServerId) {
+                        _playCounts.value = emptyMap()
+                        lastServerId = serverId
+                    }
+                    if (serverId.isNotEmpty() && keys.isNotEmpty()) {
+                        val fresh = mcwsClient.getPlayCounts(keys)
+                        if (fresh.isNotEmpty()) _playCounts.update { it + fresh }
+                    }
+                }
         }
     }
 
@@ -838,11 +864,21 @@ class AudioPlayerFacade(
                 log.v { "saveQueueState zone=$zoneId tracks=${queueTracks.size} currentIndex=$currentIndex" }
 
                 db.localQueueTrackDao().clearQueueForZone(zoneId)
+                // Snapshot with the latest known server play counts so the played
+                // icon is correct after a restart (the live overlay is in-memory
+                // only and resets on relaunch).
+                val counts = _playCounts.value
                 val entities = queueTracks.mapIndexed { idx, track ->
+                    val live = counts[track.fileKey]
+                    val snapshot = if (live != null && live != track.numberPlays) {
+                        track.copy(numberPlays = live)
+                    } else {
+                        track
+                    }
                     LocalQueueTrackEntity(
                         zoneId = zoneId,
-                        fileKey = track.fileKey,
-                        trackJson = json.encodeToString(track),
+                        fileKey = snapshot.fileKey,
+                        trackJson = json.encodeToString(snapshot),
                         position = idx
                     )
                 }
