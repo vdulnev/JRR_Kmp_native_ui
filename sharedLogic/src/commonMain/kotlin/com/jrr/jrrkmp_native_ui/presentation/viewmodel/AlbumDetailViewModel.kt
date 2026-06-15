@@ -90,13 +90,17 @@ class AlbumDetailViewModel(
             tracksFlow,
             dbStateFlow,
             favoriteFlow,
-            facade.activeZone
-        ) { tracks, dbState, favorite, activeZone ->
+            facade.activeZone,
+            facade.playCounts
+        ) { tracks, dbState, favorite, activeZone, playCounts ->
             val (downloaded, jobs, favorites) = dbState
             val downloadedKeys = downloaded.map { it.fileKey }.toSet()
             val activeJobs = jobs.associate { it.fileKey to it.state }
             val favoritedTrackKeys = favorites.filter { it.type == "track" }.map { it.identifier }.toSet()
             val isOffline = activeZone.isOffline || facade.currentServerHost.isNullOrEmpty()
+            // Overlay live server play counts so the played icon reflects the
+            // authoritative [Number Plays] without leaving/re-fetching the screen.
+            val livePlayTracks = tracks.overlayPlayCounts(playCounts)
 
             _state.update { currentState ->
                 // Don't overwrite an error state with fresh data — the user
@@ -106,7 +110,7 @@ class AlbumDetailViewModel(
                 } else {
                     currentState.copy(
                         contentState = AlbumDetailContentState.Success(
-                            tracks = tracks,
+                            tracks = livePlayTracks,
                             downloadedTrackKeys = downloadedKeys,
                             activeDownloadJobs = activeJobs,
                             isFavorite = favorite,

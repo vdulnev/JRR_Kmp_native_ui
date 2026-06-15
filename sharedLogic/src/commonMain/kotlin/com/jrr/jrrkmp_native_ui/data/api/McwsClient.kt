@@ -216,6 +216,26 @@ class McwsClient(
         return track
     }
 
+    /**
+     * Batch-fetch the authoritative `[Number Plays]` for many file keys at once,
+     * returning `fileKey → numberPlays`. Used to refresh the Playing Now queue's
+     * played indicators against the live server count (e.g. on reconnect, after a
+     * restart). JRiver search treats a comma-separated value list as OR, so the
+     * whole queue resolves in one request per chunk. Empty/no-server → empty map.
+     */
+    suspend fun getPlayCounts(fileKeys: Collection<String>): Map<String, Int> {
+        val keys = fileKeys.filter { it.isNotEmpty() }.distinct()
+        if (keys.isEmpty()) return emptyMap()
+        val result = mutableMapOf<String, Int>()
+        keys.chunked(200).forEach { chunk ->
+            val query = "[Key]=${chunk.joinToString(",")}"
+            val json = getMcwsJson("Files/Search", mapOf("Query" to query, "Fields" to "Calculated"))
+            parseMcwsTracksJson(json).forEach { result[it.fileKey] = it.numberPlays }
+        }
+        log.d { "getPlayCounts(${keys.size} keys) → ${result.size} resolved" }
+        return result
+    }
+
     suspend fun getZones(): List<Zone> {
         log.d { "getZones()" }
         val xml = getMcwsXml("Playback/Zones") ?: return emptyList()

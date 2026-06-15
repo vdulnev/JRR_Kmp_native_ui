@@ -93,10 +93,13 @@ class QueueViewModel(
 
         combine(
             baseStateFlow,
-            dbFlow
-        ) { state, dbState ->
+            dbFlow,
+            facade.playCounts
+        ) { state, dbState, playCounts ->
             val (downloaded, favorites) = dbState
             state.copy(
+                // Overlay live server play counts so the played icon stays current.
+                queueTracks = state.queueTracks.overlayPlayCounts(playCounts),
                 downloadedTrackKeys = downloaded.map { it.fileKey }.toSet(),
                 favoritedTrackKeys = favorites.filter { it.type == "track" }.map { it.identifier }.toSet()
             )

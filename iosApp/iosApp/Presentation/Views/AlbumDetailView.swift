@@ -203,9 +203,6 @@ struct AlbumDetailView: View {
 /// non-nil observable by the time this view mounts.
 private struct AlbumDetailContentView: View {
     @Environment(AppContainer.self) private var container
-    // Live server play counts; merged with each track's baked numberPlays so the
-    // played icon updates the moment a track finishes (see PlaybackStateObserver).
-    @EnvironmentObject private var stateObserver: PlaybackStateObserver
     let observable: AlbumDetailObservable
     let onBackClick: () -> Void
     var isLarge: Bool = false
@@ -545,7 +542,7 @@ private struct AlbumDetailContentView: View {
                     .padding(.trailing, 4)
             }
 
-            if (stateObserver.playCounts[track.fileKey] ?? track.numberPlays) > 0 {
+            if track.numberPlays > 0 {
                 Image(systemName: "headphones")
                     .font(.system(size: 12))
                     .foregroundColor(.textTertiary)
