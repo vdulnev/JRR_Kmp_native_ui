@@ -5,7 +5,7 @@ package com.jrr.jrrkmp_native_ui.domain.model
  * stream (or download) on the fly via the MCWS `Conversion`/`Quality` URL
  * params. Lossless keeps the original fidelity (re-muxed to FLAC so AVPlayer /
  * ExoPlayer can decode extension-less stream URLs reliably); the lossy options
- * trade fidelity for bandwidth via Ogg Opus.
+ * trade fidelity for bandwidth via MP3 (Opus isn't playable by AVPlayer on iOS).
  *
  * Mirrors the canonical spec shared by the product team — keep [conversion],
  * [quality] and [label] values in sync across platforms.
@@ -16,16 +16,16 @@ enum class LocalAudioQuality(
     val label: String,
 ) {
     LOSSLESS("flac", "high", "Lossless"),
-    LOSSY_HIGH("opus", "high", "Lossy (high)"),
-    LOSSY_NORMAL("opus", "normal", "Lossy (normal)"),
-    LOSSY_LOW("opus", "low", "Lossy (low)");
+    LOSSY_HIGH("mp3", "high", "Lossy (high)"),
+    LOSSY_NORMAL("mp3", "normal", "Lossy (normal)"),
+    LOSSY_LOW("mp3", "low", "Lossy (low)");
 
     /** The `Conversion=…&Quality=…` fragment appended to MCWS `GetFile` URLs. */
     val mcwsParams: String get() = "Conversion=$conversion&Quality=$quality"
 
     /** MIME hint matching [conversion], for out-of-band content-type on iOS. */
     val mimeHint: String get() = when (conversion) {
-        "opus" -> "audio/ogg"
+        "mp3" -> "audio/mpeg"
         else -> "audio/x-flac"
     }
 
