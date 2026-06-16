@@ -56,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
-import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.data.api.BrowseItem
@@ -198,6 +197,7 @@ fun LibraryScreen(
             when (state.currentTab) {
                 "artists" -> ArtistsTab(
                     artists = state.artists,
+                    artworkUrls = state.artworkUrls,
                     selectedArtist = state.selectedArtist,
                     artistAlbums = state.artistAlbums,
                     artistInfoState = state.artistInfoState,
@@ -227,6 +227,7 @@ fun LibraryScreen(
                 )
                 "random" -> RandomTab(
                     albums = state.randomAlbums,
+                    artworkUrls = state.artworkUrls,
                     isLoading = state.isLoading,
                     gridState = randomAlbumsGridState,
                     onAlbumClick = onAlbumClick,
@@ -245,6 +246,7 @@ fun LibraryScreen(
                 "browse" -> BrowseTab(
                     stack = state.browseStack,
                     children = state.browseChildren,
+                    artworkUrls = state.artworkUrls,
                     tracks = (if (browseNotPlayedOnly) viewModel.notPlayed(state.browseTracks) else state.browseTracks)
                         .let { if (browseShuffled) viewModel.shuffle(it, browseShuffleSeed) else it },
                     isLoading = state.isLoading || state.isTabLoading,
@@ -290,6 +292,7 @@ fun LibraryScreen(
                 )
                 "downloads" -> DownloadsTab(
                     tracks = state.downloadedTracks,
+                    artworkUrls = state.artworkUrls,
                     isLoading = state.isLoading,
                     onTrackClick = { clickedTrack, allTracks ->
                         val startIndex = allTracks.indexOf(clickedTrack).coerceAtLeast(0)
@@ -307,6 +310,7 @@ fun LibraryScreen(
                 )
                 "favorites" -> FavoritesTab(
                     favorites = state.favorites,
+                    artworkUrls = state.artworkUrls,
                     onAlbumClick = onAlbumClick,
                     onPlayAlbum = { viewModel.playAlbum(it) },
                     onPlayAlbumNext = { viewModel.playAlbumNext(it) },
@@ -367,6 +371,7 @@ fun LibraryScreen(
 @Composable
 fun ArtistsTab(
     artists: List<String>,
+    artworkUrls: Map<String, String>,
     selectedArtist: String?,
     artistAlbums: List<Album>,
     artistInfoState: ArtistInfoState,
@@ -449,6 +454,7 @@ fun ArtistsTab(
                             val isFavorite = favorites.any { it.type == "album" && it.identifier == album.albumGroupId }
                             AlbumRowItem(
                                 album = album,
+                                artworkUrl = artworkUrls[album.artworkFileKey].orEmpty(),
                                 isFavorite = isFavorite,
                                 onToggleFavorite = { onToggleFavoriteAlbum(album) },
                                 onPlay = { onPlayAlbum(album) },
@@ -735,6 +741,7 @@ internal fun CompilationArtistRow(
 @Composable
 fun RandomTab(
     albums: List<Album>,
+    artworkUrls: Map<String, String>,
     isLoading: Boolean,
     gridState: LazyGridState,
     onAlbumClick: (Album) -> Unit,
@@ -800,7 +807,7 @@ fun RandomTab(
                                 .background(AppColors.bg2)
                                 .border(1.dp, AppColors.line2, RoundedCornerShape(8.dp))
                         ) {
-                            val imageUrl = LocalMcwsClient.current.buildImageUrl(album.artworkFileKey)
+                            val imageUrl = artworkUrls[album.artworkFileKey].orEmpty()
                             if (imageUrl.isNotEmpty()) {
                                 AsyncImage(
                                     model = imageUrl,
@@ -907,6 +914,7 @@ fun BrowseTab(
     stack: List<BrowseNode>,
     children: List<BrowseItem>,
     tracks: List<Track>,
+    artworkUrls: Map<String, String>,
     isLoading: Boolean,
     onNodeClick: (String, String) -> Unit,
     onTrackClick: (Track, List<Track>) -> Unit,
@@ -1067,6 +1075,7 @@ fun BrowseTab(
             } else if (grouped && !shuffled) {
                 BrowseGroupedTracks(
                     tracks = tracks,
+                    artworkUrls = artworkUrls,
                     pad = pad,
                     isOffline = isOffline,
                     collapsedAlbums = collapsedAlbums,
@@ -1096,6 +1105,7 @@ fun BrowseTab(
                         val isFav = favorites.any { it.type == "track" && it.identifier == track.fileKey }
                         TrackRowItem(
                             track = track,
+                            artworkUrl = artworkUrls[track.fileKey].orEmpty(),
                             isFavorite = isFav,
                             onToggleFavorite = { onToggleFavoriteTrack(track) },
                             onPlay = { onPlayTrack(track) },
@@ -1125,6 +1135,7 @@ fun BrowseTab(
 @Composable
 private fun BrowseGroupedTracks(
     tracks: List<Track>,
+    artworkUrls: Map<String, String>,
     pad: Dp,
     isOffline: Boolean,
     collapsedAlbums: MutableMap<String, Boolean>,
@@ -1181,7 +1192,6 @@ private fun BrowseGroupedTracks(
                     AlbumHeaderItem(
                         albumName = album.name,
                         artistName = artistGroup.artist,
-                        artworkFileKey = album.artworkFileKey,
                         collapsed = isCollapsed,
                         showArtwork = false,
                         onClick = { collapsedAlbums[album.groupId] = !isCollapsed },
@@ -1213,6 +1223,7 @@ private fun BrowseGroupedTracks(
                             val isFav = favorites.any { it.type == "track" && it.identifier == track.fileKey }
                             TrackRowItem(
                                 track = track,
+                                artworkUrl = artworkUrls[track.fileKey].orEmpty(),
                                 isFavorite = isFav,
                                 onToggleFavorite = { onToggleFavoriteTrack(track) },
                                 onPlay = { onPlayTrack(track) },
@@ -1342,6 +1353,7 @@ data class DownloadAlbum(
 @Composable
 fun DownloadsTab(
     tracks: List<Track>,
+    artworkUrls: Map<String, String>,
     isLoading: Boolean,
     onTrackClick: (Track, List<Track>) -> Unit,
     onPlayTracks: (List<Track>) -> Unit,
@@ -1414,7 +1426,7 @@ fun DownloadsTab(
                                     AlbumHeaderItem(
                                         albumName = firstTrack.album,
                                         artistName = firstTrack.albumArtist,
-                                        artworkFileKey = firstTrack.fileKey
+                                        artworkUrl = artworkUrls[firstTrack.fileKey].orEmpty()
                                     )
                                 }
                             }
@@ -1496,7 +1508,7 @@ fun DownloadsTab(
                                             .clip(RoundedCornerShape(4.dp))
                                             .background(AppColors.bg3)
                                     ) {
-                                        val imageUrl = LocalMcwsClient.current.buildImageUrl(album.artworkFileKey)
+                                        val imageUrl = artworkUrls[album.artworkFileKey].orEmpty()
                                         if (imageUrl.isNotEmpty()) {
                                             AsyncImage(
                                                 model = imageUrl,
@@ -1630,7 +1642,7 @@ fun DownloadsTab(
 fun AlbumHeaderItem(
     albumName: String,
     artistName: String,
-    artworkFileKey: String,
+    artworkUrl: String = "",
     modifier: Modifier = Modifier,
     collapsed: Boolean? = null,
     showArtwork: Boolean = true,
@@ -1651,10 +1663,9 @@ fun AlbumHeaderItem(
                     .clip(RoundedCornerShape(4.dp))
                     .background(AppColors.bg3)
             ) {
-                val imageUrl = LocalMcwsClient.current.buildImageUrl(artworkFileKey)
-                if (imageUrl.isNotEmpty()) {
+                if (artworkUrl.isNotEmpty()) {
                     AsyncImage(
-                        model = imageUrl,
+                        model = artworkUrl,
                         contentDescription = albumName,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -1873,6 +1884,7 @@ fun TrackActionMenu(
 @Composable
 fun FavoritesTab(
     favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>,
+    artworkUrls: Map<String, String>,
     onAlbumClick: (Album) -> Unit,
     onPlayAlbum: (Album) -> Unit,
     onPlayAlbumNext: (Album) -> Unit,
@@ -1952,6 +1964,7 @@ fun FavoritesTab(
                     }
                     AlbumRowItem(
                         album = album,
+                        artworkUrl = artworkUrls[album.artworkFileKey].orEmpty(),
                         isFavorite = true,
                         onToggleFavorite = { onToggleFavoriteAlbum(album) },
                         onPlay = { onPlayAlbum(album) },
@@ -2018,6 +2031,7 @@ fun FavoritesTab(
                     )
                     TrackRowItem(
                         track = track,
+                        artworkUrl = artworkUrls[track.fileKey].orEmpty(),
                         isFavorite = true,
                         onToggleFavorite = { onToggleFavoriteTrack(track) },
                         onPlay = { onPlayTrack(track) },
@@ -2038,6 +2052,7 @@ fun FavoritesTab(
 @Composable
 fun TrackRowItem(
     track: Track,
+    artworkUrl: String,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onPlay: () -> Unit,
@@ -2065,10 +2080,9 @@ fun TrackRowItem(
                 .clip(RoundedCornerShape(4.dp))
                 .background(AppColors.bg3)
         ) {
-            val imageUrl = LocalMcwsClient.current.buildImageUrl(track.fileKey)
-            if (imageUrl.isNotEmpty()) {
+            if (artworkUrl.isNotEmpty()) {
                 AsyncImage(
-                    model = imageUrl,
+                    model = artworkUrl,
                     contentDescription = track.name,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -2194,6 +2208,7 @@ fun TrackRowItem(
 @Composable
 fun AlbumRowItem(
     album: Album,
+    artworkUrl: String,
     isFavorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
     onPlay: () -> Unit,
@@ -2220,10 +2235,9 @@ fun AlbumRowItem(
                 .clip(RoundedCornerShape(4.dp))
                 .background(AppColors.bg3)
         ) {
-            val imageUrl = LocalMcwsClient.current.buildImageUrl(album.artworkFileKey)
-            if (imageUrl.isNotEmpty()) {
+            if (artworkUrl.isNotEmpty()) {
                 AsyncImage(
-                    model = imageUrl,
+                    model = artworkUrl,
                     contentDescription = album.name,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

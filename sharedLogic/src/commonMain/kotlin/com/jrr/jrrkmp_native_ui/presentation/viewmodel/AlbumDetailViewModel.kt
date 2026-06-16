@@ -40,6 +40,9 @@ sealed interface AlbumDetailContentState {
         val activeDownloadJobs: Map<String, String> = emptyMap(),
         val isFavorite: Boolean = false,
         val favoritedTrackKeys: Set<String> = emptySet(),
+        // Header cover URL, built by the VM (the UI no longer reaches into
+        // McwsClient). Derived from the first track's key.
+        val headerArtworkUrl: String = "",
     ) : AlbumDetailContentState
 
     data class Error(val message: String) : AlbumDetailContentState
@@ -101,6 +104,7 @@ class AlbumDetailViewModel(
             // Overlay live server play counts so the played icon reflects the
             // authoritative [Number Plays] without leaving/re-fetching the screen.
             val livePlayTracks = tracks.overlayPlayCounts(playCounts)
+            val headerArtworkUrl = facade.artworkUrl(livePlayTracks.firstOrNull()?.fileKey ?: "")
 
             _state.update { currentState ->
                 // Don't overwrite an error state with fresh data — the user
@@ -114,7 +118,8 @@ class AlbumDetailViewModel(
                             downloadedTrackKeys = downloadedKeys,
                             activeDownloadJobs = activeJobs,
                             isFavorite = favorite,
-                            favoritedTrackKeys = favoritedTrackKeys
+                            favoritedTrackKeys = favoritedTrackKeys,
+                            headerArtworkUrl = headerArtworkUrl,
                         ),
                         isOfflineMode = isOffline,
                     )

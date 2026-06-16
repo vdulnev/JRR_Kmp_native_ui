@@ -58,7 +58,6 @@ private fun tabConfig(tab: Int): RootConfig = when (tab) {
  * The shared application shell, reused by the Android host and the Compose
  * Desktop host. Platform concerns are injected:
  *  - toast/share via [LocalPlatformUi]
- *  - artwork resolution via [LocalArtworkResolver]
  *  - the window width (in dp) via [windowWidthDp] — Android passes
  *    `LocalConfiguration.current.screenWidthDp`; desktop measures the window
  *    with `BoxWithConstraints` and passes `maxWidth.value.toInt()`.

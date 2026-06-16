@@ -64,6 +64,10 @@ data class LibraryViewState(
     val browseTracks: List<Track> = emptyList(),
     val downloadedTracks: List<Track> = emptyList(),
     val favorites: List<FavoriteEntity> = emptyList(),
+    // Artwork thumbnail URLs keyed by file key, built by the VM (the UI no longer
+    // reaches into McwsClient). Covers every artwork-bearing item on the screen:
+    // album lists, browse/downloaded tracks, and the favorites tab.
+    val artworkUrls: Map<String, String> = emptyMap(),
     val artistInfoState: ArtistInfoState = ArtistInfoState.Idle,
     val artistInfoDialogArtist: String? = null,
     val artistInfoDialogState: ArtistInfoState = ArtistInfoState.Idle,
@@ -88,11 +92,36 @@ class LibraryViewModel(
     // returns the same list instances when nothing changed, so this is cheap.
     val state: StateFlow<LibraryViewState> =
         combine(_state, facade.playCounts) { s, playCounts ->
-            s.copy(
+            val withPlays = s.copy(
                 browseTracks = s.browseTracks.overlayPlayCounts(playCounts),
                 downloadedTracks = s.downloadedTracks.overlayPlayCounts(playCounts),
             )
+            withPlays.copy(artworkUrls = buildArtworkUrls(withPlays))
         }.stateIn(viewModelScope, SharingStarted.Eagerly, _state.value)
+
+    /**
+     * Resolve every artwork file key currently on screen to its thumbnail URL via
+     * [AudioPlayerFacade.artworkUrl], so the Compose layer renders artwork purely
+     * from state. Album lists key on `artworkFileKey`; track lists on `fileKey`;
+     * the favorites tab packs an album's art key into `displayName` index 5 and a
+     * track's key into `identifier` (mirrors the UI's favorite decoding).
+     */
+    private fun buildArtworkUrls(s: LibraryViewState): Map<String, String> {
+        val keys = buildSet {
+            s.randomAlbums.forEach { if (it.artworkFileKey.isNotEmpty()) add(it.artworkFileKey) }
+            s.artistAlbums.forEach { if (it.artworkFileKey.isNotEmpty()) add(it.artworkFileKey) }
+            s.browseTracks.forEach { if (it.fileKey.isNotEmpty()) add(it.fileKey) }
+            s.downloadedTracks.forEach { if (it.fileKey.isNotEmpty()) add(it.fileKey) }
+            s.favorites.forEach { fav ->
+                when (fav.type) {
+                    "track" -> if (fav.identifier.isNotEmpty()) add(fav.identifier)
+                    "album" -> fav.displayName.split("|").getOrNull(5)
+                        ?.takeIf { it.isNotEmpty() }?.let { add(it) }
+                }
+            }
+        }
+        return keys.associateWith { facade.artworkUrl(it) }
+    }
 
     init {
         log.d { "init" }

@@ -96,12 +96,8 @@ fun MiniPlayer(
                 contentAlignment = Alignment.Center
             ) {
                 if (!imageUrl.isNullOrEmpty()) {
-                    val resolver = com.jrr.jrrkmp_native_ui.presentation.LocalArtworkResolver.current
-                    val finalImageUrl = androidx.compose.runtime.remember(imageUrl, resolver) {
-                        resolver.resolve(imageUrl)
-                    }
                     AsyncImage(
-                        model = finalImageUrl,
+                        model = imageUrl,
                         contentDescription = "Artwork Thumbnail",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop

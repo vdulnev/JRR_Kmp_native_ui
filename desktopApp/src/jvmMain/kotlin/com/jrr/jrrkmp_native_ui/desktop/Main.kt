@@ -11,11 +11,8 @@ import androidx.compose.ui.window.application
 import com.arkivanov.decompose.DefaultComponentContext
 import com.arkivanov.essenty.lifecycle.LifecycleRegistry
 import com.arkivanov.essenty.lifecycle.resume
-import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.theme.JrrTheme
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
-import com.jrr.jrrkmp_native_ui.presentation.ArtworkResolver
-import com.jrr.jrrkmp_native_ui.presentation.LocalArtworkResolver
 import com.jrr.jrrkmp_native_ui.presentation.LocalPlatformUi
 import com.jrr.jrrkmp_native_ui.presentation.MainShell
 import com.jrr.jrrkmp_native_ui.presentation.PlatformUi
@@ -132,9 +129,6 @@ private fun runJrrDesktopApp() = application {
         }
     }
 
-    // Desktop has no local artwork cache yet — resolve to the remote URL as-is.
-    val artworkResolver = remember { ArtworkResolver { it } }
-
     Window(
         onCloseRequest = {
             // Remove the global media-key hook, then release libvlc (no-op if
@@ -157,8 +151,6 @@ private fun runJrrDesktopApp() = application {
     ) {
         JrrTheme {
             CompositionLocalProvider(
-                LocalMcwsClient provides container.mcwsClient,
-                LocalArtworkResolver provides artworkResolver,
                 LocalPlatformUi provides platformUi,
             ) {
                 // The shared shell takes the window width in dp to pick its
