@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
-import com.jrr.jrrkmp_native_ui.core.di.LocalMcwsClient
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.domain.model.Album
@@ -173,7 +172,7 @@ fun AlbumDetailScreen(
                 val downloadedTrackKeys = content.downloadedTrackKeys
                 val favoritedTrackKeys = content.favoritedTrackKeys
                 val activeJobs = content.activeDownloadJobs
-                val artworkUrl = tracks.firstOrNull()?.let { LocalMcwsClient.current.buildImageUrl(it.fileKey) }
+                val artworkUrl = content.headerArtworkUrl
 
                 if (isLarge) {
                     // Two columns: art + actions (left), tracklist (right).

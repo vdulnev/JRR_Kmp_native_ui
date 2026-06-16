@@ -147,6 +147,7 @@ fun LibraryLargeScreen(
                 )
                 "random" -> RandomTab(
                     albums = state.randomAlbums,
+                    artworkUrls = state.artworkUrls,
                     isLoading = state.isLoading,
                     gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
                     onAlbumClick = onAlbumClick,
@@ -164,6 +165,7 @@ fun LibraryLargeScreen(
                 "browse" -> BrowseTab(
                     stack = state.browseStack,
                     children = state.browseChildren,
+                    artworkUrls = state.artworkUrls,
                     tracks = (if (browseNotPlayedOnly) viewModel.notPlayed(state.browseTracks) else state.browseTracks)
                         .let { if (browseShuffled) viewModel.shuffle(it, browseShuffleSeed) else it },
                     isLoading = state.isLoading || state.isTabLoading,
@@ -203,6 +205,7 @@ fun LibraryLargeScreen(
                 )
                 "downloads" -> DownloadsTab(
                     tracks = state.downloadedTracks,
+                    artworkUrls = state.artworkUrls,
                     isLoading = state.isLoading,
                     onTrackClick = { clicked, all -> viewModel.playTracks(all, all.indexOf(clicked).coerceAtLeast(0)) },
                     onPlayTracks = { viewModel.playTracks(it, 0) },
@@ -217,6 +220,7 @@ fun LibraryLargeScreen(
                 )
                 "favorites" -> FavoritesTab(
                     favorites = state.favorites,
+                    artworkUrls = state.artworkUrls,
                     onAlbumClick = onAlbumClick,
                     onPlayAlbum = { viewModel.playAlbum(it) },
                     onPlayAlbumNext = { viewModel.playAlbumNext(it) },
@@ -449,6 +453,7 @@ private fun ArtistsSplit(
                             val isFavorite = state.favorites.any { it.type == "album" && it.identifier == album.albumGroupId }
                             AlbumRowItem(
                                 album = album,
+                                artworkUrl = state.artworkUrls[album.artworkFileKey].orEmpty(),
                                 isFavorite = isFavorite,
                                 onToggleFavorite = { viewModel.toggleFavoriteAlbum(album) },
                                 onPlay = { viewModel.playAlbum(album) },
