@@ -142,7 +142,6 @@ class MainActivity : ComponentActivity() {
                     LocalMcwsClient provides mcwsClient,
                     com.jrr.jrrkmp_native_ui.presentation.LocalArtworkResolver provides artworkResolver,
                     com.jrr.jrrkmp_native_ui.presentation.LocalPlatformUi provides platformUi,
-                    com.jrr.jrrkmp_native_ui.presentation.LocalDatabase provides database,
                 ) {
                     MainShell(
                         root = root,
