@@ -16,7 +16,6 @@ import com.jrr.jrrkmp_native_ui.core.theme.JrrTheme
 import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.presentation.ArtworkResolver
 import com.jrr.jrrkmp_native_ui.presentation.LocalArtworkResolver
-import com.jrr.jrrkmp_native_ui.presentation.LocalDatabase
 import com.jrr.jrrkmp_native_ui.presentation.LocalPlatformUi
 import com.jrr.jrrkmp_native_ui.presentation.MainShell
 import com.jrr.jrrkmp_native_ui.presentation.PlatformUi
@@ -161,7 +160,6 @@ private fun runJrrDesktopApp() = application {
                 LocalMcwsClient provides container.mcwsClient,
                 LocalArtworkResolver provides artworkResolver,
                 LocalPlatformUi provides platformUi,
-                LocalDatabase provides container.database,
             ) {
                 // The shared shell takes the window width in dp to pick its
                 // layout tier; measure the window with BoxWithConstraints.
