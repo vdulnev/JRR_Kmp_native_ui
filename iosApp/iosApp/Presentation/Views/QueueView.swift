@@ -16,6 +16,8 @@ class QueueObservable {
     var transientError: String?
     var downloadedTrackKeys: Set<String> = []
     var favoritedTrackKeys: Set<String> = []
+    var activeDownloadJobs: [String: String] = [:]
+    var isOfflineMode: Bool = true
 
     init(viewModel: QueueViewModel) {
         self.viewModel = viewModel
@@ -47,6 +49,8 @@ class QueueObservable {
         transientError = state.transientError
         downloadedTrackKeys = state.downloadedTrackKeys
         favoritedTrackKeys = state.favoritedTrackKeys
+        activeDownloadJobs = state.activeDownloadJobs
+        isOfflineMode = state.isOfflineMode
     }
 
     func playByIndex(index: Int) {
@@ -69,6 +73,14 @@ class QueueObservable {
         viewModel.toggleFavoriteTrack(track: track)
     }
 
+    func addTrackToFavorites(_ track: Track) {
+        viewModel.addTrackToFavorites(track: track)
+    }
+
+    func downloadTrack(_ track: Track) {
+        viewModel.downloadTrack(track: track)
+    }
+
     func clearTransientError() {
         viewModel.clearTransientError()
     }
@@ -85,6 +97,7 @@ struct QueueView: View {
     /// environment key are iOS-only; on iOS we derive an `EditMode` binding from
     /// this below, on macOS List drag-reordering works without it.
     @State private var isEditing = false
+    @State private var infoTrack: Track?
 
     init(viewModel: QueueViewModel, onBackClick: @escaping () -> Void, isRail: Bool = false) {
         _observable = State(initialValue: QueueObservable(viewModel: viewModel))
@@ -167,6 +180,7 @@ struct QueueView: View {
                         let isActive = index == observable.activeIndex
                         let isDownloaded = observable.downloadedTrackKeys.contains(track.fileKey)
                         let isFav = observable.favoritedTrackKeys.contains(track.fileKey)
+                        let isDownloading = observable.activeDownloadJobs[track.fileKey] != nil
 
                         HStack(spacing: 12) {
                             // Index / VuMeter
@@ -181,14 +195,16 @@ struct QueueView: View {
                             }
                             .frame(width: 24, alignment: .leading)
 
-                            // Track info
+                            let durationSec = track.durationMs / 1000
+
+                            // Track title, then artist and duration on the subtitle line.
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(track.name)
                                     .font(AppFont.inter(size: 15, weight: .medium))
                                     .foregroundColor(isActive ? .accentColor : .textPrimary)
                                     .lineLimit(1)
 
-                                Text(track.artist)
+                                Text("\(track.artist) • \(String(format: "%d:%02d", durationSec / 60, durationSec % 60))")
                                     .font(AppFont.inter(size: 12, weight: .regular))
                                     .foregroundColor(.textSecondary)
                                     .lineLimit(1)
@@ -212,28 +228,37 @@ struct QueueView: View {
                                 Image(systemName: "square.and.arrow.down")
                                     .font(.system(size: 14))
                                     .foregroundColor(.accentColor)
+                            } else if isDownloading {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(.accentColor)
                             }
 
-                            let durationSec = track.durationMs / 1000
-                            Text(String(format: "%d:%02d", durationSec / 60, durationSec % 60))
-                                .styleMonoLabel()
+                            Menu {
+                                Button(action: { infoTrack = track }) {
+                                    Label("Info", systemImage: "info.circle")
+                                }
+                                Button(action: { observable.addTrackToFavorites(track) }) {
+                                    Label("Add to Favorites", systemImage: "star")
+                                }
+                                .disabled(isFav)
+                                Button(action: { observable.downloadTrack(track) }) {
+                                    Label("Download", systemImage: "arrow.down.circle")
+                                }
+                                .disabled(observable.isOfflineMode || isDownloaded || isDownloading)
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.textSecondary)
+                                    .frame(width: 32, height: 32)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
                         .contentShape(Rectangle())
                         .onTapGesture {
                             if !isEditing {
                                 observable.playByIndex(index: index)
-                            }
-                        }
-                        .contextMenu {
-                            Button(action: {
-                                observable.toggleFavoriteTrack(track)
-                            }) {
-                                Label(isFav ? "Remove from Favorites" : "Add to Favorites", systemImage: isFav ? "star.fill" : "star")
-                            }
-                            Button(action: {
-                                observable.removeQueueTrack(index: index)
-                            }) {
-                                Label("Remove from Queue", systemImage: "trash")
                             }
                         }
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
@@ -263,6 +288,9 @@ struct QueueView: View {
             }
         }
         .background(Color.bg1.ignoresSafeArea())
+        .sheet(item: $infoTrack) { track in
+            InfoView(title: track.name, fields: track.toInfoFields())
+        }
         .task { await observable.observe() }
     }
 
