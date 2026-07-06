@@ -12,6 +12,7 @@ import com.jrr.jrrkmp_native_ui.data.repository.ArtistInfoRepository
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.data.repository.MULTIPLE_ARTISTS_SENTINEL
 import com.jrr.jrrkmp_native_ui.domain.model.Album
+import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import io.ktor.util.date.getTimeMillis
@@ -68,6 +69,11 @@ data class LibraryViewState(
     // reaches into McwsClient). Covers every artwork-bearing item on the screen:
     // album lists, browse/downloaded tracks, and the favorites tab.
     val artworkUrls: Map<String, String> = emptyMap(),
+    // The currently loaded track's file key (empty when nothing is loaded) and
+    // whether it is actively playing — lets every track list render the live
+    // VuMeter indicator without reading the facade directly.
+    val playingTrackFileKey: String = "",
+    val isPlaying: Boolean = false,
     val artistInfoState: ArtistInfoState = ArtistInfoState.Idle,
     val artistInfoDialogArtist: String? = null,
     val artistInfoDialogState: ArtistInfoState = ArtistInfoState.Idle,
@@ -87,14 +93,18 @@ class LibraryViewModel(
     private val _state = MutableStateFlow(LibraryViewState())
 
     // Public state overlays the live server play counts onto every track-bearing
-    // list so the played icon stays current — while keeping all screen state on
-    // this one StateFlow (the UI never reads the facade directly). The overlay
-    // returns the same list instances when nothing changed, so this is cheap.
+    // list so the played icon stays current, and mirrors the playing track +
+    // play state so rows can show the VuMeter — while keeping all screen state
+    // on this one StateFlow (the UI never reads the facade directly). The
+    // overlay returns the same list instances when nothing changed, so this is
+    // cheap.
     val state: StateFlow<LibraryViewState> =
-        combine(_state, facade.playCounts) { s, playCounts ->
+        combine(_state, facade.playCounts, facade.playerStatus) { s, playCounts, status ->
             val withPlays = s.copy(
                 browseTracks = s.browseTracks.overlayPlayCounts(playCounts),
                 downloadedTracks = s.downloadedTracks.overlayPlayCounts(playCounts),
+                playingTrackFileKey = status?.trackFileKey.orEmpty(),
+                isPlaying = status?.state == PlaybackState.PLAYING,
             )
             withPlays.copy(artworkUrls = buildArtworkUrls(withPlays))
         }.stateIn(viewModelScope, SharingStarted.Eagerly, _state.value)

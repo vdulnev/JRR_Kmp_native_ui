@@ -30,7 +30,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
+import com.jrr.jrrkmp_native_ui.domain.model.Track
+import com.jrr.jrrkmp_native_ui.presentation.components.InfoDialog
 import com.jrr.jrrkmp_native_ui.presentation.components.VuMeter
+import com.jrr.jrrkmp_native_ui.presentation.components.toInfoFields
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.QueueViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,6 +46,7 @@ fun QueueScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val platformUi = com.jrr.jrrkmp_native_ui.presentation.LocalPlatformUi.current
+    var infoTrack by remember { mutableStateOf<Track?>(null) }
 
     LaunchedEffect(state.transientError) {
         state.transientError?.let { error ->
@@ -229,7 +233,10 @@ fun QueueScreen(
                                     }
                                 }
 
-                                // Title and Artist
+                                val durationSec = track.durationMs / 1000
+                                val timeStr = "${durationSec / 60}:${(durationSec % 60).toString().padStart(2, '0')}"
+
+                                // Title, then artist and duration on the subtitle line.
                                 Column(
                                     modifier = Modifier
                                         .weight(1f)
@@ -243,7 +250,7 @@ fun QueueScreen(
                                         color = if (isActive) AppColors.accent else AppColors.text
                                     )
                                     Text(
-                                        text = track.artist,
+                                        text = "${track.artist} • $timeStr",
                                         style = AppTypography.itemSubtitle,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
@@ -253,6 +260,7 @@ fun QueueScreen(
 
                                 val isDownloaded = state.downloadedTrackKeys.contains(track.fileKey)
                                 val isFav = state.favoritedTrackKeys.contains(track.fileKey)
+                                val isDownloading = state.activeDownloadJobs[track.fileKey] != null
 
                                 if (isFav) {
                                     Icon(
@@ -285,17 +293,13 @@ fun QueueScreen(
                                             .size(16.dp)
                                             .padding(horizontal = 2.dp)
                                     )
+                                } else if (isDownloading) {
+                                    CircularProgressIndicator(
+                                        color = AppColors.accent,
+                                        modifier = Modifier.size(16.dp).padding(horizontal = 2.dp),
+                                        strokeWidth = 2.dp,
+                                    )
                                 }
-
-                                // Track duration
-                                val durationSec = track.durationMs / 1000
-                                val timeStr = "${durationSec / 60}:${(durationSec % 60).toString().padStart(2, '0')}"
-                                Text(
-                                    text = timeStr,
-                                    style = AppTypography.monoLabel,
-                                    color = AppColors.text3,
-                                    modifier = Modifier.padding(start = 8.dp)
-                                )
 
                                 Spacer(modifier = Modifier.width(8.dp))
 
@@ -318,24 +322,26 @@ fun QueueScreen(
                                         modifier = Modifier.background(AppColors.bg2)
                                     ) {
                                         DropdownMenuItem(
-                                            text = { Text("Play", style = AppTypography.itemTitle) },
+                                            text = { Text("Info", style = AppTypography.itemTitle) },
                                             onClick = {
                                                 showMenu = false
-                                                viewModel.playByIndex(index)
+                                                infoTrack = track
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text(if (isFav) "Remove from Favorites" else "Add to Favorites", style = AppTypography.itemTitle) },
+                                            text = { Text("Add to Favorites", style = AppTypography.itemTitle) },
+                                            enabled = !isFav,
                                             onClick = {
                                                 showMenu = false
-                                                viewModel.toggleFavoriteTrack(track)
+                                                viewModel.addTrackToFavorites(track)
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Remove from Queue", style = AppTypography.itemTitle) },
+                                            text = { Text("Download", style = AppTypography.itemTitle) },
+                                            enabled = !state.isOfflineMode && !isDownloaded && !isDownloading,
                                             onClick = {
                                                 showMenu = false
-                                                viewModel.removeQueueTrack(index)
+                                                viewModel.downloadTrack(track)
                                             }
                                         )
                                     }
@@ -346,5 +352,13 @@ fun QueueScreen(
                 }
             }
         }
+    }
+
+    infoTrack?.let { track ->
+        InfoDialog(
+            title = track.name,
+            fields = track.toInfoFields(),
+            onDismiss = { infoTrack = null },
+        )
     }
 }

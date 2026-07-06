@@ -35,6 +35,7 @@ import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.domain.model.Album
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.presentation.components.InfoDialog
+import com.jrr.jrrkmp_native_ui.presentation.components.VuMeter
 import com.jrr.jrrkmp_native_ui.presentation.components.toInfoFields
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.AlbumDetailContentState
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.AlbumDetailViewModel
@@ -200,7 +201,16 @@ fun AlbumDetailScreen(
                             contentPadding = PaddingValues(horizontal = 32.dp, vertical = 24.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            albumTrackItems(tracks, downloadedTrackKeys, favoritedTrackKeys, activeJobs, state.isOfflineMode, viewModel) { infoTrack = it }
+                            albumTrackItems(
+                                tracks,
+                                downloadedTrackKeys,
+                                favoritedTrackKeys,
+                                activeJobs,
+                                state.isOfflineMode,
+                                content.playingTrackFileKey,
+                                content.isPlaying,
+                                viewModel
+                            ) { infoTrack = it }
                         }
                     }
                 } else {
@@ -225,7 +235,16 @@ fun AlbumDetailScreen(
                                 Spacer(modifier = Modifier.height(24.dp))
                             }
                         }
-                        albumTrackItems(tracks, downloadedTrackKeys, favoritedTrackKeys, activeJobs, state.isOfflineMode, viewModel) { infoTrack = it }
+                        albumTrackItems(
+                            tracks,
+                            downloadedTrackKeys,
+                            favoritedTrackKeys,
+                            activeJobs,
+                            state.isOfflineMode,
+                            content.playingTrackFileKey,
+                            content.isPlaying,
+                            viewModel
+                        ) { infoTrack = it }
                     }
                 }
             }
@@ -360,6 +379,8 @@ private fun LazyListScope.albumTrackItems(
     favoritedTrackKeys: Set<String>,
     activeJobs: Map<String, String>,
     isOfflineMode: Boolean,
+    playingTrackFileKey: String,
+    isPlaying: Boolean,
     viewModel: AlbumDetailViewModel,
     onInfoTrack: (Track) -> Unit
 ) {
@@ -384,11 +405,17 @@ private fun LazyListScope.albumTrackItems(
                     .padding(vertical = 12.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = String.format("%02d", if (track.trackNumber == 0) idx + 1 else track.trackNumber),
-                    style = AppTypography.monoLabel.copy(color = AppColors.accent),
-                    modifier = Modifier.width(36.dp)
-                )
+                if (playingTrackFileKey.isNotEmpty() && track.fileKey == playingTrackFileKey) {
+                    Box(modifier = Modifier.width(36.dp)) {
+                        VuMeter(isPlaying = isPlaying)
+                    }
+                } else {
+                    Text(
+                        text = String.format("%02d", if (track.trackNumber == 0) idx + 1 else track.trackNumber),
+                        style = AppTypography.monoLabel.copy(color = AppColors.accent),
+                        modifier = Modifier.width(36.dp)
+                    )
+                }
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(track.name, style = AppTypography.itemTitle, maxLines = 1)

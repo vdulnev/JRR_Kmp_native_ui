@@ -21,6 +21,8 @@ class LibraryObservable {
     var browseTracks: [Track] = []
     var downloadedTracks: [Track] = []
     var favorites: [FavoriteEntity] = []
+    var playingTrackFileKey: String = ""
+    var isPlaying: Bool = false
     var isOffline: Bool = false
     var isLoading: Bool = false
     var isTabLoading: Bool = false
@@ -68,6 +70,8 @@ class LibraryObservable {
         browseTracks = state.browseTracks
         downloadedTracks = state.downloadedTracks
         favorites = state.favorites
+        playingTrackFileKey = state.playingTrackFileKey
+        isPlaying = state.isPlaying
         isOffline = state.isOffline
         isLoading = state.isLoading
         isTabLoading = state.isTabLoading
@@ -2224,11 +2228,16 @@ struct LibraryView: View {
 
     private func groupedTrackRowItem(track: Track, indexInAlbum: Int, action: @escaping () -> Void) -> some View {
         HStack(spacing: 12) {
-            let trackNum = track.trackNumber == 0 ? indexInAlbum + 1 : Int(track.trackNumber)
-            Text(String(format: "%02d", trackNum))
-                .styleMonoLabel()
-                .foregroundColor(.accentColor)
-                .frame(width: 24, alignment: .leading)
+            if !observable.playingTrackFileKey.isEmpty, track.fileKey == observable.playingTrackFileKey {
+                VuMeter(isPlaying: observable.isPlaying)
+                    .frame(width: 24, alignment: .leading)
+            } else {
+                let trackNum = track.trackNumber == 0 ? indexInAlbum + 1 : Int(track.trackNumber)
+                Text(String(format: "%02d", trackNum))
+                    .styleMonoLabel()
+                    .foregroundColor(.accentColor)
+                    .frame(width: 24, alignment: .leading)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(track.name)
@@ -2314,6 +2323,11 @@ struct LibraryView: View {
             .padding(.leading, 8)
 
             Spacer()
+
+            if !observable.playingTrackFileKey.isEmpty, track.fileKey == observable.playingTrackFileKey {
+                VuMeter(isPlaying: observable.isPlaying)
+                    .padding(.trailing, 4)
+            }
 
             if isFav {
                 Image(systemName: "star.fill")

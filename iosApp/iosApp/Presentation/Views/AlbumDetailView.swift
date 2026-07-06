@@ -18,6 +18,8 @@ class AlbumDetailObservable {
     var favoritedTrackKeys: Set<String> = []
     var activeDownloadJobs: [String: String] = [:]
     var isFavorite: Bool = false
+    var playingTrackFileKey: String = ""
+    var isPlaying: Bool = false
     var isLoading: Bool = true
     var isOffline: Bool = true
     var errorMessage: String?
@@ -60,6 +62,8 @@ class AlbumDetailObservable {
             favoritedTrackKeys = []
             activeDownloadJobs = [:]
             isFavorite = false
+            playingTrackFileKey = ""
+            isPlaying = false
             isLoading = true
             errorMessage = nil
         case let .success(success):
@@ -68,6 +72,8 @@ class AlbumDetailObservable {
             favoritedTrackKeys = success.favoritedTrackKeys
             activeDownloadJobs = success.activeDownloadJobs
             isFavorite = success.isFavorite
+            playingTrackFileKey = success.playingTrackFileKey
+            isPlaying = success.isPlaying
             isLoading = false
             errorMessage = nil
         case let .error(error):
@@ -76,6 +82,8 @@ class AlbumDetailObservable {
             favoritedTrackKeys = []
             activeDownloadJobs = [:]
             isFavorite = false
+            playingTrackFileKey = ""
+            isPlaying = false
             isLoading = false
             errorMessage = error.message
         }
@@ -515,10 +523,15 @@ private struct AlbumDetailContentView: View {
 
     private func trackRow(track: Track, displayIdx: Int32, sortedTracks _: [Track]) -> some View {
         HStack {
-            Text(String(format: "%02d", displayIdx))
-                .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
-                .foregroundColor(.accentColor)
-                .frame(width: 36, alignment: .leading)
+            if !observable.playingTrackFileKey.isEmpty, track.fileKey == observable.playingTrackFileKey {
+                VuMeter(isPlaying: observable.isPlaying)
+                    .frame(width: 36, alignment: .leading)
+            } else {
+                Text(String(format: "%02d", displayIdx))
+                    .font(AppFont.ibmPlexMono(size: 11, weight: .regular))
+                    .foregroundColor(.accentColor)
+                    .frame(width: 36, alignment: .leading)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(track.name)

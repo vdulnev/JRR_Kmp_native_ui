@@ -19,6 +19,7 @@ private val log = Logger.withTag("vm:Queue")
 private fun QueueViewState.summary(): String = buildString {
     append("tracks=${queueTracks.size}")
     append(" downloaded=${downloadedTrackKeys.size}")
+    append(" jobs=${activeDownloadJobs.size}")
     append(" active=$activeIndex")
     append(" playing=$isPlaying")
     append(if (isLocal) " local" else " remote")
@@ -30,10 +31,12 @@ data class QueueViewState(
     val queueTracks: List<Track> = emptyList(),
     val downloadedTrackKeys: Set<String> = emptySet(),
     val favoritedTrackKeys: Set<String> = emptySet(),
+    val activeDownloadJobs: Map<String, String> = emptyMap(),
     val activeIndex: Int = -1,
     val isPlaying: Boolean = false,
     val isLoading: Boolean = false,
     val isLocal: Boolean = true,
+    val isOfflineMode: Boolean = true,
     val transientError: String? = null
 )
 
@@ -75,7 +78,8 @@ class QueueViewModel(
                 activeIndex = activeIndex,
                 isPlaying = isPlaying,
                 isLoading = if (isLocal) false else isRemoteLoading,
-                isLocal = isLocal
+                isLocal = isLocal,
+                isOfflineMode = activeZone.isOffline || facade.currentServerHost.isNullOrEmpty(),
             )
         }
 
@@ -86,9 +90,10 @@ class QueueViewModel(
         }
         val dbFlow = combine(
             database?.downloadedTrackDao()?.getAllTracksFlow() ?: flowOf(emptyList()),
+            database?.downloadJobDao()?.getAllJobsFlow() ?: flowOf(emptyList()),
             favoritesFlow
-        ) { downloaded, favorites ->
-            Pair(downloaded, favorites)
+        ) { downloaded, jobs, favorites ->
+            Triple(downloaded, jobs, favorites)
         }
 
         combine(
@@ -96,12 +101,13 @@ class QueueViewModel(
             dbFlow,
             facade.playCounts
         ) { state, dbState, playCounts ->
-            val (downloaded, favorites) = dbState
+            val (downloaded, jobs, favorites) = dbState
             state.copy(
                 // Overlay live server play counts so the played icon stays current.
                 queueTracks = state.queueTracks.overlayPlayCounts(playCounts),
                 downloadedTrackKeys = downloaded.map { it.fileKey }.toSet(),
-                favoritedTrackKeys = favorites.filter { it.type == "track" }.map { it.identifier }.toSet()
+                favoritedTrackKeys = favorites.filter { it.type == "track" }.map { it.identifier }.toSet(),
+                activeDownloadJobs = jobs.associate { it.fileKey to it.state },
             )
         }.onEach { newState ->
             _state.value = newState
@@ -229,7 +235,52 @@ class QueueViewModel(
         }
     }
 
+    fun addTrackToFavorites(track: Track) {
+        log.d { "addTrackToFavorites(fileKey=${track.fileKey})" }
+        if (_state.value.favoritedTrackKeys.contains(track.fileKey)) return
+        val db = database
+        if (db == null) {
+            setTransientError("Favorites are not available")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                db.favoriteDao().insert(
+                    FavoriteEntity(
+                        serverId = facade.activeServerId.value,
+                        type = "track",
+                        identifier = track.fileKey,
+                        displayName = "${track.name}|${track.artist}|${track.album}|${track.durationMs}",
+                        addedAt = getTimeMillis(),
+                    ),
+                )
+                log.d { "favorite track added fileKey=${track.fileKey}" }
+            } catch (e: Exception) {
+                log.e(e) { "addTrackToFavorites failed fileKey=${track.fileKey}" }
+                setTransientError("Failed to add track to favorites: ${e.message ?: "unknown error"}")
+            }
+        }
+    }
+
+    fun downloadTrack(track: Track) {
+        log.d { "downloadTrack(fileKey=${track.fileKey})" }
+        viewModelScope.launch {
+            try {
+                libraryRepository.startDownload(track)
+            } catch (e: Exception) {
+                log.e(e) { "downloadTrack failed fileKey=${track.fileKey}" }
+                setTransientError("Failed to start download: ${e.message ?: "unknown error"}")
+            }
+        }
+    }
+
+    private fun setTransientError(message: String) {
+        log.w { message }
+        _state.update { it.copy(transientError = message) }
+    }
+
     fun clearTransientError() {
+        log.d { "clearTransientError()" }
         _state.update { it.copy(transientError = null) }
     }
 }
