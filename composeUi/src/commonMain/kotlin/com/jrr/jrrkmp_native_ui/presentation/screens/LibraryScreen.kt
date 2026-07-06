@@ -67,6 +67,7 @@ import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.presentation.BackHandler
 import com.jrr.jrrkmp_native_ui.presentation.components.AlphabetIndexBar
 import com.jrr.jrrkmp_native_ui.presentation.components.InfoDialog
+import com.jrr.jrrkmp_native_ui.presentation.components.VuMeter
 import com.jrr.jrrkmp_native_ui.presentation.components.sectionLetterFor
 import com.jrr.jrrkmp_native_ui.presentation.components.toInfoFields
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.ArtistInfoState
@@ -247,6 +248,8 @@ fun LibraryScreen(
                     stack = state.browseStack,
                     children = state.browseChildren,
                     artworkUrls = state.artworkUrls,
+                    playingTrackFileKey = state.playingTrackFileKey,
+                    isPlaying = state.isPlaying,
                     tracks = (if (browseNotPlayedOnly) viewModel.notPlayed(state.browseTracks) else state.browseTracks)
                         .let { if (browseShuffled) viewModel.shuffle(it, browseShuffleSeed) else it },
                     isLoading = state.isLoading || state.isTabLoading,
@@ -293,6 +296,8 @@ fun LibraryScreen(
                 "downloads" -> DownloadsTab(
                     tracks = state.downloadedTracks,
                     artworkUrls = state.artworkUrls,
+                    playingTrackFileKey = state.playingTrackFileKey,
+                    isPlaying = state.isPlaying,
                     isLoading = state.isLoading,
                     onTrackClick = { clickedTrack, allTracks ->
                         val startIndex = allTracks.indexOf(clickedTrack).coerceAtLeast(0)
@@ -311,6 +316,8 @@ fun LibraryScreen(
                 "favorites" -> FavoritesTab(
                     favorites = state.favorites,
                     artworkUrls = state.artworkUrls,
+                    playingTrackFileKey = state.playingTrackFileKey,
+                    isPlaying = state.isPlaying,
                     onAlbumClick = onAlbumClick,
                     onPlayAlbum = { viewModel.playAlbum(it) },
                     onPlayAlbumNext = { viewModel.playAlbumNext(it) },
@@ -915,6 +922,8 @@ fun BrowseTab(
     children: List<BrowseItem>,
     tracks: List<Track>,
     artworkUrls: Map<String, String>,
+    playingTrackFileKey: String,
+    isPlaying: Boolean,
     isLoading: Boolean,
     onNodeClick: (String, String) -> Unit,
     onTrackClick: (Track, List<Track>) -> Unit,
@@ -1076,6 +1085,8 @@ fun BrowseTab(
                 BrowseGroupedTracks(
                     tracks = tracks,
                     artworkUrls = artworkUrls,
+                    playingTrackFileKey = playingTrackFileKey,
+                    isPlaying = isPlaying,
                     pad = pad,
                     isOffline = isOffline,
                     collapsedAlbums = collapsedAlbums,
@@ -1113,6 +1124,8 @@ fun BrowseTab(
                             onAddToQueue = { onAddTrackToQueue(track) },
                             onDownload = { onDownloadTrack(track) },
                             isOffline = isOffline,
+                            isCurrentTrack = playingTrackFileKey.isNotEmpty() && track.fileKey == playingTrackFileKey,
+                            isPlaying = isPlaying,
                             onInfoClick = { onTrackInfoClick(track) },
                             onArtistInfoClick = { onTrackArtistInfoClick(track) },
                             onClick = { onTrackClick(track, tracks) }
@@ -1136,6 +1149,8 @@ fun BrowseTab(
 private fun BrowseGroupedTracks(
     tracks: List<Track>,
     artworkUrls: Map<String, String>,
+    playingTrackFileKey: String,
+    isPlaying: Boolean,
     pad: Dp,
     isOffline: Boolean,
     collapsedAlbums: MutableMap<String, Boolean>,
@@ -1231,6 +1246,8 @@ private fun BrowseGroupedTracks(
                                 onAddToQueue = { onAddTrackToQueue(track) },
                                 onDownload = { onDownloadTrack(track) },
                                 isOffline = isOffline,
+                                isCurrentTrack = playingTrackFileKey.isNotEmpty() && track.fileKey == playingTrackFileKey,
+                                isPlaying = isPlaying,
                                 onInfoClick = { onTrackInfoClick(track) },
                                 onArtistInfoClick = { onTrackArtistInfoClick(track) },
                                 onClick = { onTrackClick(track, album.tracks) }
@@ -1354,6 +1371,8 @@ data class DownloadAlbum(
 fun DownloadsTab(
     tracks: List<Track>,
     artworkUrls: Map<String, String>,
+    playingTrackFileKey: String,
+    isPlaying: Boolean,
     isLoading: Boolean,
     onTrackClick: (Track, List<Track>) -> Unit,
     onPlayTracks: (List<Track>) -> Unit,
@@ -1445,6 +1464,8 @@ fun DownloadsTab(
                                     onPlayTracksShuffled = onPlayTracksShuffled,
                                     onPlayTracksNext = onPlayTracksNext,
                                     onAddTracksToQueue = onAddTracksToQueue,
+                                    isCurrentTrack = playingTrackFileKey.isNotEmpty() && track.fileKey == playingTrackFileKey,
+                                    isPlaying = isPlaying,
                                     onInfoClick = { onTrackInfoClick(track) },
                                     onArtistInfoClick = { onTrackArtistInfoClick(track) }
                                 )
@@ -1712,6 +1733,8 @@ fun GroupedTrackRowItem(
     onPlayTracksShuffled: (List<Track>) -> Unit,
     onPlayTracksNext: (List<Track>) -> Unit,
     onAddTracksToQueue: (List<Track>) -> Unit,
+    isCurrentTrack: Boolean = false,
+    isPlaying: Boolean = false,
     onInfoClick: (() -> Unit)? = null,
     onArtistInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -1726,12 +1749,18 @@ fun GroupedTrackRowItem(
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val trackNum = if (track.trackNumber == 0) indexInAlbum + 1 else track.trackNumber
-        Text(
-            text = trackNum.toString().padStart(2, '0'),
-            style = AppTypography.monoLabel.copy(color = AppColors.accent),
-            modifier = Modifier.width(36.dp)
-        )
+        if (isCurrentTrack) {
+            Box(modifier = Modifier.width(36.dp)) {
+                VuMeter(isPlaying = isPlaying)
+            }
+        } else {
+            val trackNum = if (track.trackNumber == 0) indexInAlbum + 1 else track.trackNumber
+            Text(
+                text = trackNum.toString().padStart(2, '0'),
+                style = AppTypography.monoLabel.copy(color = AppColors.accent),
+                modifier = Modifier.width(36.dp)
+            )
+        }
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -1885,6 +1914,8 @@ fun TrackActionMenu(
 fun FavoritesTab(
     favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>,
     artworkUrls: Map<String, String>,
+    playingTrackFileKey: String,
+    isPlaying: Boolean,
     onAlbumClick: (Album) -> Unit,
     onPlayAlbum: (Album) -> Unit,
     onPlayAlbumNext: (Album) -> Unit,
@@ -2039,6 +2070,8 @@ fun FavoritesTab(
                         onAddToQueue = { onAddTrackToQueue(track) },
                         onDownload = { onDownloadTrack(track) },
                         isOffline = isOffline,
+                        isCurrentTrack = playingTrackFileKey.isNotEmpty() && track.fileKey == playingTrackFileKey,
+                        isPlaying = isPlaying,
                         onInfoClick = { onTrackInfoClick(track) },
                         onArtistInfoClick = { onTrackArtistInfoClick(track) },
                         onClick = { onTrackClick(track) }
@@ -2060,6 +2093,8 @@ fun TrackRowItem(
     onAddToQueue: () -> Unit,
     onDownload: () -> Unit,
     isOffline: Boolean,
+    isCurrentTrack: Boolean = false,
+    isPlaying: Boolean = false,
     onInfoClick: (() -> Unit)? = null,
     onArtistInfoClick: (() -> Unit)? = null,
     onClick: () -> Unit
@@ -2106,6 +2141,11 @@ fun TrackRowItem(
         }
 
         Spacer(modifier = Modifier.width(8.dp))
+
+        if (isCurrentTrack) {
+            VuMeter(isPlaying = isPlaying)
+            Spacer(modifier = Modifier.width(8.dp))
+        }
 
         if (isFavorite) {
             Icon(

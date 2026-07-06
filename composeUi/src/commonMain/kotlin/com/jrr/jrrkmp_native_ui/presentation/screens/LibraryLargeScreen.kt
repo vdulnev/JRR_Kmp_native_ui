@@ -166,6 +166,8 @@ fun LibraryLargeScreen(
                     stack = state.browseStack,
                     children = state.browseChildren,
                     artworkUrls = state.artworkUrls,
+                    playingTrackFileKey = state.playingTrackFileKey,
+                    isPlaying = state.isPlaying,
                     tracks = (if (browseNotPlayedOnly) viewModel.notPlayed(state.browseTracks) else state.browseTracks)
                         .let { if (browseShuffled) viewModel.shuffle(it, browseShuffleSeed) else it },
                     isLoading = state.isLoading || state.isTabLoading,
@@ -206,6 +208,8 @@ fun LibraryLargeScreen(
                 "downloads" -> DownloadsTab(
                     tracks = state.downloadedTracks,
                     artworkUrls = state.artworkUrls,
+                    playingTrackFileKey = state.playingTrackFileKey,
+                    isPlaying = state.isPlaying,
                     isLoading = state.isLoading,
                     onTrackClick = { clicked, all -> viewModel.playTracks(all, all.indexOf(clicked).coerceAtLeast(0)) },
                     onPlayTracks = { viewModel.playTracks(it, 0) },
@@ -221,6 +225,8 @@ fun LibraryLargeScreen(
                 "favorites" -> FavoritesTab(
                     favorites = state.favorites,
                     artworkUrls = state.artworkUrls,
+                    playingTrackFileKey = state.playingTrackFileKey,
+                    isPlaying = state.isPlaying,
                     onAlbumClick = onAlbumClick,
                     onPlayAlbum = { viewModel.playAlbum(it) },
                     onPlayAlbumNext = { viewModel.playAlbumNext(it) },

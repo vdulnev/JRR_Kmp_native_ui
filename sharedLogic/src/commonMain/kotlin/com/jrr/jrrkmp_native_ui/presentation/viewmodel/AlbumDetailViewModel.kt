@@ -10,6 +10,7 @@ import com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity
 import com.jrr.jrrkmp_native_ui.data.repository.ArtistInfoRepository
 import com.jrr.jrrkmp_native_ui.data.repository.LibraryRepository
 import com.jrr.jrrkmp_native_ui.domain.model.Album
+import com.jrr.jrrkmp_native_ui.domain.model.PlaybackState
 import com.jrr.jrrkmp_native_ui.domain.model.Track
 import com.jrr.jrrkmp_native_ui.playback.AudioPlayerFacade
 import io.ktor.util.date.getTimeMillis
@@ -43,6 +44,11 @@ sealed interface AlbumDetailContentState {
         // Header cover URL, built by the VM (the UI no longer reaches into
         // McwsClient). Derived from the first track's key.
         val headerArtworkUrl: String = "",
+        // The currently loaded track's file key (empty when nothing is loaded)
+        // and whether it is actively playing — lets the tracklist render the
+        // live VuMeter indicator without reading the facade directly.
+        val playingTrackFileKey: String = "",
+        val isPlaying: Boolean = false,
     ) : AlbumDetailContentState
 
     data class Error(val message: String) : AlbumDetailContentState
@@ -89,14 +95,23 @@ class AlbumDetailViewModel(
             Triple(downloaded, jobs, favorites)
         }
 
+        // Folded so the outer combine stays within the 5-flow typed overloads.
+        val playbackFlow = combine(
+            facade.activeZone,
+            facade.playCounts,
+            facade.playerStatus
+        ) { activeZone, playCounts, playerStatus ->
+            Triple(activeZone, playCounts, playerStatus)
+        }
+
         combine(
             tracksFlow,
             dbStateFlow,
             favoriteFlow,
-            facade.activeZone,
-            facade.playCounts
-        ) { tracks, dbState, favorite, activeZone, playCounts ->
+            playbackFlow
+        ) { tracks, dbState, favorite, playback ->
             val (downloaded, jobs, favorites) = dbState
+            val (activeZone, playCounts, playerStatus) = playback
             val downloadedKeys = downloaded.map { it.fileKey }.toSet()
             val activeJobs = jobs.associate { it.fileKey to it.state }
             val favoritedTrackKeys = favorites.filter { it.type == "track" }.map { it.identifier }.toSet()
@@ -120,6 +135,8 @@ class AlbumDetailViewModel(
                             isFavorite = favorite,
                             favoritedTrackKeys = favoritedTrackKeys,
                             headerArtworkUrl = headerArtworkUrl,
+                            playingTrackFileKey = playerStatus?.trackFileKey.orEmpty(),
+                            isPlaying = playerStatus?.state == PlaybackState.PLAYING,
                         ),
                         isOfflineMode = isOffline,
                     )
