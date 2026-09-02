@@ -20,6 +20,7 @@ class SettingsObservable {
     var localAudioQuality: LocalAudioQuality = .lossless
     var artistInfoProvider: String = "openai"
     var openAiApiKey: String = ""
+    var claudeApiKey: String = ""
     var ollamaBaseUrl: String = "http://localhost:11434"
     var ollamaModel: String = "llama3.1"
     var transientError: String?
@@ -58,6 +59,7 @@ class SettingsObservable {
         localAudioQuality = state.localAudioQuality
         artistInfoProvider = state.artistInfoProvider
         openAiApiKey = state.openAiApiKey
+        claudeApiKey = state.claudeApiKey
         ollamaBaseUrl = state.ollamaBaseUrl
         ollamaModel = state.ollamaModel
         transientError = state.transientError
@@ -81,6 +83,10 @@ class SettingsObservable {
 
     func setOpenAiApiKey(_ apiKey: String) {
         viewModel.setOpenAiApiKey(apiKey: apiKey)
+    }
+
+    func setClaudeApiKey(_ apiKey: String) {
+        viewModel.setClaudeApiKey(apiKey: apiKey)
     }
 
     func setArtistInfoProvider(_ provider: String) {
@@ -295,6 +301,7 @@ struct SettingsView: View {
                             set: { observable.setArtistInfoProvider($0) },
                         )) {
                             Text("OpenAI").tag("openai")
+                            Text("Claude").tag("claude")
                             Text("Ollama").tag("ollama")
                         }
                         .pickerStyle(.segmented)
@@ -310,6 +317,23 @@ struct SettingsView: View {
                         SecureField("API key", text: Binding(
                             get: { observable.openAiApiKey },
                             set: { observable.setOpenAiApiKey($0) },
+                        ))
+                        .autocorrectionDisabled()
+                        .font(AppFont.inter(size: 15, weight: .regular))
+                        .foregroundColor(.textPrimary)
+
+                        Text("CLAUDE API KEY")
+                            .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
+                            .foregroundColor(.textTertiary)
+                            .padding(.top, 8)
+
+                        Text("Used only when you request artist information.")
+                            .font(AppFont.inter(size: 13, weight: .regular))
+                            .foregroundColor(.textSecondary)
+
+                        SecureField("API key", text: Binding(
+                            get: { observable.claudeApiKey },
+                            set: { observable.setClaudeApiKey($0) },
                         ))
                         .autocorrectionDisabled()
                         .font(AppFont.inter(size: 15, weight: .regular))

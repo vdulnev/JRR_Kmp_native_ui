@@ -78,6 +78,7 @@ class DesktopAppContainer(private val settings: DesktopSettings) {
         ArtistInfoRepository(
             loadProvider = { settings.getArtistInfoProvider() },
             loadOpenAiApiKey = { settings.getOpenAiApiKey() },
+            loadClaudeApiKey = { settings.getClaudeApiKey() },
             loadOllamaBaseUrl = { settings.getOllamaBaseUrl() },
             loadOllamaModel = { settings.getOllamaModel() },
         )

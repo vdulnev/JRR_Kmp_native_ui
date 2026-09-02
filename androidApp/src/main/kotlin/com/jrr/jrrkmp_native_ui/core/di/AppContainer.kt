@@ -126,6 +126,7 @@ class AppContainer(context: Context) {
         ArtistInfoRepository(
             loadProvider = { prefs.getString("artist_info_provider", null) },
             loadOpenAiApiKey = { prefs.getString("openai_api_key", null) },
+            loadClaudeApiKey = { prefs.getString("claude_api_key", null) },
             loadOllamaBaseUrl = { prefs.getString("ollama_base_url", null) },
             loadOllamaModel = { prefs.getString("ollama_model", null) },
         )
