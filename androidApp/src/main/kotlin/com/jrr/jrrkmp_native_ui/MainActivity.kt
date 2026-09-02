@@ -71,6 +71,10 @@ class MainActivity : ComponentActivity() {
                         prefs.edit().putString("openai_api_key", key).apply()
                     },
                     loadOpenAiApiKey = { prefs.getString("openai_api_key", null) },
+                    saveClaudeApiKey = { key ->
+                        prefs.edit().putString("claude_api_key", key).apply()
+                    },
+                    loadClaudeApiKey = { prefs.getString("claude_api_key", null) },
                     saveOllamaBaseUrl = { baseUrl ->
                         prefs.edit().putString("ollama_base_url", baseUrl).apply()
                     },

@@ -20,6 +20,7 @@ import co.touchlab.kermit.Severity
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
 import com.jrr.jrrkmp_native_ui.core.theme.BoxBorder
+import com.jrr.jrrkmp_native_ui.data.repository.ARTIST_INFO_PROVIDER_CLAUDE
 import com.jrr.jrrkmp_native_ui.data.repository.ARTIST_INFO_PROVIDER_OLLAMA
 import com.jrr.jrrkmp_native_ui.data.repository.ARTIST_INFO_PROVIDER_OPENAI
 import com.jrr.jrrkmp_native_ui.domain.model.LocalAudioQuality
@@ -311,6 +312,7 @@ fun SettingsScreen(
                             ) {
                                 listOf(
                                     ARTIST_INFO_PROVIDER_OPENAI to "OPENAI",
+                                    ARTIST_INFO_PROVIDER_CLAUDE to "CLAUDE",
                                     ARTIST_INFO_PROVIDER_OLLAMA to "OLLAMA",
                                 ).forEach { (provider, label) ->
                                     val selected = state.artistInfoProvider == provider
@@ -359,6 +361,36 @@ fun SettingsScreen(
                             OutlinedTextField(
                                 value = state.openAiApiKey,
                                 onValueChange = { viewModel.setOpenAiApiKey(it) },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                textStyle = AppTypography.itemTitle,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AppColors.accent,
+                                    unfocusedBorderColor = AppColors.line2,
+                                    focusedTextColor = AppColors.text,
+                                    unfocusedTextColor = AppColors.text,
+                                    cursorColor = AppColors.accent,
+                                    focusedContainerColor = AppColors.bg0,
+                                    unfocusedContainerColor = AppColors.bg0
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Text(
+                                text = "CLAUDE API KEY",
+                                style = AppTypography.monoLabel,
+                                color = AppColors.text3,
+                                modifier = Modifier.padding(top = 16.dp)
+                            )
+                            Text(
+                                text = "Used only when you request artist information.",
+                                style = AppTypography.itemSubtitle,
+                                color = AppColors.text2,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                            )
+                            OutlinedTextField(
+                                value = state.claudeApiKey,
+                                onValueChange = { viewModel.setClaudeApiKey(it) },
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation(),
                                 textStyle = AppTypography.itemTitle,

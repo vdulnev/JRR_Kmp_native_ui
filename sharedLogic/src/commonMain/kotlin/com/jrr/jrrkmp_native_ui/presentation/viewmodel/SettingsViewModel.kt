@@ -41,6 +41,7 @@ private fun SettingsViewState.summary(): String = buildString {
     append(" sev=$logSeverity")
     append(" aiProvider=$artistInfoProvider")
     append(" openAiKey=${openAiApiKey.redact()}")
+    append(" claudeKey=${claudeApiKey.redact()}")
     append(" ollama=$ollamaBaseUrl/$ollamaModel")
     if (transientError != null) append(" err=$transientError")
 }
@@ -68,6 +69,8 @@ data class SettingsViewState(
     val artistInfoProvider: String = ARTIST_INFO_PROVIDER_OPENAI,
     /** User-provided OpenAI API key used for artist-info lookups. */
     val openAiApiKey: String = "",
+    /** User-provided Claude (Anthropic) API key used for artist-info lookups. */
+    val claudeApiKey: String = "",
     /** Ollama endpoint used for local artist-info lookups. */
     val ollamaBaseUrl: String = DEFAULT_OLLAMA_BASE_URL,
     /** Ollama model used for local artist-info lookups. */
@@ -84,6 +87,8 @@ class SettingsViewModel(
     private val loadArtistInfoProvider: () -> String? = { null },
     private val saveOpenAiApiKey: (String?) -> Unit = {},
     private val loadOpenAiApiKey: () -> String? = { null },
+    private val saveClaudeApiKey: (String?) -> Unit = {},
+    private val loadClaudeApiKey: () -> String? = { null },
     private val saveOllamaBaseUrl: (String?) -> Unit = {},
     private val loadOllamaBaseUrl: () -> String? = { null },
     private val saveOllamaModel: (String?) -> Unit = {},
@@ -97,6 +102,7 @@ class SettingsViewModel(
             artistInfoProvider = loadArtistInfoProvider()?.trim()?.ifEmpty { null }
                 ?: ARTIST_INFO_PROVIDER_OPENAI,
             openAiApiKey = loadOpenAiApiKey().orEmpty(),
+            claudeApiKey = loadClaudeApiKey().orEmpty(),
             ollamaBaseUrl = loadOllamaBaseUrl()?.trim()?.ifEmpty { null }
                 ?: DEFAULT_OLLAMA_BASE_URL,
             ollamaModel = loadOllamaModel()?.trim()?.ifEmpty { null }
@@ -216,6 +222,13 @@ class SettingsViewModel(
         log.i { "setOpenAiApiKey(${cleaned.redact()})" }
         saveOpenAiApiKey(cleaned.ifEmpty { null })
         _state.update { it.copy(openAiApiKey = cleaned) }
+    }
+
+    fun setClaudeApiKey(apiKey: String) {
+        val cleaned = apiKey.trim()
+        log.i { "setClaudeApiKey(${cleaned.redact()})" }
+        saveClaudeApiKey(cleaned.ifEmpty { null })
+        _state.update { it.copy(claudeApiKey = cleaned) }
     }
 
     fun setArtistInfoProvider(provider: String) {

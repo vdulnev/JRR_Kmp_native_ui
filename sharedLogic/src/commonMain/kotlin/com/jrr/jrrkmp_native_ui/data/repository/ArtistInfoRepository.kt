@@ -7,6 +7,7 @@ import com.jrr.jrrkmp_native_ui.domain.model.ArtistInfo
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -28,6 +29,7 @@ class ArtistInfoRepository(
     private val httpClient: HttpClient = createMcwsHttpClient(),
     private val loadProvider: () -> String? = { ARTIST_INFO_PROVIDER_OPENAI },
     private val loadOpenAiApiKey: () -> String?,
+    private val loadClaudeApiKey: () -> String? = { null },
     private val loadOllamaBaseUrl: () -> String? = { DEFAULT_OLLAMA_BASE_URL },
     private val loadOllamaModel: () -> String? = { DEFAULT_OLLAMA_MODEL },
 ) {
@@ -39,12 +41,14 @@ class ArtistInfoRepository(
     constructor(
         loadProvider: () -> String?,
         loadOpenAiApiKey: () -> String?,
+        loadClaudeApiKey: () -> String?,
         loadOllamaBaseUrl: () -> String?,
         loadOllamaModel: () -> String?,
     ) : this(
         httpClient = createMcwsHttpClient(),
         loadProvider = loadProvider,
         loadOpenAiApiKey = loadOpenAiApiKey,
+        loadClaudeApiKey = loadClaudeApiKey,
         loadOllamaBaseUrl = loadOllamaBaseUrl,
         loadOllamaModel = loadOllamaModel,
     )
@@ -59,6 +63,7 @@ class ArtistInfoRepository(
         log.d { "getArtistInfo(artist=$artistName)" }
         return when (loadProvider().normalizedProvider()) {
             ARTIST_INFO_PROVIDER_OLLAMA -> getArtistInfoFromOllama(artistName)
+            ARTIST_INFO_PROVIDER_CLAUDE -> getArtistInfoFromClaude(artistName)
             else -> getArtistInfoFromOpenAi(artistName)
         }
     }
@@ -89,6 +94,36 @@ class ArtistInfoRepository(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             log.e(e) { "getArtistInfo failed artist=$artistName apiKey=${apiKey.redact()}" }
+            throw e
+        }
+    }
+
+    private suspend fun getArtistInfoFromClaude(artistName: String): ArtistInfo {
+        val apiKey = loadClaudeApiKey()?.trim().orEmpty()
+        if (apiKey.isEmpty()) {
+            throw IllegalStateException("Add a Claude API key in Settings first")
+        }
+
+        try {
+            val response = httpClient.post("https://api.anthropic.com/v1/messages") {
+                header("x-api-key", apiKey)
+                header("anthropic-version", ANTHROPIC_API_VERSION)
+                contentType(ContentType.Application.Json)
+                setBody(buildClaudeRequestBody(artistName))
+            }.body<ClaudeResponse>()
+
+            val content = response.firstTextOutput()
+                ?: throw IllegalStateException("Claude response did not include artist info")
+
+            val info = json.decodeFromString<ArtistInfoPayload>(content.extractJsonObject())
+            return ArtistInfo(
+                artistName = info.artistName.ifBlank { artistName },
+                shortBio = info.shortBio,
+                bestAlbums = info.bestAlbums,
+            )
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            log.e(e) { "getArtistInfoFromClaude failed artist=$artistName apiKey=${apiKey.redact()}" }
             throw e
         }
     }
@@ -133,6 +168,34 @@ class ArtistInfoRepository(
             "For the music artist \"$artistName\", write a short 2-3 sentence bio and list 5 widely regarded best albums. Prefer studio albums. Return only JSON.",
         )
         putJsonSchema()
+    }
+
+    private fun buildClaudeRequestBody(artistName: String): JsonObject = buildJsonObject {
+        put("model", CLAUDE_MODEL)
+        put("max_tokens", 1024)
+        put("system", "You are a concise music reference assistant. Return factual, neutral artist information.")
+        put(
+            "messages",
+            buildJsonArray {
+                add(
+                    buildJsonObject {
+                        put("role", "user")
+                        put(
+                            "content",
+                            """
+                            For the music artist "$artistName", write a short 2-3 sentence bio and list 5 widely regarded best albums.
+                            Prefer studio albums. Respond with only a JSON object (no prose, no markdown fences) with exactly these keys:
+                            {
+                              "artist_name": "Artist name",
+                              "short_bio": "Short bio",
+                              "best_albums": ["Album 1", "Album 2", "Album 3", "Album 4", "Album 5"]
+                            }
+                            """.trimIndent(),
+                        )
+                    },
+                )
+            },
+        )
     }
 
     private fun buildOllamaRequestBody(artistName: String, model: String): JsonObject = buildJsonObject {
@@ -205,16 +268,39 @@ class ArtistInfoRepository(
         output.asSequence()
             .flatMap { item -> item.content.asSequence() }
             .firstNotNullOfOrNull { content -> content.text }
+
+    private fun ClaudeResponse.firstTextOutput(): String? =
+        content.firstNotNullOfOrNull { block -> block.text?.takeIf { it.isNotBlank() } }
+
+    /**
+     * Claude returns plain text, and despite the "JSON only" instruction may wrap
+     * the object in prose or ```json fences. Narrow to the outermost `{…}` so the
+     * payload decodes cleanly.
+     */
+    private fun String.extractJsonObject(): String {
+        val start = indexOf('{')
+        val end = lastIndexOf('}')
+        return if (start in 0 until end) substring(start, end + 1) else this
+    }
 }
 
 const val ARTIST_INFO_PROVIDER_OPENAI = "openai"
+const val ARTIST_INFO_PROVIDER_CLAUDE = "claude"
 const val ARTIST_INFO_PROVIDER_OLLAMA = "ollama"
 const val DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 const val DEFAULT_OLLAMA_MODEL = "llama3.1"
 
+/** Anthropic Messages API version pin (sent as the `anthropic-version` header). */
+private const val ANTHROPIC_API_VERSION = "2023-06-01"
+
+/** Claude model used for artist-info lookups — the fast, low-cost tier is ample
+ *  for a short factual bio + album list. */
+private const val CLAUDE_MODEL = "claude-haiku-4-5-20251001"
+
 private fun String?.normalizedProvider(): String =
     when (this?.trim()?.lowercase()) {
         ARTIST_INFO_PROVIDER_OLLAMA -> ARTIST_INFO_PROVIDER_OLLAMA
+        ARTIST_INFO_PROVIDER_CLAUDE -> ARTIST_INFO_PROVIDER_CLAUDE
         else -> ARTIST_INFO_PROVIDER_OPENAI
     }
 
@@ -234,6 +320,17 @@ private data class OpenAiContent(
     val type: String? = null,
     val text: String? = null,
     @SerialName("refusal") val refusal: String? = null,
+)
+
+@Serializable
+private data class ClaudeResponse(
+    val content: List<ClaudeContent> = emptyList(),
+)
+
+@Serializable
+private data class ClaudeContent(
+    val type: String? = null,
+    val text: String? = null,
 )
 
 @Serializable

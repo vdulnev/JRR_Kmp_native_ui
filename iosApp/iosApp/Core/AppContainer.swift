@@ -88,6 +88,9 @@ final class AppContainer {
             loadOpenAiApiKey: {
                 UserDefaults.standard.string(forKey: "openai_api_key")
             },
+            loadClaudeApiKey: {
+                UserDefaults.standard.string(forKey: "claude_api_key")
+            },
             loadOllamaBaseUrl: {
                 UserDefaults.standard.string(forKey: "ollama_base_url")
             },
@@ -208,6 +211,16 @@ final class AppContainer {
                     },
                     loadOpenAiApiKey: {
                         UserDefaults.standard.string(forKey: "openai_api_key")
+                    },
+                    saveClaudeApiKey: { apiKey in
+                        if let apiKey {
+                            UserDefaults.standard.set(apiKey, forKey: "claude_api_key")
+                        } else {
+                            UserDefaults.standard.removeObject(forKey: "claude_api_key")
+                        }
+                    },
+                    loadClaudeApiKey: {
+                        UserDefaults.standard.string(forKey: "claude_api_key")
                     },
                     saveOllamaBaseUrl: { baseUrl in
                         if let baseUrl {

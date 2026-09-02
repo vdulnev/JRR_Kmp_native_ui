@@ -32,6 +32,11 @@ class DesktopSettings : MainShellSettings {
         if (value == null) prefs.remove(KEY_OPENAI_API_KEY) else prefs.put(KEY_OPENAI_API_KEY, value)
     }
 
+    fun getClaudeApiKey(): String? = prefs.get(KEY_CLAUDE_API_KEY, null)
+    fun setClaudeApiKey(value: String?) {
+        if (value == null) prefs.remove(KEY_CLAUDE_API_KEY) else prefs.put(KEY_CLAUDE_API_KEY, value)
+    }
+
     fun getOllamaBaseUrl(): String? = prefs.get(KEY_OLLAMA_BASE_URL, null)
     fun setOllamaBaseUrl(value: String?) {
         if (value == null) prefs.remove(KEY_OLLAMA_BASE_URL) else prefs.put(KEY_OLLAMA_BASE_URL, value)
@@ -48,6 +53,7 @@ class DesktopSettings : MainShellSettings {
         const val KEY_AUDIO_QUALITY = "local_audio_quality"
         const val KEY_ARTIST_INFO_PROVIDER = "artist_info_provider"
         const val KEY_OPENAI_API_KEY = "openai_api_key"
+        const val KEY_CLAUDE_API_KEY = "claude_api_key"
         const val KEY_OLLAMA_BASE_URL = "ollama_base_url"
         const val KEY_OLLAMA_MODEL = "ollama_model"
     }
