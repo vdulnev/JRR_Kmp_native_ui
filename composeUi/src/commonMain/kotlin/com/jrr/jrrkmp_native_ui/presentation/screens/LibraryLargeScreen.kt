@@ -436,25 +436,28 @@ private fun ArtistsSplit(
                         }
                     }
                     Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            ArtistInfoBlock(
-                                artistName = selected,
-                                artistInfoState = state.artistInfoState,
-                                onLoad = { viewModel.loadArtistInfo() },
-                            )
-                            ListFilterField(
-                                value = albumFilter,
-                                onValueChange = { albumFilter = it },
-                                placeholder = "Filter albums",
-                                collapsed = false,
-                            )
-                        }
+                        ListFilterField(
+                            value = albumFilter,
+                            onValueChange = { albumFilter = it },
+                            placeholder = "Filter albums",
+                            collapsed = false,
+                        )
                     }
+                    // The artist profile rides along as the list header rather
+                    // than sitting in a fixed block above it — a full
+                    // discography is far taller than the pane.
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = 32.dp, end = 32.dp, top = 12.dp, bottom = 32.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
+                        item {
+                            ArtistInfoBlock(
+                                artistName = selected,
+                                artistInfoState = state.artistInfoState,
+                                onLoad = { viewModel.loadArtistInfo() },
+                            )
+                        }
                         items(albums) { album ->
                             val isFavorite = state.favorites.any { it.type == "album" && it.identifier == album.albumGroupId }
                             AlbumRowItem(

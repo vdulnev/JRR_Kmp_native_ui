@@ -8,22 +8,34 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import com.jrr.jrrkmp_native_ui.core.theme.AppColors
 import com.jrr.jrrkmp_native_ui.core.theme.AppTypography
+import com.jrr.jrrkmp_native_ui.domain.model.ArtistInfo
+import com.jrr.jrrkmp_native_ui.domain.model.DiscographyAlbum
+import com.jrr.jrrkmp_native_ui.presentation.LocalPlatformUi
 import com.jrr.jrrkmp_native_ui.presentation.viewmodel.ArtistInfoState
 
 @Composable
@@ -42,11 +54,19 @@ internal fun ArtistInfoDialog(
         },
         containerColor = AppColors.bg1,
         text = {
-            ArtistInfoBlock(
-                artistName = artistName,
-                artistInfoState = artistInfoState,
-                onLoad = onLoad,
-            )
+            // A full discography easily runs past the dialog height, so the body
+            // scrolls inside the fixed-height dialog rather than being clipped.
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                ArtistInfoBlock(
+                    artistName = artistName,
+                    artistInfoState = artistInfoState,
+                    onLoad = onLoad,
+                )
+            }
         },
     )
 }
@@ -58,6 +78,14 @@ internal fun ArtistInfoBlock(
     onLoad: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val platformUi = LocalPlatformUi.current
+    // LocalClipboardManager is deprecated in favor of the suspend Clipboard
+    // API, but Compose Multiplatform 1.11 has no commonMain ClipEntry factory
+    // yet, so plain-text copies can't migrate in shared code (same as
+    // InfoDialog).
+    @Suppress("DEPRECATION")
+    val clipboardManager = LocalClipboardManager.current
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -81,7 +109,7 @@ internal fun ArtistInfoBlock(
         when (artistInfoState) {
             ArtistInfoState.Idle -> {
                 Text(
-                    text = "Get a short bio and essential albums.",
+                    text = "Get the full story: career history and every album they released.",
                     style = AppTypography.itemSubtitle,
                     color = AppColors.text2,
                     modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
@@ -106,7 +134,11 @@ internal fun ArtistInfoBlock(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp
                     )
-                    Text("Loading artist info", style = AppTypography.itemSubtitle, color = AppColors.text2)
+                    Text(
+                        text = "Researching the discography…",
+                        style = AppTypography.itemSubtitle,
+                        color = AppColors.text2,
+                    )
                 }
             }
             is ArtistInfoState.Error -> {
@@ -127,29 +159,111 @@ internal fun ArtistInfoBlock(
             }
             is ArtistInfoState.Success -> {
                 val info = artistInfoState.info
+                // Drag-select any passage; the buttons stay outside the
+                // container so a long-press on them still reads as a click.
+                SelectionContainer {
+                    Column { ArtistInfoContent(info) }
+                }
+                Row(
+                    modifier = Modifier.align(Alignment.End),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    TextButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(info.plainText()))
+                            platformUi.showToast("Copied artist info")
+                        },
+                    ) {
+                        Text("COPY", style = AppTypography.chipMono, color = AppColors.accent)
+                    }
+                    TextButton(onClick = onLoad) {
+                        Text("REFRESH", style = AppTypography.chipMono, color = AppColors.accent)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArtistInfoContent(info: ArtistInfo) {
+    if (info.summaryLine.isNotBlank()) {
+        Text(
+            text = info.summaryLine,
+            style = AppTypography.monoLabel,
+            color = AppColors.text3,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+    }
+
+    // The model writes the biography as blank-line-separated paragraphs; keep
+    // that structure instead of rendering one dense wall of text.
+    info.biography.split("\n\n")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .forEach { paragraph ->
+            Text(
+                text = paragraph,
+                style = AppTypography.itemSubtitle,
+                color = AppColors.text2,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+        }
+
+    if (info.discography.isEmpty()) return
+
+    Spacer(modifier = Modifier.height(16.dp))
+    Text(
+        text = "Discography · ${info.discography.size} releases".uppercase(),
+        style = AppTypography.monoLabel,
+        color = AppColors.text3
+    )
+
+    info.discography.forEachIndexed { index, album ->
+        if (index > 0) {
+            HorizontalDivider(
+                color = AppColors.line2,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
+        DiscographyRow(album)
+    }
+}
+
+@Composable
+private fun DiscographyRow(album: DiscographyAlbum) {
+    Row(modifier = Modifier.padding(top = 12.dp)) {
+        Text(
+            text = album.year.ifBlank { "—" },
+            style = AppTypography.monoLabel,
+            color = AppColors.accent,
+            modifier = Modifier.width(48.dp)
+        )
+        Column {
+            Text(text = album.title, style = AppTypography.itemTitle, color = AppColors.text)
+            if (album.kind.isNotBlank()) {
                 Text(
-                    text = info.shortBio,
+                    text = album.kind.uppercase(),
+                    style = AppTypography.monoLabel,
+                    color = AppColors.text3,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            if (album.history.isNotBlank()) {
+                Text(
+                    text = album.history,
                     style = AppTypography.itemSubtitle,
                     color = AppColors.text2,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 4.dp)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+            }
+            if (album.insight.isNotBlank()) {
                 Text(
-                    text = "Best albums".uppercase(),
-                    style = AppTypography.monoLabel,
-                    color = AppColors.text3
+                    text = album.insight,
+                    style = AppTypography.itemSubtitle.copy(fontStyle = FontStyle.Italic),
+                    color = AppColors.text3,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
-                info.bestAlbums.forEach { album ->
-                    Text(
-                        text = album,
-                        style = AppTypography.itemTitle,
-                        color = AppColors.text,
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
-                }
-                TextButton(onClick = onLoad, modifier = Modifier.align(Alignment.End)) {
-                    Text("REFRESH", style = AppTypography.chipMono, color = AppColors.accent)
-                }
             }
         }
     }
