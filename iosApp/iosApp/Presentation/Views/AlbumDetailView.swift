@@ -373,7 +373,7 @@ private struct AlbumDetailContentView: View {
                 HStack(spacing: 10) {
                     ProgressView()
                         .tint(.accentColor)
-                    Text("Loading artist info")
+                    Text("Researching the discography…")
                         .styleItemSubtitle()
                 }
                 .padding(.top, 4)
@@ -388,18 +388,8 @@ private struct AlbumDetailContentView: View {
                 .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                 .foregroundColor(.accentColor)
             } else if let info = observable.artistInfo {
-                Text(info.shortBio)
-                    .styleItemSubtitle()
+                ArtistInfoContentView(info: info)
                     .padding(.top, 4)
-                Text("BEST ALBUMS")
-                    .styleSectionLabel()
-                    .foregroundColor(.textTertiary)
-                    .padding(.top, 4)
-                ForEach(info.bestAlbums, id: \.self) { album in
-                    Text(album)
-                        .styleItemTitle()
-                        .lineLimit(1)
-                }
                 Button("REFRESH") {
                     observable.reloadArtistInfoDialog()
                 }

@@ -535,7 +535,7 @@ struct LibraryView: View {
                 HStack(spacing: 10) {
                     ProgressView()
                         .tint(.accentColor)
-                    Text("Loading artist info")
+                    Text("Researching the discography…")
                         .styleItemSubtitle()
                 }
                 .padding(.top, 4)
@@ -550,18 +550,8 @@ struct LibraryView: View {
                 .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                 .foregroundColor(.accentColor)
             } else if let info = observable.artistInfoDialog {
-                Text(info.shortBio)
-                    .styleItemSubtitle()
+                ArtistInfoContentView(info: info)
                     .padding(.top, 4)
-                Text("BEST ALBUMS")
-                    .styleSectionLabel()
-                    .foregroundColor(.textTertiary)
-                    .padding(.top, 4)
-                ForEach(info.bestAlbums, id: \.self) { album in
-                    Text(album)
-                        .styleItemTitle()
-                        .lineLimit(1)
-                }
                 Button("REFRESH") {
                     observable.reloadArtistInfoDialog()
                 }
@@ -901,10 +891,6 @@ struct LibraryView: View {
             .padding(.top, 22)
             .padding(.bottom, 8)
 
-            artistInfoCard(artist: artist)
-                .padding(.horizontal, AppSpacing.screenHorizontalMargin)
-                .padding(.bottom, 12)
-
             // Filter for this artist's albums (independent of the master list).
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
@@ -938,7 +924,12 @@ struct LibraryView: View {
                     albumFilterText.isEmpty || $0.name.range(of: albumFilterText, options: .caseInsensitive) != nil
                 }
                 ScrollView {
+                    // The artist profile rides along as the list header rather
+                    // than sitting in a fixed block above it — a full
+                    // discography is far taller than the pane.
                     LazyVStack(spacing: 8) {
+                        artistInfoCard(artist: artist)
+
                         ForEach(displayAlbums, id: \.albumGroupId) { album in
                             albumRowItem(album: album) { onAlbumClick(album) }
                         }
@@ -964,7 +955,7 @@ struct LibraryView: View {
                 HStack(spacing: 10) {
                     ProgressView()
                         .tint(.accentColor)
-                    Text("Loading artist info")
+                    Text("Researching the discography…")
                         .styleItemSubtitle()
                 }
                 .padding(.top, 4)
@@ -979,25 +970,15 @@ struct LibraryView: View {
                 .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                 .foregroundColor(.accentColor)
             } else if let info = observable.artistInfo {
-                Text(info.shortBio)
-                    .styleItemSubtitle()
+                ArtistInfoContentView(info: info)
                     .padding(.top, 4)
-                Text("BEST ALBUMS")
-                    .styleSectionLabel()
-                    .foregroundColor(.textTertiary)
-                    .padding(.top, 4)
-                ForEach(info.bestAlbums, id: \.self) { album in
-                    Text(album)
-                        .styleItemTitle()
-                        .lineLimit(1)
-                }
                 Button("REFRESH") {
                     observable.loadArtistInfo()
                 }
                 .font(AppFont.ibmPlexMono(size: 11, weight: .bold))
                 .foregroundColor(.accentColor)
             } else {
-                Text("Get a short bio and essential albums.")
+                Text("Get the full story: career history and every album they released.")
                     .styleItemSubtitle()
                     .padding(.top, 4)
                 Button("GET INFO") {
