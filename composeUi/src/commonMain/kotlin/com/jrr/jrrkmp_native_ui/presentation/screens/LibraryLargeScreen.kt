@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -398,7 +399,15 @@ private fun ArtistsSplit(
             } else {
                 // Album filter local to the detail pane, independent of the
                 // master artist filter. Reset when the selected artist changes.
-                var albumFilter by remember(selected) { mutableStateOf("") }
+                //
+                // Saveable, not a plain `remember`: opening an album pushes the
+                // detail child, which *disposes* this screen (MainShell composes
+                // only the active child), so a plain remember would re-init to ""
+                // on the way back and silently drop the user's filter. The
+                // SaveableStateProvider MainShell wraps each Library child in
+                // keeps this across the push/pop, exactly as it does the list
+                // scroll position.
+                var albumFilter by rememberSaveable(selected) { mutableStateOf("") }
                 val albums = remember(state.artistAlbums, albumFilter) {
                     if (albumFilter.isBlank()) state.artistAlbums
                     else state.artistAlbums.filter { it.name.contains(albumFilter, ignoreCase = true) }

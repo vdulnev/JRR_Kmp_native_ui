@@ -8,6 +8,7 @@ import com.jrr.jrrkmp_native_ui.presentation.viewmodel.MainShellSettings
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -187,6 +188,25 @@ class RootComponentTest {
         library.back()
         assertEquals(1, library.stack.value.items.size)
         assertIs<LibraryComponent.Child.List>(library.stack.value.active.instance)
+    }
+
+    @Test
+    fun libraryListChild_isSameInstanceAfterOpenAlbumAndBack() {
+        // The list child must be *retained* while a detail is pushed on top, not
+        // rebuilt on the way back: its retained LibraryViewModel carries the
+        // artists/albums drill-down and the quick type-to-filter, so a rebuilt
+        // child would silently reset the filter when returning from an album.
+        val root = root(initial = RootConfig.Library)
+        val library = root.libraryComponent()
+        val listBefore = library.stack.value.active.instance
+        assertIs<LibraryComponent.Child.List>(listBefore)
+
+        library.openAlbum(album("A Love Supreme", "D:\\music\\als"))
+        library.back()
+
+        val listAfter = library.stack.value.active.instance
+        assertIs<LibraryComponent.Child.List>(listAfter)
+        assertSame(listBefore, listAfter)
     }
 
     // ---- Player sub-stack: queue open/close ----
