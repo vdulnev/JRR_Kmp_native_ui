@@ -65,6 +65,9 @@ internal fun ArtistInfoDialog(
                     artistName = artistName,
                     artistInfoState = artistInfoState,
                     onLoad = onLoad,
+                    // The dialog has a single action and the VM already forces a
+                    // re-fetch for it, so load and refresh are the same call here.
+                    onRefresh = onLoad,
                 )
             }
         },
@@ -75,7 +78,10 @@ internal fun ArtistInfoDialog(
 internal fun ArtistInfoBlock(
     artistName: String,
     artistInfoState: ArtistInfoState,
+    /** First look at this artist — served from the cache when one is stored. */
     onLoad: () -> Unit,
+    /** Re-ask the model and replace the cached profile. */
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val platformUi = LocalPlatformUi.current
@@ -149,7 +155,9 @@ internal fun ArtistInfoBlock(
                     modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
                 )
                 Button(
-                    onClick = onLoad,
+                    // Force a re-fetch: after a failed refresh, quietly handing
+                    // back the stale cached profile would look like a no-op.
+                    onClick = onRefresh,
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.bg0),
                     border = ButtonDefaults.outlinedButtonBorder(enabled = true),
                     modifier = Modifier.fillMaxWidth()
@@ -176,7 +184,7 @@ internal fun ArtistInfoBlock(
                     ) {
                         Text("COPY", style = AppTypography.chipMono, color = AppColors.accent)
                     }
-                    TextButton(onClick = onLoad) {
+                    TextButton(onClick = onRefresh) {
                         Text("REFRESH", style = AppTypography.chipMono, color = AppColors.accent)
                     }
                 }

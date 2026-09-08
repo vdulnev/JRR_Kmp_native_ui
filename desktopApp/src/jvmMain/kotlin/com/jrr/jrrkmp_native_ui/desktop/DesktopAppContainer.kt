@@ -81,6 +81,9 @@ class DesktopAppContainer(private val settings: DesktopSettings) {
             loadClaudeApiKey = { settings.getClaudeApiKey() },
             loadOllamaBaseUrl = { settings.getOllamaBaseUrl() },
             loadOllamaModel = { settings.getOllamaModel() },
+            // Profiles are cached in Room, so re-opening an artist is instant
+            // and free; the Refresh button re-asks the model.
+            cacheDao = database.artistInfoCacheDao(),
         )
     }
 }

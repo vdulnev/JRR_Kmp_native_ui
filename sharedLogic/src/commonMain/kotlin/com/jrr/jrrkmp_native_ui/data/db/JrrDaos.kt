@@ -144,3 +144,19 @@ interface DownloadJobDao {
     suspend fun deleteUnfinishedJobs(): Int
 }
 
+@Dao
+interface ArtistInfoCacheDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: ArtistInfoCacheEntity)
+
+    @Query("SELECT * FROM artist_info_cache WHERE artist_key = :artistKey AND provider = :provider LIMIT 1")
+    suspend fun get(artistKey: String, provider: String): ArtistInfoCacheEntity?
+
+    @Query("DELETE FROM artist_info_cache WHERE artist_key = :artistKey AND provider = :provider")
+    suspend fun delete(artistKey: String, provider: String)
+
+    /** Wipe every cached profile — backs a "clear AI cache" action in Settings. */
+    @Query("DELETE FROM artist_info_cache")
+    suspend fun deleteAll()
+}
+

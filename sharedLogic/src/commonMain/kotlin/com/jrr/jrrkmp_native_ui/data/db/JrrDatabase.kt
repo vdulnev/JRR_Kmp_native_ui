@@ -13,9 +13,10 @@ import com.jrr.jrrkmp_native_ui.data.db.entity.*
         LocalQueueTrackEntity::class,
         LocalQueueStateEntity::class,
         DownloadedTrackEntity::class,
-        DownloadJobEntity::class
+        DownloadJobEntity::class,
+        ArtistInfoCacheEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @ConstructedBy(JrrDatabaseConstructor::class)
@@ -27,6 +28,7 @@ abstract class JrrDatabase : RoomDatabase() {
     abstract fun localQueueStateDao(): LocalQueueStateDao
     abstract fun downloadedTrackDao(): DownloadedTrackDao
     abstract fun downloadJobDao(): DownloadJobDao
+    abstract fun artistInfoCacheDao(): ArtistInfoCacheDao
 }
 
 @Suppress("NO_ACTUAL_FOR_EXPECT", "KotlinNoActualForExpect")

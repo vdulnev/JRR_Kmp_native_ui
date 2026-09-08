@@ -3,6 +3,8 @@ package com.jrr.jrrkmp_native_ui.data.repository
 import co.touchlab.kermit.Logger
 import com.jrr.jrrkmp_native_ui.core.logging.redact
 import com.jrr.jrrkmp_native_ui.data.api.createMcwsHttpClient
+import com.jrr.jrrkmp_native_ui.data.db.ArtistInfoCacheDao
+import com.jrr.jrrkmp_native_ui.data.db.entity.ArtistInfoCacheEntity
 import com.jrr.jrrkmp_native_ui.domain.model.ArtistInfo
 import com.jrr.jrrkmp_native_ui.domain.model.DiscographyAlbum
 import io.ktor.client.HttpClient
@@ -14,8 +16,10 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.util.date.getTimeMillis
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -35,6 +39,11 @@ class ArtistInfoRepository(
     private val loadClaudeApiKey: () -> String? = { null },
     private val loadOllamaBaseUrl: () -> String? = { DEFAULT_OLLAMA_BASE_URL },
     private val loadOllamaModel: () -> String? = { DEFAULT_OLLAMA_MODEL },
+    /**
+     * Persistent profile cache. Optional: passing null (the default, and what the
+     * Swift host's constructor gets) simply means every lookup hits the provider.
+     */
+    private val cacheDao: ArtistInfoCacheDao? = null,
 ) {
     constructor(loadOpenAiApiKey: () -> String?) : this(
         httpClient = createMcwsHttpClient(),
@@ -76,12 +85,99 @@ class ArtistInfoRepository(
         isLenient = true
     }
 
-    suspend fun getArtistInfo(artistName: String): ArtistInfo {
-        log.d { "getArtistInfo(artist=$artistName)" }
-        return when (loadProvider().normalizedProvider()) {
+    /**
+     * A profile for [artistName], served from the cache when one is stored for
+     * the active provider. [forceRefresh] skips the read and re-asks the model,
+     * overwriting whatever was cached — that is what the Refresh button does.
+     *
+     * A cache write failure never fails the call: the caller already has a good
+     * profile, so a broken cache degrades to "not cached", not to an error.
+     */
+    suspend fun getArtistInfo(artistName: String, forceRefresh: Boolean = false): ArtistInfo {
+        val provider = loadProvider().normalizedProvider()
+        val artistKey = artistName.trim().lowercase()
+        log.d { "getArtistInfo(artist=$artistName provider=$provider force=$forceRefresh)" }
+
+        if (!forceRefresh) {
+            cachedInfo(artistKey, provider)?.let { cached ->
+                log.i { "artist info cache hit artist=$artistName provider=$provider" }
+                return cached
+            }
+        }
+
+        val info = when (provider) {
             ARTIST_INFO_PROVIDER_OLLAMA -> getArtistInfoFromOllama(artistName)
             ARTIST_INFO_PROVIDER_CLAUDE -> getArtistInfoFromClaude(artistName)
             else -> getArtistInfoFromOpenAi(artistName)
+        }
+        storeInfo(artistKey, provider, artistName, info)
+        return info
+    }
+
+    /** Epoch millis the stored profile was fetched, or null when not cached. */
+    suspend fun cachedAt(artistName: String): Long? {
+        val dao = cacheDao ?: return null
+        return try {
+            dao.get(artistName.trim().lowercase(), loadProvider().normalizedProvider())?.fetchedAt
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.w(e) { "artist info cache read failed artist=$artistName" }
+            null
+        }
+    }
+
+    /** Forget every stored profile (Settings → clear AI cache). */
+    suspend fun clearCache() {
+        val dao = cacheDao ?: return
+        try {
+            dao.deleteAll()
+            log.i { "artist info cache cleared" }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.w(e) { "artist info cache clear failed" }
+        }
+    }
+
+    private suspend fun cachedInfo(artistKey: String, provider: String): ArtistInfo? {
+        val dao = cacheDao ?: return null
+        return try {
+            val row = dao.get(artistKey, provider) ?: return null
+            json.decodeFromString<ArtistInfo>(row.infoJson)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A row written by an older model shape is not worth failing over —
+            // drop it and let the caller re-fetch.
+            log.w(e) { "cached artist info did not decode key=$artistKey; discarding" }
+            runCatching { dao.delete(artistKey, provider) }
+            null
+        }
+    }
+
+    private suspend fun storeInfo(
+        artistKey: String,
+        provider: String,
+        artistName: String,
+        info: ArtistInfo,
+    ) {
+        val dao = cacheDao ?: return
+        try {
+            dao.upsert(
+                ArtistInfoCacheEntity(
+                    artistKey = artistKey,
+                    provider = provider,
+                    artistName = artistName,
+                    infoJson = json.encodeToString(info),
+                    fetchedAt = getTimeMillis(),
+                ),
+            )
+            log.i { "artist info cached artist=$artistName provider=$provider" }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.w(e) { "artist info cache write failed artist=$artistName" }
         }
     }
 

@@ -322,9 +322,19 @@ class LibraryViewModel(
         }
     }
 
-    fun loadArtistInfo() {
+    /** Show the profile, serving the cached one when it is already stored. */
+    fun loadArtistInfo() = fetchArtistInfo(forceRefresh = false)
+
+    /**
+     * Re-ask the model and overwrite the cache — the Refresh button. Distinct
+     * from [loadArtistInfo] because that one would just hand back the cached
+     * copy and look like it did nothing.
+     */
+    fun refreshArtistInfo() = fetchArtistInfo(forceRefresh = true)
+
+    private fun fetchArtistInfo(forceRefresh: Boolean) {
         val artist = _state.value.selectedArtist
-        log.d { "loadArtistInfo(artist=$artist)" }
+        log.d { "fetchArtistInfo(artist=$artist force=$forceRefresh)" }
         if (artist.isNullOrBlank() || artist == MULTIPLE_ARTISTS_SENTINEL) {
             _state.update {
                 it.copy(artistInfoState = ArtistInfoState.Error("Select a single artist first"))
@@ -342,7 +352,7 @@ class LibraryViewModel(
         viewModelScope.launch {
             _state.update { it.copy(artistInfoState = ArtistInfoState.Loading) }
             try {
-                val info = repository.getArtistInfo(artist)
+                val info = repository.getArtistInfo(artist, forceRefresh)
                 _state.update { it.copy(artistInfoState = ArtistInfoState.Success(info)) }
             } catch (e: Exception) {
                 log.e(e) { "loadArtistInfo failed artist=$artist" }
@@ -372,13 +382,18 @@ class LibraryViewModel(
         showArtistInfoForArtist(artist)
     }
 
+    /**
+     * The dialog's reload action. Forces a re-fetch: it is either a retry after
+     * an error (nothing cached) or an explicit refresh of a cached profile, and
+     * neither wants the stored copy handed straight back.
+     */
     fun reloadArtistInfoDialog() {
         _state.value.artistInfoDialogArtist?.let { artist ->
-            if (artist != "Unknown artist") showArtistInfoForArtist(artist)
+            if (artist != "Unknown artist") showArtistInfoForArtist(artist, forceRefresh = true)
         }
     }
 
-    private fun showArtistInfoForArtist(artist: String) {
+    private fun showArtistInfoForArtist(artist: String, forceRefresh: Boolean = false) {
         val repository = artistInfoRepository
         if (repository == null) {
             _state.update {
@@ -398,7 +413,7 @@ class LibraryViewModel(
                 )
             }
             try {
-                val info = repository.getArtistInfo(artist)
+                val info = repository.getArtistInfo(artist, forceRefresh)
                 _state.update {
                     it.copy(
                         artistInfoDialogArtist = artist,

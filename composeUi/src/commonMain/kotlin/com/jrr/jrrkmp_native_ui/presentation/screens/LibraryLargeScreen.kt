@@ -465,6 +465,7 @@ private fun ArtistsSplit(
                                 artistName = selected,
                                 artistInfoState = state.artistInfoState,
                                 onLoad = { viewModel.loadArtistInfo() },
+                                onRefresh = { viewModel.refreshArtistInfo() },
                             )
                         }
                         items(albums) { album ->

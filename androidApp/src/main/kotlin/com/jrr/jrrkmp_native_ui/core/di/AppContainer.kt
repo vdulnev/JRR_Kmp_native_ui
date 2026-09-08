@@ -129,6 +129,9 @@ class AppContainer(context: Context) {
             loadClaudeApiKey = { prefs.getString("claude_api_key", null) },
             loadOllamaBaseUrl = { prefs.getString("ollama_base_url", null) },
             loadOllamaModel = { prefs.getString("ollama_model", null) },
+            // Profiles are cached in Room, so re-opening an artist is instant
+            // and free; the Refresh button re-asks the model.
+            cacheDao = database.artistInfoCacheDao(),
         )
     }
 

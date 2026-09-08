@@ -302,13 +302,18 @@ class AlbumDetailViewModel(
         showArtistInfoForArtist(artist)
     }
 
+    /**
+     * The dialog's reload action. Forces a re-fetch: it is either a retry after
+     * an error (nothing cached) or an explicit refresh of a cached profile, and
+     * neither wants the stored copy handed straight back.
+     */
     fun reloadArtistInfoDialog() {
         _state.value.artistInfoDialogArtist?.let { artist ->
-            if (artist != "Unknown artist") showArtistInfoForArtist(artist)
+            if (artist != "Unknown artist") showArtistInfoForArtist(artist, forceRefresh = true)
         }
     }
 
-    private fun showArtistInfoForArtist(artist: String) {
+    private fun showArtistInfoForArtist(artist: String, forceRefresh: Boolean = false) {
         val repository = artistInfoRepository
         if (repository == null) {
             _state.update {
@@ -328,7 +333,7 @@ class AlbumDetailViewModel(
                 )
             }
             try {
-                val info = repository.getArtistInfo(artist)
+                val info = repository.getArtistInfo(artist, forceRefresh)
                 _state.update {
                     it.copy(
                         artistInfoDialogArtist = artist,

@@ -1,9 +1,16 @@
 package com.jrr.jrrkmp_native_ui.domain.model
 
+import kotlinx.serialization.Serializable
+
 /**
  * A full AI-generated artist profile: a career-length biography plus the
  * complete discography, debut to final (or latest) release.
+ *
+ * `@Serializable` so a fetched profile can be parked in the `artist_info_cache`
+ * table as JSON (the same trick [Track] uses for the saved local queue) — an AI
+ * lookup costs money and can take minutes, so it is worth not repeating.
  */
+@Serializable
 data class ArtistInfo(
     val artistName: String,
     /** Where the act came from, e.g. "Manchester, England". Blank when unknown. */
@@ -52,6 +59,7 @@ data class ArtistInfo(
 }
 
 /** One release on the [ArtistInfo.discography] timeline. */
+@Serializable
 data class DiscographyAlbum(
     val title: String,
     /** Year of first release as text — models sometimes qualify it ("1971", "1971 (UK)"). */

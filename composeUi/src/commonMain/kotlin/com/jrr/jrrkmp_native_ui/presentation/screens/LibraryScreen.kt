@@ -223,6 +223,7 @@ fun LibraryScreen(
                     onAlbumInfoClick = { infoAlbum = it },
                     onBackClick = { viewModel.selectArtist(null) },
                     onLoadArtistInfo = { viewModel.loadArtistInfo() },
+                    onRefreshArtistInfo = { viewModel.refreshArtistInfo() },
                     favorites = state.favorites,
                     onToggleFavoriteAlbum = { viewModel.toggleFavoriteAlbum(it) }
                 )
@@ -403,6 +404,7 @@ fun ArtistsTab(
     onAlbumInfoClick: (Album) -> Unit,
     onBackClick: () -> Unit,
     onLoadArtistInfo: () -> Unit,
+    onRefreshArtistInfo: () -> Unit,
     favorites: List<com.jrr.jrrkmp_native_ui.data.db.entity.FavoriteEntity>,
     onToggleFavoriteAlbum: (Album) -> Unit
 ) {
@@ -455,6 +457,7 @@ fun ArtistsTab(
                                 artistName = selectedArtist,
                                 artistInfoState = artistInfoState,
                                 onLoad = onLoadArtistInfo,
+                                onRefresh = onRefreshArtistInfo,
                             )
                         }
                         items(filteredAlbums) { album ->
