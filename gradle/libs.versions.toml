@@ -1,6 +1,6 @@
 [versions]
-agp = "9.2.1"
-android-compileSdk = "36"
+agp = "9.4.1"
+android-compileSdk = "37"
 android-minSdk = "33"
 # Lower floor for the Android TV path (:androidTvApp + the libraries it consumes,
 # :sharedLogic and :androidCore). Older Android TV boxes (e.g. Mi Box 3 = API 28)
@@ -8,31 +8,31 @@ android-minSdk = "33"
 android-minSdkTv = "23"
 android-targetSdk = "36"
 androidx-activity = "1.13.0"
-androidx-appcompat = "1.7.1"
-androidx-core = "1.18.0"
+androidx-appcompat = "1.8.0"
+androidx-core = "1.19.0"
 androidx-espresso = "3.7.0"
-androidx-lifecycle = "2.11.0-beta01"
+androidx-lifecycle = "2.11.0"
 androidx-testExt = "1.3.0"
-composeMultiplatform = "1.11.0"
+composeMultiplatform = "1.11.1"
 junit = "4.13.2"
 kotlin = "2.3.21"
 material3 = "1.11.0-alpha07"
-kotlinx-coroutines = "1.10.1"
+kotlinx-coroutines = "1.10.2"
 kotlinx-serialization = "1.8.0"
 ktor = "3.0.0"
-room = "2.8.4"
+room = "2.8.5"
 sqlite = "2.6.2"
-ksp = "2.3.8"
+ksp = "2.3.12"
 media3 = "1.3.1"
 coil3 = "3.1.0"
-work = "2.9.0"
-skie = "0.10.12"
-kermit = "2.1.0"
+work = "2.11.2"
+skie = "0.10.14"
+kermit = "2.2.0"
 atomicfu = "0.27.0"
 decompose = "3.5.0"
-essenty = "2.5.0"
+essenty = "2.6.0"
 vlcj = "4.8.3"
-androidx-tv = "1.0.0"
+androidx-tv = "1.1.0"
 # 2.2.3 klibs are built with Kotlin 2.4.0 (ABI > our 2.3.21 compiler); 2.2.2
 # is the newest whose native ABI our toolchain can consume.
 arrow = "2.2.2"
@@ -82,7 +82,7 @@ media3-datasource-okhttp = { group = "androidx.media3", name = "media3-datasourc
 coil3-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil3" }
 coil3-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil3" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version = "1.7.0" }
+compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version = "1.7.8" }
 # Jetpack Compose for TV (D-pad focus components) — used only by :androidTvApp.
 androidx-tv-material = { module = "androidx.tv:tv-material", version.ref = "androidx-tv" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
