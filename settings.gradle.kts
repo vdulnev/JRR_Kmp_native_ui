@@ -21,7 +21,7 @@ pluginManagement {
 // that already have a JBR (e.g. via Android Studio / IntelliJ), the local one
 // is used and nothing is downloaded.
 plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "0.9.0"
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
 dependencyResolutionManagement {

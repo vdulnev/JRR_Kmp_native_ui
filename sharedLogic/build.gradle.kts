@@ -118,7 +118,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
             // Drives the typed MCWS calls against canned HTTP responses.
             implementation(libs.ktor.client.mock)
         }
